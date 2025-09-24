@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: ${DBMS_CONNECTION}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DBMS_USERNAME}
+    password: ${DBMS_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+jwt:
+  secret-key: ${SECRET_KEY}
+  valid-duration: 240
+  refreshable-duration: 140
+
+admin:
+  username: ${ADMIN_USERNAME}
+  password: ${ADMIN_PASSWORD}

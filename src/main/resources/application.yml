@@ -1,0 +1,7 @@
+spring:
+  application:
+      name: producer-workbench
+
+
+  profiles:
+    active: dev
