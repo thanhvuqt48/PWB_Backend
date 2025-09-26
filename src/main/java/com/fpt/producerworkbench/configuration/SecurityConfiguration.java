@@ -36,7 +36,7 @@ public class SecurityConfiguration {
             "/api/v1/auth/introspect",
             "/api/v1/auth/refresh",
             "/api/v1/producers",
-            "api/v1/producers/recommend-by-spotify"
+            "api/v1/producers/recommend-by-spotify",
             "api/v1/users/send-otp-register",
             "api/v1/users/verify-otp",
             "api/v1/users/send-otp"
