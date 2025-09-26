@@ -34,7 +34,10 @@ public class SecurityConfiguration {
             "/api/v1/users/register",
             "/api/v1/auth/logout",
             "/api/v1/auth/introspect",
-            "/api/v1/auth/refresh"
+            "/api/v1/auth/refresh",
+            "api/v1/users/send-otp-register",
+            "api/v1/users/verify-otp",
+            "api/v1/users/send-otp"
 
     };
 

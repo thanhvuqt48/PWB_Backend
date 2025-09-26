@@ -10,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -56,6 +57,12 @@ public class User extends AbstractEntity<Long> implements UserDetails {
 
     @Column(precision = 15, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
+
+    @Column(name = "otp")
+    String otp;
+
+    @Column(name = "otp_expiry_date")
+    LocalDateTime otpExpiryDate;
 
     @Transient
     public String getFullName() {
