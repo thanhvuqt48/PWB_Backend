@@ -7,6 +7,7 @@ import com.fpt.producerworkbench.dto.request.RefreshTokenRequest;
 import com.fpt.producerworkbench.dto.response.AuthenticationResponse;
 import com.fpt.producerworkbench.dto.response.IntrospectResponse;
 import com.fpt.producerworkbench.entity.InvalidatedToken;
+import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.InvalidatedTokenRepository;
@@ -19,6 +20,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -33,23 +37,19 @@ import java.util.Date;
 @Slf4j
 public class AuthenticationServiceImpl implements AuthenticationService {
 
-
     UserRepository userRepository;
     InvalidatedTokenRepository invalidatedTokenRepository;
     JwtService jwtService;
+    AuthenticationManager authenticationManager;
 
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
-        var user = userRepository
-                .findByEmail(request.getUsername())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        boolean authenticated = passwordEncoder.matches(request.getPassword(), user.getPasswordHash());
-
-        if (!authenticated) throw new AppException(ErrorCode.USER_NOT_FOUND);
-
+        var user = (User) authentication.getPrincipal();
         var token = jwtService.generateToken(user);
+
+        log.info("User {} logged in successfully", user.getEmail());
 
         return AuthenticationResponse.builder().token(token).authenticated(true).build();
     }
@@ -113,11 +113,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         String scope = null;
         try {
             SignedJWT signedJWT = jwtService.verifyToken(token, false);
-            scope = (String) signedJWT.getJWTClaimsSet().getClaim("scope");
-        } catch (AppException e) {
+            scope = signedJWT.getJWTClaimsSet().getClaim("scope").toString();
+        } catch (AppException | ParseException e) {
             isValid = false;
-        } catch (ParseException e) {
-            throw new RuntimeException(e);
         }
         return IntrospectResponse.builder().valid(isValid).scope(scope).build();
     }

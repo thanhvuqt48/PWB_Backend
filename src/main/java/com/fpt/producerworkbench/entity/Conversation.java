@@ -14,11 +14,11 @@ import lombok.*;
 public class Conversation extends AbstractEntity<Long>{
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id") // Nullable
+    @JoinColumn(name = "project_id")
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "milestone_id") // Nullable
+    @JoinColumn(name = "milestone_id")
     private Milestone milestone;
 
     @Enumerated(EnumType.STRING)
