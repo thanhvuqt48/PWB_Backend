@@ -12,7 +12,7 @@ import java.util.Set;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Portfolio extends AbstractEntity<Long>{
+public class Portfolio extends AbstractEntity<Long> {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true, nullable = false)
@@ -29,6 +29,12 @@ public class Portfolio extends AbstractEntity<Long>{
     @Column(name = "is_public")
     private boolean isPublic;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<PortfolioSection> sections;
 
@@ -37,4 +43,10 @@ public class Portfolio extends AbstractEntity<Long>{
 
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<SocialLink> socialLinks;
+
+    @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<PortfolioGenre> portfolioGenres;
+
+    @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<PortfolioTag> portfolioTags;
 }
