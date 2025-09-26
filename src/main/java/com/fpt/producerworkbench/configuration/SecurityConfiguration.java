@@ -29,7 +29,8 @@ public class SecurityConfiguration {
             "/api/v1/auth/logout",
             "/api/v1/auth/introspect",
             "/api/v1/auth/refresh",
-            "/api/v1/producers"
+            "/api/v1/producers",
+            "api/v1/producers/recommend-by-spotify"
     };
 
     @Bean
