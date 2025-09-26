@@ -18,6 +18,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
@@ -72,15 +73,12 @@ public class JwtServiceImpl implements JwtService{
     }
 
 
-    public SignedJWT verifyToken(String token, boolean isRefresh) {
+    public SignedJWT verifyToken(String token, boolean isRefresh){
         if (token == null || token.trim().isEmpty()) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
-
-        JWSVerifier verifier = null;
         try {
-            verifier = new MACVerifier(secretKey.getBytes());
-
+            log.info("verify start");
             SignedJWT signedJWT = SignedJWT.parse(token);
 
             Date expiryTime = (isRefresh)
@@ -96,24 +94,22 @@ public class JwtServiceImpl implements JwtService{
                 throw new ExpiredTokenException();
             }
 
-            var verified = signedJWT.verify(verifier);
-            if (!verified) throw new InvalidTokenException();
-
             if (invalidatedTokenRepository.existsById(signedJWT.getJWTClaimsSet().getJWTID()))
                 throw new InvalidTokenException();
 
+            boolean isValid = signedJWT.verify(new MACVerifier(secretKey.getBytes()));
+            if(!isValid) throw new InvalidTokenException();
+
             return signedJWT;
-
-        } catch (JOSEException | ParseException e) {
-            throw new RuntimeException(e);
+        }catch (ParseException | JOSEException e) {
+            log.info("verify failed");
+            throw new InvalidTokenException();
         }
-
     }
 
-    private String buildScope(User user) {
-        StringJoiner stringJoiner = new StringJoiner(" ");
-
-        Optional.ofNullable(user.getRole()).ifPresent(role -> stringJoiner.add(role.toString()));
-        return stringJoiner.toString();
+    private List<String> buildScope(User user) {
+        return user.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList();
     }
 }
