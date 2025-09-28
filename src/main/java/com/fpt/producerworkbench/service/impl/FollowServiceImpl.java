@@ -15,8 +15,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 
 @Service
 @RequiredArgsConstructor
@@ -27,23 +32,63 @@ public class FollowServiceImpl implements FollowService {
     FollowRepository followRepository;
     UserRepository userRepository;
 
+
+    private Long resolveCurrentUserId(Authentication authentication) {
+        if (authentication == null) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        String email = null;
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof Jwt) {
+            Jwt jwt = (Jwt) principal;
+            email = jwt.getClaimAsString("email");
+            if (email == null || email.isBlank()) {
+                email = jwt.getClaimAsString("sub");
+            }
+        }
+
+        else if (principal instanceof UserDetails) {
+            email = ((UserDetails) principal).getUsername();
+        }
+
+        else if (principal instanceof User) {
+            email = ((User) principal).getEmail();
+        }
+
+        if (email == null || email.isBlank()) {
+            email = authentication.getName();
+        }
+
+        if (email == null || email.isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User me = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        return me.getId();
+    }
+
     @Override
     @Transactional
-    public void follow(Long followerId, Long followeeId) {
-        if (followerId == null || followeeId == null) {
+    public void follow(Authentication auth, Long followeeId) {
+        Long followerId = resolveCurrentUserId(auth);
+
+        if (followeeId == null) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
         if (followerId.equals(followeeId)) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
-        
         User follower = userRepository.findById(followerId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         User followee = userRepository.findById(followeeId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Idempotent: nếu đã follow thì coi như thành công (không quăng lỗi)
+        // Idempotent
         if (followRepository.existsByFollower_IdAndFollowee_Id(follower.getId(), followee.getId())) {
             return;
         }
@@ -55,22 +100,21 @@ public class FollowServiceImpl implements FollowService {
                     .build();
             followRepository.save(follow);
         } catch (DataIntegrityViolationException ex) {
-            // Trường hợp đua hoặc vi phạm UNIQUE/CHECK ở DB
             log.info("Follow constraint violated ({} -> {}): {}", followerId, followeeId, ex.getMessage());
-            // Giữ idempotent: coi như đã follow
-            
+            // giữ idempotent: coi như đã follow
         }
     }
 
     @Override
     @Transactional
-    public void unfollow(Long followerId, Long followeeId) {
-        if (followerId == null || followeeId == null) {
+    public void unfollow(Authentication auth, Long followeeId) {
+        Long followerId = resolveCurrentUserId(auth);
+
+        if (followeeId == null) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
         try {
             followRepository.deleteByFollower_IdAndFollowee_Id(followerId, followeeId);
-            // Idempotent: nếu không tồn tại thì cũng coi như OK
         } catch (Exception ex) {
             log.warn("Unfollow failed ({} -> {}): {}", followerId, followeeId, ex.getMessage());
             throw new AppException(ErrorCode.DATABASE_ERROR);
@@ -78,8 +122,10 @@ public class FollowServiceImpl implements FollowService {
     }
 
     @Override
-    public boolean isFollowing(Long followerId, Long followeeId) {
-        if (followerId == null || followeeId == null) {
+    public boolean isFollowing(Authentication auth, Long followeeId) {
+        Long followerId = resolveCurrentUserId(auth);
+
+        if (followeeId == null) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
         return followRepository.existsByFollower_IdAndFollowee_Id(followerId, followeeId);

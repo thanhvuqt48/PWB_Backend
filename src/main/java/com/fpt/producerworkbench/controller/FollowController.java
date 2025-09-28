@@ -25,17 +25,9 @@ public class FollowController {
 
     FollowService followService;
 
-    Long currentUserId(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof User u)) {
-            throw new IllegalStateException("Chưa xác thực hoặc principal không hợp lệ");
-        }
-        return u.getId();
-    }
-
     @PostMapping("/{targetId}/follow")
     ApiResponse<Void> follow(@PathVariable Long targetId, Authentication auth) {
-        Long me = currentUserId(auth);
-        followService.follow(me, targetId);
+        followService.follow(auth, targetId);
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Follow thành công")
@@ -44,11 +36,19 @@ public class FollowController {
 
     @DeleteMapping("/{targetId}/follow")
     ApiResponse<Void> unfollow(@PathVariable Long targetId, Authentication auth) {
-        Long me = currentUserId(auth);
-        followService.unfollow(me, targetId);
+        followService.unfollow(auth, targetId);
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Unfollow thành công")
+                .build();
+    }
+
+    @GetMapping("/{targetId}/follow/status")
+    ApiResponse<Map<String, Boolean>> isFollowing(@PathVariable Long targetId, Authentication auth) {
+        boolean following = followService.isFollowing(auth, targetId);
+        return ApiResponse.<Map<String, Boolean>>builder()
+                .code(HttpStatus.OK.value())
+                .result(Map.of("following", following))
                 .build();
     }
 
@@ -75,16 +75,6 @@ public class FollowController {
         return ApiResponse.<Page<FollowResponse>>builder()
                 .code(HttpStatus.OK.value())
                 .result(result)
-                .build();
-    }
-
-    @GetMapping("/{targetId}/follow/status")
-    ApiResponse<Map<String, Boolean>> isFollowing(@PathVariable Long targetId, Authentication auth) {
-        Long me = currentUserId(auth);
-        boolean following = followService.isFollowing(me, targetId);
-        return ApiResponse.<Map<String, Boolean>>builder()
-                .code(HttpStatus.OK.value())
-                .result(Map.of("following", following))
                 .build();
     }
 
