@@ -21,10 +21,9 @@ import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.text.ParseException;
@@ -43,15 +42,21 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     AuthenticationManager authenticationManager;
 
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
+        log.info("Sign-in starting");
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
-        var user = (User) authentication.getPrincipal();
-        var token = jwtService.generateToken(user);
+            var user = (User) authentication.getPrincipal();
+            var token = jwtService.generateToken(user);
 
-        log.info("User {} logged in successfully", user.getEmail());
+            log.info("User {} logged in successfully", user.getEmail());
 
-        return AuthenticationResponse.builder().token(token).authenticated(true).build();
+            return AuthenticationResponse.builder().token(token).authenticated(true).build();
+        } catch (BadCredentialsException e) {
+            log.info("User {} login failed", request.getUsername());
+            throw new AppException(ErrorCode.INVALID_CREDENTIALS);
+        }
     }
 
     public void logout(LogoutRequest request) {
