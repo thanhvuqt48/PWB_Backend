@@ -30,14 +30,15 @@ public class SecurityConfiguration {
     private final UserDetailServiceImpl userDetailsService;
 
     private static final String[] PUBLIC_ENDPOINT = new String[]{
-            "/api/v1/auth/token",
+            "/api/v1/auth/login",
             "/api/v1/users/register",
             "/api/v1/auth/logout",
             "/api/v1/auth/introspect",
-            "/api/v1/auth/refresh",
+            "/api/v1/auth/refresh-token",
             "api/v1/users/send-otp-register",
             "api/v1/users/verify-otp",
-            "api/v1/users/send-otp"
+            "api/v1/users/send-otp-forgot-password",
+            "/api/v1/users/reset-password",
 
     };
 

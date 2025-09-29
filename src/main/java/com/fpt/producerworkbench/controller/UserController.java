@@ -1,10 +1,8 @@
 package com.fpt.producerworkbench.controller;
 
-import com.fpt.producerworkbench.dto.request.EmailRequest;
-import com.fpt.producerworkbench.dto.request.PasswordCreationRequest;
-import com.fpt.producerworkbench.dto.request.UserCreationRequest;
-import com.fpt.producerworkbench.dto.request.VerifyOtpRequest;
+import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
 import com.fpt.producerworkbench.dto.response.UserResponse;
 import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
 import com.fpt.producerworkbench.service.UserService;
@@ -47,7 +45,7 @@ public class UserController {
                 .build();
     }
 
-    @PostMapping("/send-otp")
+    @PostMapping("/send-otp-forgot-password")
     public ApiResponse<Void> sendOtpForgotPassword(@RequestBody EmailRequest request)
             throws MessagingException, UnsupportedEncodingException {
 
@@ -77,6 +75,14 @@ public class UserController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Reset Password Successfully")
+                .build();
+    }
+
+    @PutMapping("/change-password")
+    ApiResponse<ChangePasswordResponse> changePassword(@RequestBody @Valid ChangePasswordRequest request){
+        return ApiResponse.<ChangePasswordResponse>builder()
+                .code(HttpStatus.OK.value())
+                .result(userService.changePassword(request))
                 .build();
     }
 }
