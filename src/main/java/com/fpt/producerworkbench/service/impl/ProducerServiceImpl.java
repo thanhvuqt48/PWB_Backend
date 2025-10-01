@@ -8,6 +8,7 @@ import com.fpt.producerworkbench.mapper.PortfolioMapper;
 import com.fpt.producerworkbench.repository.PortfolioRepository;
 import com.fpt.producerworkbench.repository.ProducerSpecification;
 import com.fpt.producerworkbench.service.ProducerService;
+import com.fpt.producerworkbench.service.SpotifyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,7 @@ public class ProducerServiceImpl implements ProducerService {
     private final PortfolioRepository portfolioRepository;
     private final PortfolioMapper portfolioMapper;
     private final GenreRepository genreRepository;
+    private final SpotifyService spotifyService;
 
     @Override
     public Page<ProducerSummaryResponse> searchProducers(
@@ -83,4 +85,21 @@ public class ProducerServiceImpl implements ProducerService {
                 portfolioMapper.toProducerSummaryResponse(p.getPortfolio(), p.getDistanceInKm())
         );
     }
+
+    @Override
+    public Page<ProducerSummaryResponse> recommendBySpotifyTrack(String trackLink, Pageable pageable) {
+        List<String> musicStylesFromSpotify = spotifyService.getGenresFromTrackLink(trackLink);
+
+        if (musicStylesFromSpotify == null || musicStylesFromSpotify.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        Specification<Portfolio> spec = ProducerSpecification.hasGenresOrTags(musicStylesFromSpotify);
+
+        Page<Portfolio> portfolioPage = portfolioRepository.findAll(spec, pageable);
+
+        return portfolioPage.map(portfolio -> portfolioMapper.toProducerSummaryResponse(portfolio, null));
+    }
+
 }
+

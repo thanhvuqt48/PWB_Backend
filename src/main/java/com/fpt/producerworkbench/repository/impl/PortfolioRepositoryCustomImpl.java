@@ -36,22 +36,34 @@ public class PortfolioRepositoryCustomImpl implements PortfolioRepositoryCustom 
         Predicate predicate = spec.toPredicate(root, query, cb);
         query.where(predicate);
 
+        query.orderBy(cb.asc(distanceExpression));
+
         List<Tuple> tuples = entityManager.createQuery(query)
                 .setFirstResult((int) pageable.getOffset())
                 .setMaxResults(pageable.getPageSize())
                 .getResultList();
 
         List<PortfolioWithDistanceResponse> dtos = tuples.stream()
-                .map(tuple -> new PortfolioWithDistanceResponse(
-                        tuple.get("portfolio", Portfolio.class),
-                        tuple.get("distance", Double.class) / 1000
-                ))
+                .map(tuple -> {
+                    Double distanceInMeters = tuple.get("distance", Double.class);
+                    Double distanceInKm = (distanceInMeters != null) ? (distanceInMeters / 1000) : null;
+
+                    Double roundedDistanceInKm = (distanceInKm != null)
+                            ? Math.round(distanceInKm * 100.0) / 100.0
+                            : null;
+
+                    return new PortfolioWithDistanceResponse(
+                            tuple.get("portfolio", Portfolio.class),
+                            roundedDistanceInKm
+                    );
+                })
                 .collect(Collectors.toList());
 
         long total = countQuery(spec);
 
         return new PageImpl<>(dtos, pageable, total);
     }
+
 
     private long countQuery(Specification<Portfolio> spec) {
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
