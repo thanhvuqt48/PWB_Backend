@@ -46,16 +46,18 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_DOB(400, "Date of birth must be greater than 1950 and less than current date", HttpStatus.BAD_REQUEST),
-    INVALID_PASSWORD(400, "Password must be at least {min} characters", HttpStatus.BAD_REQUEST)
+    INVALID_PASSWORD(400, "Password must be at least {min} characters", HttpStatus.BAD_REQUEST),
+    PASSWORD_EXISTED(409, "Password existed", HttpStatus.CONFLICT),
+    CONFIRM_PASSWORD_INVALID(400, "Confirmed password is incorrect", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;
     private final String message;
-    private final HttpStatusCode statusCode;
+    private final HttpStatus httpStatus;
 
-    ErrorCode(int code, String message, HttpStatusCode statusCode) {
+    ErrorCode(int code, String message, HttpStatus httpStatus) {
         this.code = code;
         this.message = message;
-        this.statusCode = statusCode;
+        this.httpStatus = httpStatus;
     }
 }

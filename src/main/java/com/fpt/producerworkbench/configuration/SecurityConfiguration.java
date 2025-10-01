@@ -4,17 +4,11 @@ import com.fpt.producerworkbench.service.impl.UserDetailServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-<<<<<<< HEAD
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
-=======
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.ProviderManager;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
->>>>>>> 74dad285408b3a4eb401bb21dc3be8b744149d14
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -38,24 +32,22 @@ public class SecurityConfiguration {
     private final UserDetailServiceImpl userDetailsService;
 
     private static final String[] PUBLIC_ENDPOINT = new String[]{
-            "/api/v1/auth/token",
+            "/api/v1/auth/login",
             "/api/v1/users/register",
             "/api/v1/auth/logout",
             "/api/v1/auth/introspect",
+            "/api/v1/auth/refresh-token",
             "/api/v1/auth/refresh",
             "/api/v1/producers",
-<<<<<<< HEAD
             "/api/v1/producers/recommend-by-spotify",
             "/api/v1/users/send-otp-register",
             "/api/v1/users/verify-otp",
             "/api/v1/users/send-otp"
-=======
-            "api/v1/producers/recommend-by-spotify"
+            "api/v1/producers/recommend-by-spotify",
             "api/v1/users/send-otp-register",
             "api/v1/users/verify-otp",
-            "api/v1/users/send-otp"
->>>>>>> 74dad285408b3a4eb401bb21dc3be8b744149d14
-
+            "api/v1/users/send-otp-forgot-password",
+            "/api/v1/users/reset-password",
     };
 
     @Bean
