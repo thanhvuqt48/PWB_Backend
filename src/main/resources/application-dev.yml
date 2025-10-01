@@ -28,7 +28,7 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
     properties:
-      spring.json.trusted.packages: "com.fpt.producerworkbench.dto.event" # hoặc "*" để cho phép tất cả các package
+      spring.json.trusted.packages: "com.fpt.producerworkbench.dto.event"
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -37,8 +37,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: ""  # Nếu không có mật khẩu
-
+      password: ""
 jwt:
   secret-key: ${SECRET_KEY}
   valid-duration: 240
@@ -48,13 +47,12 @@ admin:
   username: ${ADMIN_USERNAME}
   password: ${ADMIN_PASSWORD}
 
-  server:
-    port: 8080
-    ssl:
-      key-store-type: PKCS12
-      key-store: classpath:producerworkbench.p12
-      key-store-password:  ${KEY_STORE_PASSWORD}
-      key-alias: ${KEY_ALIAS}
+customer:
+  username: ${CUSTOMER_USERNAME}
+  password: ${CUSTOMER_PASSWORD}
+producer:
+  username: ${PRODUCER_USERNAME}
+  password: ${PRODUCER_PASSWORD}
 
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}

@@ -4,9 +4,11 @@ import com.fpt.producerworkbench.service.impl.UserDetailServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -37,12 +39,15 @@ public class SecurityConfiguration {
             "/api/v1/auth/refresh-token",
             "/api/v1/auth/refresh",
             "/api/v1/producers",
+            "/api/v1/producers/recommend-by-spotify",
+            "/api/v1/users/send-otp-register",
+            "/api/v1/users/verify-otp",
+            "/api/v1/users/send-otp"
             "api/v1/producers/recommend-by-spotify",
             "api/v1/users/send-otp-register",
             "api/v1/users/verify-otp",
             "api/v1/users/send-otp-forgot-password",
             "/api/v1/users/reset-password",
-
     };
 
     @Bean
@@ -53,8 +58,10 @@ public class SecurityConfiguration {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(request -> request.requestMatchers(PUBLIC_ENDPOINT)
+                .authorizeHttpRequests(request -> request
+                        .requestMatchers(PUBLIC_ENDPOINT)
                         .permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/actuator/**")
                         .permitAll()

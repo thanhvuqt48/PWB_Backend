@@ -23,6 +23,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(value = Exception.class)
     ResponseEntity<ApiResponse> handleException(Exception e) {
+        log.error("An uncategorized error occurred: ", e);
 
         return ResponseEntity.badRequest()
                 .body(ApiResponse.builder()

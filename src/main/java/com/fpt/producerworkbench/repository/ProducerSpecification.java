@@ -63,4 +63,24 @@ public class ProducerSpecification {
         };
     }
 
+    public static Specification<Portfolio> hasGenresOrTags(List<String> names) {
+        return (root, query, criteriaBuilder) -> {
+            if (names == null || names.isEmpty()) {
+                return null;
+            }
+
+            query.distinct(true);
+
+            Join<Portfolio, PortfolioGenre> portfolioGenreJoin = root.join("portfolioGenres");
+            Join<PortfolioGenre, Genre> genreJoin = portfolioGenreJoin.join("genre");
+            Predicate genrePredicate = genreJoin.get("name").in(names);
+
+            Join<Portfolio, PortfolioTag> portfolioTagJoin = root.join("portfolioTags");
+            Join<PortfolioTag, Tag> tagJoin = portfolioTagJoin.join("tag");
+            Predicate tagPredicate = tagJoin.get("name").in(names);
+
+            return criteriaBuilder.or(genrePredicate, tagPredicate);
+        };
+    }
+
 }
