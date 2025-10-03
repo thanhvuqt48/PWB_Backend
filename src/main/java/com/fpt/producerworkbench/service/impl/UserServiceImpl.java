@@ -57,7 +57,7 @@ public class UserServiceImpl implements UserService {
 
         String storedOtp = otpService.getOtp(request.getEmail());
         if (storedOtp == null || !storedOtp.equals(otp)) {
-            throw new AppException(ErrorCode.TOKEN_INVALID);
+            throw new AppException(ErrorCode.OTP_INVALID);
         }
 
         User user = userMapper.toUser(request);
