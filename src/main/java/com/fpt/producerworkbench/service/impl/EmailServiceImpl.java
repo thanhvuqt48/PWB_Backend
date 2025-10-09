@@ -69,7 +69,7 @@ public class EmailServiceImpl implements EmailService {
         MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
                 MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
 
-        helper.setFrom(emailFrom, "DLearning Team");
+        helper.setFrom(emailFrom, "Producer Workbench");
         helper.setTo(event.getRecipient());
         helper.setSubject(event.getSubject());
         helper.setText(htmlContent, true);
