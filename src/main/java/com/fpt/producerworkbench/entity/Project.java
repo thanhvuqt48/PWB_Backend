@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.entity;
 
 import com.fpt.producerworkbench.common.ProjectStatus;
+import com.fpt.producerworkbench.common.ProjectType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +16,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Project  extends AbstractEntity<Long>{
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String title;
 
     @Column(columnDefinition = "TEXT")
@@ -42,4 +43,7 @@ public class Project  extends AbstractEntity<Long>{
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "project_type", nullable = false)
+    private ProjectType type;
 }
