@@ -57,3 +57,10 @@ producer:
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}
   client-secret: ${SPOTIFY_CLIENT_SECRET}
+  
+outbound:
+  identity:
+    client-id: ${CLIENT_ID}
+    client-secret: ${CLIENT_SECRET}
+    redirect-uri: ${REDIRECT_URI}
+
