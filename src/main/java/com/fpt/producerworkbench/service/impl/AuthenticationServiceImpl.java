@@ -63,7 +63,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     OutboundIdentityClient outboundIdentityClient;
     OutboundUserClient outboundUserClient;
 
-//    @Transactional
+    @Transactional
     public AuthenticationResponse outboundAuthenticate(String code) {
         ExchangeTokenResponse response = outboundIdentityClient.exchangeToken(ExchangeTokenRequest.builder()
                 .code(code)
