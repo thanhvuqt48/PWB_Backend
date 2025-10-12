@@ -18,7 +18,7 @@ public class ProjectFile extends AbstractEntity<Long>{
     private Project project;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "milestone_id") // Nullable
+    @JoinColumn(name = "milestone_id")
     private Milestone milestone;
 
     @ManyToOne(fetch = FetchType.LAZY)
