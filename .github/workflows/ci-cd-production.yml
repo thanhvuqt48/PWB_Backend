@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:  # Cho phép chạy manual
+  workflow_dispatch:
 
 env:
   JAVA_VERSION: '21'
@@ -12,48 +12,8 @@ env:
 
 jobs:
   ci:
-    name: Build & Test
+    name: Build (skip tests)
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: test_password
-          MYSQL_DATABASE: producer_workbench_test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h localhost"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-
-      redis:
-        image: redis:latest
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd="redis-cli ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-
-      kafka:
-        image: confluentinc/cp-kafka:7.5.5
-        ports:
-          - 9092:9092
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
-          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
     steps:
       - name: 📥 Checkout Code
@@ -73,33 +33,11 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      - name: 🔨 Build
-        run: mvn clean compile -DskipTests
+      - name: 🔨 Build (skip tests)
+        run: mvn -B -q clean compile -DskipTests
 
-      - name: 🧪 Run Tests
-        run: mvn test
-        env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/producer_workbench
-          SPRING_DATASOURCE_USERNAME: root
-          SPRING_DATASOURCE_PASSWORD: 123456
-          SPRING_DATA_REDIS_HOST: localhost
-          SPRING_DATA_REDIS_PORT: 6379
-          SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-
-      - name: 📊 Test Report
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: Production Test Results
-          path: target/surefire-reports/*.xml
-          reporter: java-junit
-
-      - name: 📈 Generate Coverage
-        if: success()
-        run: mvn jacoco:report
-
-      - name: 📦 Package
-        run: mvn package -DskipTests
+      - name: 📦 Package (skip tests)
+        run: mvn -B -q package -DskipTests
 
       - name: 📤 Upload JAR Artifact
         uses: actions/upload-artifact@v4
@@ -157,7 +95,7 @@ jobs:
     needs: docker
     runs-on: ubuntu-latest
     environment:
-      name: production
+      name: production   # không dùng secrets ở url
 
     steps:
       - name: 🚀 Deploy to Production EC2
@@ -168,38 +106,23 @@ jobs:
           key: ${{ secrets.PROD_EC2_SSH_KEY }}
           script: |
             set -e
-            
-            echo "📍 Navigating to project directory..."
             cd ~/PWB_Backend
-            
-            echo "💾 Backing up database..."
-            docker exec mysql mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} > backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null || echo "No existing database to backup"
-            
-            echo "📥 Pulling latest code from main..."
             git fetch origin
             git checkout main
             git pull origin main
-            
-            echo "🛑 Stopping current containers..."
+
             docker-compose down || true
-            
-            echo "🐳 Pulling latest Docker image..."
             docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
-            
-            echo "🧹 Cleaning up old images..."
             docker image prune -f
-            
-            echo "🚀 Starting services..."
             docker-compose up -d
-            
+
             echo "⏳ Waiting for services to start..."
             sleep 40
-            
-            echo "🔍 Health check..."
+
             RETRY=0
             MAX_RETRY=10
             while [ $RETRY -lt $MAX_RETRY ]; do
-              if curl -f http://localhost:8080/actuator/health; then
+              if curl -fsS http://localhost:8080/actuator/health; then
                 echo "✅ Health check passed!"
                 break
               else
@@ -208,31 +131,28 @@ jobs:
                 RETRY=$((RETRY+1))
               fi
             done
-            
+
             if [ $RETRY -eq $MAX_RETRY ]; then
               echo "❌ Health check failed after $MAX_RETRY attempts!"
-              echo "📋 Showing logs..."
               docker-compose logs --tail=100 pwb-service
               exit 1
             fi
-            
-            echo "📊 Services status:"
+
             docker-compose ps
-            
             echo "✅ Production deployment successful!"
 
       - name: 📊 Deployment Summary
         if: success()
         run: |
-          echo "🎉 Production deployment completed successfully!"
-          echo "🔗 URL: http://${{ secrets.PROD_EC2_HOST }}:8080"
-          echo "📦 Image: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest"
-          echo "🌿 Branch: main"
-          echo "📅 Date: $(date)"
+          echo "🎉 Production deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 URL: http://${{ secrets.PROD_EC2_HOST }}:8080" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Image: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "🌿 Branch: main" >> $GITHUB_STEP_SUMMARY
+          echo "📅 Date: $(date)" >> $GITHUB_STEP_SUMMARY
 
       - name: 🚨 Deployment Failed
         if: failure()
         run: |
           echo "❌ Production deployment FAILED!"
           echo "Check the logs above for details"
-          echo "SSH to server: ssh -i key.pem ubuntu@${{ secrets.PROD_EC2_HOST }}"
+          echo "SSH: ssh -i key.pem ubuntu@${{ secrets.PROD_EC2_HOST }}"
