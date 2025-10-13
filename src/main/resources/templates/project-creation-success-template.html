@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dự án mới đã được khởi tạo!</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0d0c1d;
+            font-family: 'Roboto', sans-serif;
+            color: #E0E0E0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #110f27 url('https://www.transparenttextures.com/patterns/stardust.png');
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #4a3d7a;
+            box-shadow: 0 0 50px rgba(168, 85, 247, 0.2);
+        }
+        .header {
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #FFFFFF;
+            font-size: 28px;
+            margin: 0;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(192, 132, 252, 0.5), 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+        .content {
+            padding: 0 40px 40px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .content p {
+            font-size: 16px;
+            color: #b3b0c5;
+        }
+        .project-card {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: 1px solid #4a3d7a;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+            box-shadow: inset 0 0 15px rgba(168, 85, 247, 0.1);
+        }
+        .project-card h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin: 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(90deg, #8A2BE2 0%, #4A00E0 100%);
+            color: #FFFFFF;
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+        }
+        .footer {
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #7b798e;
+            border-top: 1px solid #4a3d7a;
+        }
+        .footer a {
+            color: #a855f7;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <!-- Icon thành công -->
+        <img src="https://img.icons8.com/fluency/96/000000/verified-account.png" alt="Success Icon" style="width: 80px; height: 80px; margin-bottom: 20px; filter: drop-shadow(0 0 10px #4ade80);"/>
+        <h1>DỰ ÁN ĐÃ ĐƯỢC KHỞI TẠO!</h1>
+    </div>
+    <div class="content">
+        <p>Chào <b th:text="${ownerName}">[Tên Owner]</b>,</p>
+        <p>
+            Chúc mừng! Hành trình sáng tạo mới của bạn đã chính thức bắt đầu trên Producer Workbench.
+        </p>
+        <div class="project-card">
+            <p style="margin-top: 0; margin-bottom: 10px; color: #a3a0b5;">Dự án của bạn:</p>
+            <h2 th:text="${projectName}">[Tên Dự án]</h2>
+        </div>
+        <p>
+            Bây giờ bạn có thể truy cập không gian làm việc để bắt đầu quản lý, mời thành viên và biến ý tưởng thành hiện thực.
+        </p>
+        <a href="#" class="cta-button">Mở Bảng điều khiển</a>
+    </div>
+    <div class="footer">
+        <p>Trân trọng,<br/><b>Đội ngũ Producer Workbench</b></p>
+        <p>&copy; 2025 Producer Workbench. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>
