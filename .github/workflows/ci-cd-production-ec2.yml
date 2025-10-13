@@ -1,0 +1,229 @@
+name: CI/CD - Main (AWS EC2)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Cho phép chạy manual
+
+env:
+  JAVA_VERSION: '17'
+  JAVA_DISTRIBUTION: 'corretto'
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/pwb-backend
+
+jobs:
+  ci:
+    name: Build & Test
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: producer_workbench_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+      kafka:
+        image: confluentinc/cp-kafka:7.5.5
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: 📦 Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: 🔨 Build
+        run: mvn clean compile -DskipTests
+
+      - name: 🧪 Run Tests
+        run: mvn test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/producer_workbench_test
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: test_password
+          SPRING_DATA_REDIS_HOST: localhost
+          SPRING_DATA_REDIS_PORT: 6379
+          SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+
+      - name: 📊 Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Develop Test Results
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
+
+      - name: 📈 Generate Coverage
+        if: success()
+        run: mvn jacoco:report
+
+      - name: 📦 Package
+        run: mvn package -DskipTests
+
+      - name: 📤 Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: develop-jar
+          path: target/*.jar
+          retention-days: 7
+
+  docker:
+    name: Build & Push Docker Image
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐳 Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 🏗️ Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:develop
+            ${{ env.DOCKER_IMAGE }}:dev-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 🔒 Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_IMAGE }}:develop
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+
+      - name: 📤 Upload Security Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  deploy:
+    name: Deploy to EC2 Development
+    needs: docker
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+      url: http://${{ secrets.DEV_EC2_HOST }}:8080
+
+    steps:
+      - name: 🚀 Deploy to DEV EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USERNAME }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          script: |
+            set -e
+            
+            echo "📍 Navigating to project directory..."
+            cd ~/PWB_Backend
+            
+            echo "📥 Pulling latest code from develop..."
+            git fetch origin
+            git checkout develop
+            git pull origin develop
+            
+            echo "🛑 Stopping current containers..."
+            docker-compose down
+            
+            echo "🐳 Pulling latest Docker image..."
+            docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:develop
+            
+            echo "🔄 Updating docker-compose to use develop tag..."
+            sed -i 's|image: .*/pwb-backend:.*|image: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:develop|' docker-compose.yml
+            
+            echo "🚀 Starting services..."
+            docker-compose up -d
+            
+            echo "⏳ Waiting for services to start..."
+            sleep 30
+            
+            echo "🔍 Health check..."
+            if curl -f http://localhost:8080/actuator/health; then
+              echo "✅ Health check passed!"
+            else
+              echo "❌ Health check failed!"
+              echo "📋 Showing logs..."
+              docker-compose logs --tail=50 pwb-service
+              exit 1
+            fi
+            
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
+            
+            echo "📊 Services status:"
+            docker-compose ps
+            
+            echo "✅ Development deployment successful!"
+
+      - name: 📊 Deployment Summary
+        if: success()
+        run: |
+          echo "🎉 Development deployment completed successfully!"
+          echo "🔗 URL: http://${{ secrets.DEV_EC2_HOST }}:8080"
+          echo "📦 Image: ${{ env.DOCKER_IMAGE }}:develop"
+          echo "🌿 Branch: develop"
+          echo "⏰ Time: $(date)"
+
+      - name: 🚨 Deployment Failed
+        if: failure()
+        run: |
+          echo "❌ Development deployment FAILED!"
+          echo "Check the logs above for details"
+          echo "SSH to server: ssh -i key.pem ubuntu@${{ secrets.DEV_EC2_HOST }}"
