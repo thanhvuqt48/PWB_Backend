@@ -1,4 +1,4 @@
-name: CI/CD - Main (AWS EC2)
+name: CI/CD - Production (AWS EC2)
 
 on:
   push:
@@ -91,7 +91,7 @@ jobs:
         if: always()
         uses: dorny/test-reporter@v1
         with:
-          name: Develop Test Results
+          name: Production Test Results
           path: target/surefire-reports/*.xml
           reporter: java-junit
 
@@ -105,9 +105,9 @@ jobs:
       - name: 📤 Upload JAR Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: develop-jar
+          name: production-jar
           path: target/*.jar
-          retention-days: 7
+          retention-days: 30
 
   docker:
     name: Build & Push Docker Image
@@ -134,15 +134,15 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKER_IMAGE }}:develop
-            ${{ env.DOCKER_IMAGE }}:dev-${{ github.sha }}
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:prod-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: 🔒 Security Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKER_IMAGE }}:develop
+          image-ref: ${{ env.DOCKER_IMAGE }}:latest
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
@@ -154,76 +154,87 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   deploy:
-    name: Deploy to EC2 Development
+    name: Deploy to EC2 Production
     needs: docker
     runs-on: ubuntu-latest
     environment:
-      name: development
-      url: http://${{ secrets.DEV_EC2_HOST }}:8080
+      name: production
+      url: http://${{ secrets.PROD_EC2_HOST }}:8080
 
     steps:
-      - name: 🚀 Deploy to DEV EC2
+      - name: 🚀 Deploy to Production EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEV_EC2_HOST }}
-          username: ${{ secrets.DEV_EC2_USERNAME }}
-          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          host: ${{ secrets.PROD_EC2_HOST }}
+          username: ${{ secrets.PROD_EC2_USERNAME }}
+          key: ${{ secrets.PROD_EC2_SSH_KEY }}
           script: |
             set -e
             
             echo "📍 Navigating to project directory..."
             cd ~/PWB_Backend
             
-            echo "📥 Pulling latest code from develop..."
+            echo "💾 Backing up database..."
+            docker exec mysql mysqldump -u root -p${MYSQL_ROOT_PASSWORD} ${MYSQL_DATABASE} > backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null || echo "No existing database to backup"
+            
+            echo "📥 Pulling latest code from main..."
             git fetch origin
-            git checkout develop
-            git pull origin develop
+            git checkout main
+            git pull origin main
             
             echo "🛑 Stopping current containers..."
-            docker-compose down
+            docker-compose down || true
             
             echo "🐳 Pulling latest Docker image..."
-            docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:develop
+            docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
             
-            echo "🔄 Updating docker-compose to use develop tag..."
-            sed -i 's|image: .*/pwb-backend:.*|image: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:develop|' docker-compose.yml
+            echo "🧹 Cleaning up old images..."
+            docker image prune -f
             
             echo "🚀 Starting services..."
             docker-compose up -d
             
             echo "⏳ Waiting for services to start..."
-            sleep 30
+            sleep 40
             
             echo "🔍 Health check..."
-            if curl -f http://localhost:8080/actuator/health; then
-              echo "✅ Health check passed!"
-            else
-              echo "❌ Health check failed!"
+            RETRY=0
+            MAX_RETRY=10
+            while [ $RETRY -lt $MAX_RETRY ]; do
+              if curl -f http://localhost:8080/actuator/health; then
+                echo "✅ Health check passed!"
+                break
+              else
+                echo "⏳ Waiting for application... ($((RETRY+1))/$MAX_RETRY)"
+                sleep 10
+                RETRY=$((RETRY+1))
+              fi
+            done
+            
+            if [ $RETRY -eq $MAX_RETRY ]; then
+              echo "❌ Health check failed after $MAX_RETRY attempts!"
               echo "📋 Showing logs..."
-              docker-compose logs --tail=50 pwb-service
+              docker-compose logs --tail=100 pwb-service
               exit 1
             fi
-            
-            echo "🧹 Cleaning up old images..."
-            docker image prune -f
             
             echo "📊 Services status:"
             docker-compose ps
             
-            echo "✅ Development deployment successful!"
+            echo "✅ Production deployment successful!"
 
       - name: 📊 Deployment Summary
         if: success()
         run: |
-          echo "🎉 Development deployment completed successfully!"
-          echo "🔗 URL: http://${{ secrets.DEV_EC2_HOST }}:8080"
-          echo "📦 Image: ${{ env.DOCKER_IMAGE }}:develop"
-          echo "🌿 Branch: develop"
-          echo "⏰ Time: $(date)"
+          echo "🎉 Production deployment completed successfully!"
+          echo "🔗 URL: http://${{ secrets.PROD_EC2_HOST }}:8080"
+          echo "📦 Image: ${{ env.DOCKER_IMAGE }}:latest"
+          echo "🌿 Branch: main"
+          echo "📅 Date: $(date)"
 
       - name: 🚨 Deployment Failed
         if: failure()
         run: |
-          echo "❌ Development deployment FAILED!"
+          echo "❌ Production deployment FAILED!"
           echo "Check the logs above for details"
-          echo "SSH to server: ssh -i key.pem ubuntu@${{ secrets.DEV_EC2_HOST }}"
+          echo "SSH to server: ssh -i key.pem ubuntu@${{ secrets.PROD_EC2_HOST }}"
