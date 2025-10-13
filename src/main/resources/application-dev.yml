@@ -64,3 +64,6 @@ outbound:
     client-secret: ${CLIENT_SECRET}
     redirect-uri: ${REDIRECT_URI}
 
+cors:
+  allowed-origin: ${ALLOWED_ORIGIN}
+
