@@ -9,7 +9,6 @@ on:
 env:
   JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'corretto'
-  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/pwb-backend
 
 jobs:
   ci:
@@ -134,15 +133,15 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ${{ env.DOCKER_IMAGE }}:latest
-            ${{ env.DOCKER_IMAGE }}:prod-${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/pwb-backend:prod-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: 🔒 Security Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.DOCKER_IMAGE }}:latest
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
@@ -228,7 +227,7 @@ jobs:
         run: |
           echo "🎉 Production deployment completed successfully!"
           echo "🔗 URL: http://${{ secrets.PROD_EC2_HOST }}:8080"
-          echo "📦 Image: ${{ env.DOCKER_IMAGE }}:latest"
+          echo "📦 Image: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest"
           echo "🌿 Branch: main"
           echo "📅 Date: $(date)"
 
