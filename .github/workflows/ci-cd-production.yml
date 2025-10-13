@@ -158,7 +158,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: http://${{ secrets.PROD_EC2_HOST }}:8080
 
     steps:
       - name: 🚀 Deploy to Production EC2
