@@ -13,6 +13,7 @@ env:
 
 jobs:
   ci:
+    if: github.ref == 'refs/heads/main'
     name: Build & Test
     runs-on: ubuntu-latest
 
