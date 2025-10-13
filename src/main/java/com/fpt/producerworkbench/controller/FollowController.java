@@ -38,7 +38,7 @@ public class FollowController {
         followService.follow(me, targetId);
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
-                .message("Follow thành công")
+                .message("Theo dõi thành công")
                 .build();
     }
 
