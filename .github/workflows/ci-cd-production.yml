@@ -79,9 +79,9 @@ jobs:
       - name: 🧪 Run Tests
         run: mvn test
         env:
-          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/producer_workbench_test
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/producer_workbench
           SPRING_DATASOURCE_USERNAME: root
-          SPRING_DATASOURCE_PASSWORD: test_password
+          SPRING_DATASOURCE_PASSWORD: 123456
           SPRING_DATA_REDIS_HOST: localhost
           SPRING_DATA_REDIS_PORT: 6379
           SPRING_KAFKA_BOOTSTRAP_SERVERS: localhost:9092
