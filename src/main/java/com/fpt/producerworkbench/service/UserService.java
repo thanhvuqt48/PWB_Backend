@@ -1,9 +1,7 @@
 package com.fpt.producerworkbench.service;
 
-import com.fpt.producerworkbench.dto.request.EmailRequest;
-import com.fpt.producerworkbench.dto.request.PasswordCreationRequest;
-import com.fpt.producerworkbench.dto.request.UserCreationRequest;
-import com.fpt.producerworkbench.dto.request.VerifyOtpRequest;
+import com.fpt.producerworkbench.dto.request.*;
+import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
 import com.fpt.producerworkbench.dto.response.UserResponse;
 import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
 import jakarta.mail.MessagingException;
@@ -21,4 +19,6 @@ public interface UserService {
     VerifyOtpResponse verifyOtp(VerifyOtpRequest request);
 
     void resetPassword(PasswordCreationRequest request);
+
+    ChangePasswordResponse changePassword(ChangePasswordRequest request);
 }

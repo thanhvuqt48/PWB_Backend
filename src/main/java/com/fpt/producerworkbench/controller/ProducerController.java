@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -40,25 +41,18 @@ public class ProducerController {
     }
 
     @PostMapping("/recommend-by-spotify")
-    public ApiResponse<Page<ProducerSummaryResponse>> recommendBySpotifyLink(
-            @RequestBody RecommendationRequest request) {
+    public ResponseEntity<ApiResponse<Page<ProducerSummaryResponse>>> recommendProducersBySpotify(
+            @RequestBody RecommendationRequest request, Pageable pageable) {
 
-        List<String> genres = spotifyService.getGenresFromTrackLink(request.getLink());
+        Page<ProducerSummaryResponse> results = producerService.recommendBySpotifyTrack(request.getLink(), pageable);
 
-        if (genres.isEmpty()) {
-            return ApiResponse.<Page<ProducerSummaryResponse>>builder()
-                    .code(404)
-                    .message("Could not find genres for the provided link.")
-                    .build();
-        }
-
-        Pageable pageable = PageRequest.of(0, 5);
-        Page<ProducerSummaryResponse> recommendedProducers = producerService.searchProducers(
-                null, null, genres, null, null, null, pageable
-        );
-
-        return ApiResponse.<Page<ProducerSummaryResponse>>builder()
-                .result(recommendedProducers)
+        ApiResponse<Page<ProducerSummaryResponse>> apiResponse = ApiResponse.<Page<ProducerSummaryResponse>>builder()
+                .code(200)
+                .message("Đã lấy được đề xuất của nhà sản xuất thành công.")
+                .result(results)
                 .build();
+
+        return ResponseEntity.ok(apiResponse);
     }
+
 }

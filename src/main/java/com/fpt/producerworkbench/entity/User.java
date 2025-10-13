@@ -32,7 +32,7 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column(name = "phone_number")

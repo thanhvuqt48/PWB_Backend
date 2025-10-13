@@ -11,4 +11,6 @@ public interface ProducerService {
             String name, List<Integer> genreIds, List<String> tags,
             Double lat, Double lon, Double radius,
             Pageable pageable);
+
+    Page<ProducerSummaryResponse> recommendBySpotifyTrack(String trackLink, Pageable pageable);
 }

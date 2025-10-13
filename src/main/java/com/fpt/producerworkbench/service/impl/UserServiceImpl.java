@@ -4,10 +4,8 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
-import com.fpt.producerworkbench.dto.request.EmailRequest;
-import com.fpt.producerworkbench.dto.request.PasswordCreationRequest;
-import com.fpt.producerworkbench.dto.request.UserCreationRequest;
-import com.fpt.producerworkbench.dto.request.VerifyOtpRequest;
+import com.fpt.producerworkbench.dto.request.*;
+import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
 import com.fpt.producerworkbench.dto.response.UserResponse;
 import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
 import com.fpt.producerworkbench.entity.User;
@@ -17,12 +15,14 @@ import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.EmailService;
 import com.fpt.producerworkbench.service.OtpService;
 import com.fpt.producerworkbench.service.UserService;
+import com.fpt.producerworkbench.utils.SecurityUtils;
 import jakarta.mail.MessagingException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
+
 import com.fpt.producerworkbench.exception.ErrorCode;
 
 import static com.fpt.producerworkbench.utils.SecurityUtils.generateOtp;
@@ -49,14 +51,13 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     public UserResponse createUser(UserCreationRequest request, String otp) {
-
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new AppException(ErrorCode.USER_EXISTED);
         }
 
         String storedOtp = otpService.getOtp(request.getEmail());
         if (storedOtp == null || !storedOtp.equals(otp)) {
-            throw new AppException(ErrorCode.TOKEN_INVALID);
+            throw new AppException(ErrorCode.OTP_INVALID);
         }
 
         User user = userMapper.toUser(request);
@@ -82,7 +83,6 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     public void sendOtpForgotPassword(EmailRequest request) throws MessagingException, UnsupportedEncodingException {
-
         User user = userRepository
                 .findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -106,6 +106,11 @@ public class UserServiceImpl implements UserService {
 
     public void sendOtpRegister(EmailRequest request)
             throws MessagingException, UnsupportedEncodingException {
+
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new AppException(ErrorCode.USER_EXISTED);
+        }
+
         String otp = generateOtp();
 
         otpService.saveOtp(request.getEmail(), otp);
@@ -170,5 +175,33 @@ public class UserServiceImpl implements UserService {
         user.setOtp(null);
         user.setOtpExpiryDate(null);
         userRepository.save(user);
+    }
+
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public ChangePasswordResponse changePassword(ChangePasswordRequest request){
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if(! passwordEncoder.matches(request.getCurrentPassword(), user.getPassword()))
+            throw new AppException(ErrorCode.INVALID_OLD_PASSWORD);
+
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new AppException(ErrorCode.PASSWORD_EXISTED);
+        }
+
+        if(! Objects.equals(request.getNewPassword(), request.getConfirmPassword()))
+            throw new AppException(ErrorCode.CONFIRM_PASSWORD_INVALID);
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+
+        return ChangePasswordResponse
+                .builder()
+                .message("Change password successful")
+                .success(true)
+                .build();
     }
 }

@@ -1,18 +1,19 @@
 package com.fpt.producerworkbench.exception;
 
+import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import jakarta.validation.ConstraintViolation;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.context.request.WebRequest;
 
 @ControllerAdvice
 @Slf4j
@@ -22,6 +23,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(value = Exception.class)
     ResponseEntity<ApiResponse> handleException(Exception e) {
+        log.error("An uncategorized error occurred: ", e);
 
         return ResponseEntity.badRequest()
                 .body(ApiResponse.builder()
@@ -30,26 +32,18 @@ public class GlobalExceptionHandler {
                         .build());
     }
 
-    @ExceptionHandler(value = AppException.class)
-    ResponseEntity<ApiResponse> handleAppException(AppException e) {
-        ErrorCode errorCode = e.getErrorCode();
-        ApiResponse apiResponse = new ApiResponse();
+    @ExceptionHandler(AppException.class)
+    ResponseEntity<ErrorResponse> handleAppException(AppException exception, WebRequest request) {
+        ErrorCode errorCode = exception.getErrorCode();
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(errorCode.getCode())
+                .timestamp(new Date())
+                .error(errorCode.getHttpStatus().getReasonPhrase())
+                .message(errorCode.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
 
-        apiResponse.setCode(errorCode.getCode());
-        apiResponse.setMessage(errorCode.getMessage());
-
-        return ResponseEntity.status(errorCode.getStatusCode()).body(apiResponse);
-    }
-
-    @ExceptionHandler(value = AccessDeniedException.class)
-    ResponseEntity<ApiResponse> handlingAccessDeniedException(AccessDeniedException exception) {
-        ErrorCode errorCode = ErrorCode.UNAUTHORIZED;
-
-        return ResponseEntity.status(errorCode.getStatusCode())
-                .body(ApiResponse.builder()
-                        .code(errorCode.getCode())
-                        .message(errorCode.getMessage())
-                        .build());
+        return ResponseEntity.status(errorCode.getHttpStatus()).body(errorResponse);
     }
 
     @ExceptionHandler(value = MethodArgumentNotValidException.class)

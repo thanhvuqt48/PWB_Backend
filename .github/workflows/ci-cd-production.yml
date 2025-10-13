@@ -1,0 +1,152 @@
+name: CI/CD - Production (AWS EC2)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'corretto'
+
+jobs:
+  ci:
+    name: Build (skip tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: ☕ Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: 'maven'
+
+      - name: 📦 Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - name: 🔨 Build (skip tests)
+        run: mvn -B -q clean compile -DskipTests
+
+      - name: 📦 Package (skip tests)
+        run: mvn -B -q package -DskipTests
+
+      - name: 📤 Upload JAR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-jar
+          path: target/*.jar
+          retention-days: 30
+
+  docker:
+    name: Build & Push Docker Image
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐳 Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 🏗️ Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
+            ${{ secrets.DOCKER_USERNAME }}/pwb-backend:prod-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 🔒 Security Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+
+  deploy:
+    name: Deploy to EC2 Production
+    needs: docker
+    runs-on: ubuntu-latest
+    environment:
+      name: production   # không dùng secrets ở url
+
+    steps:
+      - name: 🚀 Deploy to Production EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_EC2_HOST }}
+          username: ${{ secrets.PROD_EC2_USERNAME }}
+          key: ${{ secrets.PROD_EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/PWB_Backend
+            git fetch origin
+            git checkout main
+            git pull origin main
+
+            docker-compose down || true
+            docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
+            docker image prune -f
+            docker-compose up -d
+
+            echo "⏳ Waiting for services to start..."
+            sleep 40
+
+            RETRY=0
+            MAX_RETRY=10
+            while [ $RETRY -lt $MAX_RETRY ]; do
+              if curl -fsS http://localhost:8080/actuator/health; then
+                echo "✅ Health check passed!"
+                break
+              else
+                echo "⏳ Waiting for application... ($((RETRY+1))/$MAX_RETRY)"
+                sleep 10
+                RETRY=$((RETRY+1))
+              fi
+            done
+
+            if [ $RETRY -eq $MAX_RETRY ]; then
+              echo "❌ Health check failed after $MAX_RETRY attempts!"
+              docker-compose logs --tail=100 pwb-service
+              exit 1
+            fi
+
+            docker-compose ps
+            echo "✅ Production deployment successful!"
+
+      - name: 📊 Deployment Summary
+        if: success()
+        run: |
+          echo "🎉 Production deployment completed successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 URL: http://${{ secrets.PROD_EC2_HOST }}:8080" >> $GITHUB_STEP_SUMMARY
+          echo "📦 Image: ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest" >> $GITHUB_STEP_SUMMARY
+          echo "🌿 Branch: main" >> $GITHUB_STEP_SUMMARY
+          echo "📅 Date: $(date)" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🚨 Deployment Failed
+        if: failure()
+        run: |
+          echo "❌ Production deployment FAILED!"
+          echo "Check the logs above for details"
+          echo "SSH: ssh -i key.pem ubuntu@${{ secrets.PROD_EC2_HOST }}"

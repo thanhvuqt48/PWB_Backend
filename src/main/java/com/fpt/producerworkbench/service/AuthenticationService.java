@@ -9,6 +9,7 @@ import com.fpt.producerworkbench.dto.response.IntrospectResponse;
 
 public interface AuthenticationService {
 
+    AuthenticationResponse outboundAuthenticate(String code);
     AuthenticationResponse authenticate(AuthenticationRequest request);
     IntrospectResponse introspect(IntrospectRequest request);
     void logout(LogoutRequest request);

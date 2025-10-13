@@ -1,9 +1,7 @@
 package com.fpt.producerworkbench.exception;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 
 @Getter
 public enum ErrorCode {
@@ -13,9 +11,9 @@ public enum ErrorCode {
     INVALID_PARAMETER_FORMAT(1002, "Định dạng tham số không hợp lệ.", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED(1003, "Lỗi xác thực dữ liệu.", HttpStatus.BAD_REQUEST),
     BAD_REQUEST(1004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
-    INVALID_KEY(1001, "Uncategorized error", HttpStatus.BAD_REQUEST),
-    EXPIRED_TOKEN(401, "EXPIRED_TOKEN", HttpStatus.UNAUTHORIZED),
-    TOKEN_CREATION_FAIL(400, "Failed to create token", HttpStatus.BAD_REQUEST),
+    INVALID_KEY(1001, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
+    EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
+    TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi Xác thực & Phân quyền (2xxx) =====
     UNAUTHENTICATED(2001, "Yêu cầu xác thực. Vui lòng đăng nhập.", HttpStatus.UNAUTHORIZED),
@@ -26,7 +24,7 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(2006, "Tài khoản đã bị khóa.", HttpStatus.FORBIDDEN),
     ACCOUNT_DISABLED(2007, "Tài khoản đã bị vô hiệu hóa.", HttpStatus.FORBIDDEN),
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
-    UNAUTHORIZED(1007, "You do not have permission", HttpStatus.FORBIDDEN),
+    UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
 
     // ===== Lỗi liên quan đến Người dùng (User) (3xxx) =====
@@ -41,6 +39,20 @@ public enum ErrorCode {
     RESOURCE_NOT_FOUND(4001, "Không tìm thấy tài nguyên được yêu cầu.", HttpStatus.NOT_FOUND),
     DUPLICATE_RESOURCE(4002, "Tài nguyên đã tồn tại.", HttpStatus.CONFLICT),
     UPLOAD_FAILED(4003, "Upload file thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+    DELETE_FAILED(4004, "Xóa tài nguyên thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // ===== Lỗi liên quan đến Dự án (5xxx) =====
+    CLIENT_ALREADY_EXISTS(5001, "Dự án này đã có khách hàng.", HttpStatus.BAD_REQUEST),
+    CLIENT_EXISTED(5002, "Một người dùng khác vừa chấp nhận vai trò khách hàng cho dự án này.", HttpStatus.BAD_REQUEST),
+    INVITATION_EXPIRED(5003, "Mã mời đã hết hạn.", HttpStatus.BAD_REQUEST),
+    INVITATION_NOT_ACCEPTED(5004, "Lời mời này không dành cho bạn.", HttpStatus.BAD_REQUEST),
+    INVITATION_EXPIRED_OR_NOT_FOUND(5005, "Mã mời đã được sử dụng hoặc hết hạn.", HttpStatus.NOT_FOUND),
+    PROJECT_EXISTED(5006, "Một dự án với tên này đã tồn tại.", HttpStatus.BAD_REQUEST),
+    INVITATION_NOT_REJECTABLE(5007, "Không thể từ chối lời mời này.", HttpStatus.BAD_REQUEST),
+    INVITATION_NOT_CANCELABLE(5008, "Chỉ có thể hủy lời mời đang chờ.", HttpStatus.NOT_FOUND),
+    PROJECT_NOT_FOUND(5009, "Không tìm thấy project.", HttpStatus.NOT_FOUND),
+    INVITATION_SELF_NOT_ALLOWED(5010, "Không thể mời chính bạn vào dự án.", HttpStatus.BAD_REQUEST),
+    USER_ALREADY_MEMBER(5011, "Người dùng này đã là thành viên của dự án.", HttpStatus.BAD_REQUEST),
 
     // ===== 5xxx: Hợp đồng / Ký số (MỚI) =====
     CONTRACT_NOT_FOUND(5001, "Không tìm thấy hợp đồng.", HttpStatus.NOT_FOUND),
@@ -60,17 +72,19 @@ public enum ErrorCode {
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_DOB(400, "Date of birth must be greater than 1950 and less than current date", HttpStatus.BAD_REQUEST),
-    INVALID_PASSWORD(400, "Password must be at least {min} characters", HttpStatus.BAD_REQUEST)
+    INVALID_DOB(400, "Ngày sinh phải lớn hơn 1950 và nhỏ hơn ngày hiện tại", HttpStatus.BAD_REQUEST),
+    INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
+    PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
+    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;
     private final String message;
-    private final HttpStatusCode statusCode;
+    private final HttpStatus httpStatus;
 
-    ErrorCode(int code, String message, HttpStatusCode statusCode) {
+    ErrorCode(int code, String message, HttpStatus httpStatus) {
         this.code = code;
         this.message = message;
-        this.statusCode = statusCode;
+        this.httpStatus = httpStatus;
     }
 }

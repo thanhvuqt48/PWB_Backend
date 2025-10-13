@@ -7,17 +7,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
-import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -26,21 +25,27 @@ import org.springframework.security.web.SecurityFilterChain;
 @RequiredArgsConstructor
 public class SecurityConfiguration {
 
-    private final CustomJwtDecoder jwtDecoder;
+    private final JwtDecoderCustomizer jwtDecoder;
     private final UserDetailServiceImpl userDetailsService;
 
     private static final String[] PUBLIC_ENDPOINT = new String[]{
-            "/api/v1/auth/token",
+            "/api/v1/auth/login",
             "/api/v1/users/register",
             "/api/v1/auth/logout",
             "/api/v1/auth/introspect",
+            "/api/v1/auth/refresh-token",
             "/api/v1/auth/refresh",
             "/api/v1/producers",
+            "/api/v1/producers/recommend-by-spotify",
+            "/api/v1/users/send-otp-register",
+            "/api/v1/users/verify-otp",
+            "/api/v1/users/send-otp",
             "api/v1/producers/recommend-by-spotify",
             "api/v1/users/send-otp-register",
             "api/v1/users/verify-otp",
-            "api/v1/users/send-otp"
-
+            "api/v1/users/send-otp-forgot-password",
+            "/api/v1/users/reset-password",
+            "/api/v1/auth/**",
     };
 
     @Bean
@@ -51,8 +56,10 @@ public class SecurityConfiguration {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity
+                .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(request -> request.requestMatchers(PUBLIC_ENDPOINT)
+                .authorizeHttpRequests(request -> request
+                        .requestMatchers(PUBLIC_ENDPOINT)
                         .permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/actuator/**")
                         .permitAll()

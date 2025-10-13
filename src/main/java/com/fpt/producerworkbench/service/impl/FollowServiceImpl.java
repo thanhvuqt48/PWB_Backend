@@ -43,7 +43,6 @@ public class FollowServiceImpl implements FollowService {
         User followee = userRepository.findById(followeeId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Idempotent: nếu đã follow thì coi như thành công (không quăng lỗi)
         if (followRepository.existsByFollower_IdAndFollowee_Id(follower.getId(), followee.getId())) {
             return;
         }
@@ -55,10 +54,8 @@ public class FollowServiceImpl implements FollowService {
                     .build();
             followRepository.save(follow);
         } catch (DataIntegrityViolationException ex) {
-            // Trường hợp đua hoặc vi phạm UNIQUE/CHECK ở DB
             log.info("Follow constraint violated ({} -> {}): {}", followerId, followeeId, ex.getMessage());
-            // Giữ idempotent: coi như đã follow
-            
+
         }
     }
 
@@ -70,7 +67,6 @@ public class FollowServiceImpl implements FollowService {
         }
         try {
             followRepository.deleteByFollower_IdAndFollowee_Id(followerId, followeeId);
-            // Idempotent: nếu không tồn tại thì cũng coi như OK
         } catch (Exception ex) {
             log.warn("Unfollow failed ({} -> {}): {}", followerId, followeeId, ex.getMessage());
             throw new AppException(ErrorCode.DATABASE_ERROR);
