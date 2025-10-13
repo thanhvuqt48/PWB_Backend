@@ -35,4 +35,8 @@ public class ProjectInvitation extends AbstractEntity<Long> {
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
+
+    // Only applicable when invitedRole == COLLABORATOR
+    @Column(name = "collaborator_anonymous")
+    private Boolean collaboratorAnonymous;
 }

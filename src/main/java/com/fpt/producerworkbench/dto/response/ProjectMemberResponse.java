@@ -16,4 +16,5 @@ public class ProjectMemberResponse {
     private String email;
     private String avatarUrl;
     private ProjectRole role;
+    private Boolean anonymous;
 }

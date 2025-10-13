@@ -13,5 +13,6 @@ public interface ProjectMemberMapper {
     @Mapping(source = "user.email", target = "email")
     @Mapping(source = "user.avatarUrl", target = "avatarUrl")
     @Mapping(source = "projectRole", target = "role")
+    @Mapping(source = "anonymous", target = "anonymous")
     ProjectMemberResponse toResponse(ProjectMember member);
 }

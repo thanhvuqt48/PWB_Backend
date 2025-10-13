@@ -8,23 +8,22 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class InvitationResponse {
-    // Dành cho cả hai phía
     private Long invitationId;
     private Long projectId;
     private String projectTitle;
     private ProjectRole invitedRole;
     private InvitationStatus status;
     private LocalDateTime expiresAt;
+    private Date createdAt;
 
-    // Chỉ dành cho Owner xem
     private String invitedEmail;
 
-    // Chỉ dành cho người được mời xem
     private String inviterName;
 }

@@ -23,4 +23,13 @@ public class InvitationRequest {
     private boolean isValidInvitationRole() {
         return role == ProjectRole.CLIENT || role == ProjectRole.OBSERVER || role == ProjectRole.COLLABORATOR;
     }
+
+    // Chỉ áp dụng khi role == COLLABORATOR. Mặc định là công khai nếu không truyền.
+    private Boolean anonymous;
+
+    @AssertTrue(message = "Tùy chọn ẩn danh chỉ áp dụng cho vai trò CỘNG TÁC.")
+    private boolean isAnonymousOptionValid() {
+        if (role == null) return true; // để các validator khác xử lý null
+        return role == ProjectRole.COLLABORATOR || anonymous == null || !anonymous;
+    }
 }

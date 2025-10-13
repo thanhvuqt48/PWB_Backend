@@ -39,7 +39,7 @@ public class ProjectController {
         ProjectResponse projectResponse = projectMapper.toProjectResponse(createdProject);
 
         ApiResponse<ProjectResponse> response = ApiResponse.<ProjectResponse>builder()
-                .message("Project created successfully.")
+                .message("Dự án đã được tạo thành công.")
                 .result(projectResponse)
                 .build();
 

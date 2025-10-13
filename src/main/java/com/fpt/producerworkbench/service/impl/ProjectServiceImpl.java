@@ -56,6 +56,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .project(savedProject)
                 .user(currentUser)
                 .projectRole(ProjectRole.OWNER)
+                .anonymous(false)
                 .build();
 
         projectMemberRepository.save(ownerMember);
@@ -64,7 +65,7 @@ public class ProjectServiceImpl implements ProjectService {
             NotificationEvent event = NotificationEvent.builder()
                     .recipient(currentUser.getEmail())
                     .subject("Bạn đã tạo dự án thành công: " + savedProject.getTitle())
-                    .templateCode("project-creation-success-template") // Tên template email mới
+                    .templateCode("project-creation-success-template")
                     .param(Map.of(
                             "ownerName", currentUser.getFullName(),
                             "projectName", savedProject.getTitle()

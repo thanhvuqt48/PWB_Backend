@@ -13,6 +13,8 @@ public interface InvitationMapper {
     @Mapping(source = "project.id", target = "projectId")
     @Mapping(source = "project.title", target = "projectTitle")
     @Mapping(source = "email", target = "invitedEmail")
+    @Mapping(source = "createdAt", target = "createdAt")
+    @Mapping(target = "inviterName", ignore = true)
     InvitationResponse toOwnerInvitationResponse(ProjectInvitation invitation);
 
     // Mapper cho người được mời xem
@@ -20,5 +22,7 @@ public interface InvitationMapper {
     @Mapping(source = "project.id", target = "projectId")
     @Mapping(source = "project.title", target = "projectTitle")
     @Mapping(source = "project.creator.fullName", target = "inviterName")
+    @Mapping(source = "createdAt", target = "createdAt")
+    @Mapping(target = "invitedEmail", ignore = true)
     InvitationResponse toInviteeInvitationResponse(ProjectInvitation invitation);
 }

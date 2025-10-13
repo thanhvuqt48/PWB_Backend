@@ -1,8 +1,10 @@
 package com.fpt.producerworkbench.controller;
 
+import com.fpt.producerworkbench.common.InvitationStatus;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
+import com.fpt.producerworkbench.dto.response.PageResponse;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
@@ -11,6 +13,7 @@ import com.fpt.producerworkbench.service.InvitationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -54,6 +57,19 @@ public class InvitationController {
         List<InvitationResponse> invitations = invitationService.getPendingInvitationsForProject(projectId, owner);
         return ResponseEntity.ok(ApiResponse.<List<InvitationResponse>>builder()
                 .result(invitations)
+                .build());
+    }
+
+    @GetMapping("/my-owned")
+    @PreAuthorize("hasAnyAuthority('PRODUCER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponse<InvitationResponse>>> getAllOwnedInvitations(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(name = "status", required = false) InvitationStatus status,
+            Pageable pageable) {
+        User owner = userRepository.findByEmail(jwt.getSubject()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        PageResponse<InvitationResponse> page = invitationService.getAllOwnedInvitations(owner, status, pageable);
+        return ResponseEntity.ok(ApiResponse.<PageResponse<InvitationResponse>>builder()
+                .result(page)
                 .build());
     }
 
