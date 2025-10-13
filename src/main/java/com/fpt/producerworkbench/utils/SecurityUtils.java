@@ -13,7 +13,8 @@ import java.util.Random;
 @Service
 public class SecurityUtils {
 
-    private SecurityUtils() {}
+    private SecurityUtils() {
+    }
 
     private static final Random RANDOM = new Random();
 

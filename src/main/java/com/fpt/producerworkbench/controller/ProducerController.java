@@ -48,7 +48,7 @@ public class ProducerController {
 
         ApiResponse<Page<ProducerSummaryResponse>> apiResponse = ApiResponse.<Page<ProducerSummaryResponse>>builder()
                 .code(200)
-                .message("Successfully fetched producer recommendations.")
+                .message("Đã lấy được đề xuất của nhà sản xuất thành công.")
                 .result(results)
                 .build();
 

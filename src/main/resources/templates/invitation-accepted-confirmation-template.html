@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chào mừng bạn đến với dự án!</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0d0c1d;
+            font-family: 'Roboto', sans-serif;
+            color: #E0E0E0;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #110f27 url('https://www.transparenttextures.com/patterns/stardust.png');
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #4a3d7a;
+            box-shadow: 0 0 50px rgba(168, 85, 247, 0.2);
+        }
+        .header {
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #FFFFFF;
+            font-size: 28px;
+            margin: 0;
+            font-weight: 700;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.6), 0 0 15px rgba(192, 132, 252, 0.5), 0 0 30px rgba(56, 189, 248, 0.4);
+        }
+        .content {
+            padding: 0 40px 40px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .content p {
+            font-size: 16px;
+            color: #b3b0c5;
+            margin: 20px 0;
+        }
+        .info-card {
+            background-color: rgba(0, 0, 0, 0.2);
+            border: 1px solid #4a3d7a;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px auto;
+            box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.15);
+        }
+        .info-card .detail {
+            margin: 15px 0;
+        }
+        .info-card b {
+            color: #FFFFFF;
+            font-weight: 700;
+            font-size: 18px;
+        }
+        .label {
+            color: #a3a0b5;
+            display: block;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(90deg, #8A2BE2 0%, #4A00E0 100%);
+            color: #FFFFFF;
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 16px;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(138, 43, 226, 0.6);
+        }
+        .footer {
+            padding: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #7b798e;
+            border-top: 1px solid #4a3d7a;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <div class="header">
+        <img src="https://img.icons8.com/fluency/96/000000/handshake.png" alt="Welcome Icon" style="width: 80px; height: 80px; margin-bottom: 20px; filter: drop-shadow(0 0 15px #4ade80);"/>
+        <h1>CHÀO MỪNG TỚI DỰ ÁN</h1>
+    </div>
+    <div class="content">
+        <p style="font-size: 18px;">Chào <b th:text="${userName}">[Tên người dùng]</b>,</p>
+        <p>
+            Bạn đã chính thức là một phần của hành trình sáng tạo này.
+        </p>
+        <div class="info-card">
+            <div class="detail">
+                <span class="label">Dự án:</span>
+                <b th:text="${projectName}">[Tên dự án]</b>
+            </div>
+            <div class="detail">
+                <span class="label">Vai trò của bạn:</span>
+                <b th:text="${role}">[Vai trò]</b>
+            </div>
+        </div>
+        <p>Bây giờ bạn có thể bắt đầu cộng tác cùng các thành viên khác.</p>
+        <a href="#" class="cta-button">Vào Workspace</a>
+    </div>
+    <div class="footer">
+        <p>Trân trọng,<br/><b>Đội ngũ Producer Workbench</b></p>
+    </div>
+</div>
+</body>
+</html>

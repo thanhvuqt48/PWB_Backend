@@ -16,8 +16,8 @@ public interface SubscriptionPlanService {
     Page<SubscriptionPlanResponse> findAll(Pageable pageable);
 
     Page<SubscriptionPlanResponse> findWithFilters(String name, String currency,
-                                                   BigDecimal minPrice, BigDecimal maxPrice,
-                                                   Pageable pageable);
+            BigDecimal minPrice, BigDecimal maxPrice,
+            Pageable pageable);
 
     List<SubscriptionPlanResponse> findByCurrency(String currency);
 
