@@ -30,4 +30,7 @@ public class ProjectMember extends AbstractEntity<Long>{
     @Column(name = "revenue_share_percentage", precision = 5, scale = 2)
     private BigDecimal revenueSharePercentage;
 
+    @Column(name = "anonymous", nullable = false)
+    private boolean anonymous;
+
 }

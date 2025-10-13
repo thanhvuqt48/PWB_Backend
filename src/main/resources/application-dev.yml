@@ -7,7 +7,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-
+  servlet:
+    multipart:
+      max-file-size: 1GB
+      max-request-size: 1GB
   mail:
     host: ${EMAIL_HOST}
     port: ${EMAIL_PORT}
@@ -57,6 +60,21 @@ producer:
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}
   client-secret: ${SPOTIFY_CLIENT_SECRET}
+
+cloudfront:
+  domain: ${CLOUDFRONT_DOMAIN}
+
+aws:
+  region: ${AWS_REGION}
+  access-key-id: ${AWS_ACCESS_KEY_ID}
+  secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  s3:
+    bucket-name: ${S3_BUCKET_NAME}
+
+logging:
+  charset:
+    console: UTF-8
+    file: UTF-8
   
 outbound:
   identity:
