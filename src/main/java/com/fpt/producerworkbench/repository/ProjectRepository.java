@@ -1,5 +1,7 @@
 package com.fpt.producerworkbench.repository;
 
+import com.fpt.producerworkbench.entity.Project;
+import org.springframework.data.jpa.repository.JpaRepository;
 import com.fpt.producerworkbench.common.ProjectStatus;
 import com.fpt.producerworkbench.dto.response.ProjectSummaryResponse;
 import com.fpt.producerworkbench.entity.Project;
@@ -16,7 +18,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Query("SELECT new com.fpt.producerworkbench.dto.response.ProjectSummaryResponse(" +
             "p.id, p.title, p.status, p.type, pm.projectRole, " +
             "CONCAT(p.creator.firstName, ' ', p.creator.lastName), " +
-            "p.createdAt) " + // Thêm p.createdAt ở đây
+            "p.createdAt) " + 
             "FROM Project p JOIN ProjectMember pm ON p.id = pm.project.id " +
             "WHERE pm.user.id = :userId " +
             "AND (:search IS NULL OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%'))) " +

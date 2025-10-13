@@ -40,7 +40,12 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: ""
+      password: "" 
+
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
+    date-format: yyyy-MM-dd
+
 jwt:
   secret-key: ${SECRET_KEY}
   valid-duration: 240
@@ -53,6 +58,7 @@ admin:
 customer:
   username: ${CUSTOMER_USERNAME}
   password: ${CUSTOMER_PASSWORD}
+  
 producer:
   username: ${PRODUCER_USERNAME}
   password: ${PRODUCER_PASSWORD}
@@ -61,6 +67,26 @@ spotify:
   client-id: ${SPOTIFY_CLIENT_ID}
   client-secret: ${SPOTIFY_CLIENT_SECRET}
 
+signnow:
+  base-url: ${SN_BASE_URL:https://api-eval.signnow.com}
+  client-id: ${SN_CLIENT_ID}
+  client-secret: ${SN_CLIENT_SECRET}
+  auth:
+    username: ${SN_USERNAME}
+    password: ${SN_PASSWORD}
+  http:
+    connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
+    read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:20000}
+
+
+pwb:
+  contract:
+    template: classpath:templates/hop-dong-san-xuat-am-nhac.pdf
+    font: classpath:/templates/NotoSerif-Regular.ttf
+
+storage:
+  base-dir: ${STORAGE_BASE_DIR:/var/pwb-files}
+  
 cloudfront:
   domain: ${CLOUDFRONT_DOMAIN}
 

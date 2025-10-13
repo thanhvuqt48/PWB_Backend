@@ -2,7 +2,10 @@ package com.fpt.producerworkbench.common;
 
 public enum ContractStatus {
     DRAFT,
-    PENDING_APPROVAL,
-    ACTIVE,
-    COMPLETED
+    OUT_FOR_SIGNATURE,
+    PARTIALLY_SIGNED,
+    COMPLETED,
+    DECLINED,
+    VOIDED,
+    EXPIRED
 }
