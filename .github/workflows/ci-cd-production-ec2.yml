@@ -4,20 +4,15 @@ on:
   push:
     branches:
       - main
-    branches-ignore:
-      - develop
-      - release
-      - 'release/**'
   workflow_dispatch:  # Cho phép chạy manual
 
 env:
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'corretto'
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/pwb-backend
 
 jobs:
   ci:
-    if: ${{ github.ref == 'refs/heads/main' }}
     name: Build & Test
     runs-on: ubuntu-latest
 
@@ -115,7 +110,6 @@ jobs:
           retention-days: 7
 
   docker:
-    if: ${{ github.ref == 'refs/heads/main' }}
     name: Build & Push Docker Image
     needs: ci
     runs-on: ubuntu-latest
@@ -160,7 +154,6 @@ jobs:
           sarif_file: 'trivy-results.sarif'
 
   deploy:
-    if: ${{ github.ref == 'refs/heads/main' }}
     name: Deploy to EC2 Development
     needs: docker
     runs-on: ubuntu-latest
