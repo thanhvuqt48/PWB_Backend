@@ -59,3 +59,6 @@ replay_pid*
 
 # Bỏ qua file env
 .env*
+
+# Database backups
+backup_*.sql

@@ -1,14 +1,11 @@
 package com.fpt.producerworkbench.configuration;
 
-import com.fpt.producerworkbench.dto.request.IntrospectRequest;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
-import com.fpt.producerworkbench.service.AuthenticationService;
 import com.fpt.producerworkbench.service.JwtService;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.crypto.MACVerifier;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -22,7 +19,7 @@ import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
-public class CustomJwtDecoder implements JwtDecoder {
+public class JwtDecoderCustomizer implements JwtDecoder {
 
     @Value("${jwt.secret-key}")
     private String secretKey;
