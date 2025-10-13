@@ -7,7 +7,7 @@ on:
   workflow_dispatch:  # Cho phép chạy manual
 
 env:
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
   JAVA_DISTRIBUTION: 'corretto'
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/pwb-backend
 
