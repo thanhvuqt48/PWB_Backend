@@ -101,9 +101,6 @@ jobs:
           script: |
             set -e
             cd ~/PWB_Backend
-            git fetch origin
-            git checkout main
-            git pull origin main
 
             docker-compose down || true
             docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
