@@ -102,10 +102,10 @@ jobs:
             set -e
             cd ~/PWB_Backend
 
-            docker-compose down || true
+            docker compose down || true
             docker pull ${{ secrets.DOCKER_USERNAME }}/pwb-backend:latest
             docker image prune -f
-            docker-compose up -d
+            docker compose up -d
 
             echo "⏳ Waiting for services to start..."
             sleep 40
@@ -125,11 +125,11 @@ jobs:
 
             if [ $RETRY -eq $MAX_RETRY ]; then
               echo "❌ Health check failed after $MAX_RETRY attempts!"
-              docker-compose logs --tail=100 pwb-service
+              docker compose logs --tail=100 pwb-service
               exit 1
             fi
 
-            docker-compose ps
+            docker compose ps
             echo "✅ Production deployment successful!"
 
       - name: 📊 Deployment Summary
