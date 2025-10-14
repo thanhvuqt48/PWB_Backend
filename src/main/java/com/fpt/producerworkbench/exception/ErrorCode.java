@@ -68,6 +68,7 @@ public enum ErrorCode {
     // ===== 7xxx: Tích hợp SignNow (MỚI) =====
     SIGNNOW_UPLOAD_FAILED(7001, "Upload tài liệu lên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
     SIGNNOW_INVITE_FAILED(7002, "Tạo lời mời ký trên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
+    SIGNNOW_DOC_HAS_NO_FIELDS(7003, "Tài liệu chưa có field/role.", HttpStatus.BAD_GATEWAY),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
