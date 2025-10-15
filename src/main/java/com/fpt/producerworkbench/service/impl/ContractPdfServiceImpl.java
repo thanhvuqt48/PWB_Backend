@@ -12,11 +12,29 @@ import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.ContractPdfService;
+import com.fpt.producerworkbench.service.StorageService;
+import com.itextpdf.forms.PdfAcroForm;
+import com.itextpdf.forms.fields.PdfFormField;
+import com.itextpdf.io.font.FontProgram;
+import com.itextpdf.io.font.FontProgramFactory;
+import com.itextpdf.io.font.PdfEncodings;
+import com.itextpdf.kernel.font.PdfFont;
+import com.itextpdf.kernel.font.PdfFontFactory;
+import com.itextpdf.kernel.geom.PageSize;
+import com.itextpdf.kernel.geom.Rectangle;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfPage;
+import com.itextpdf.kernel.pdf.PdfReader;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.annot.PdfWidgetAnnotation;
+import com.itextpdf.layout.Canvas;
+import com.itextpdf.layout.element.Paragraph;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
@@ -35,41 +53,20 @@ import java.text.NumberFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import com.itextpdf.io.font.FontProgram;
-import com.itextpdf.io.font.FontProgramFactory;
-import com.itextpdf.io.font.PdfEncodings;
-import com.itextpdf.kernel.font.PdfFont;
-import com.itextpdf.kernel.font.PdfFontFactory;
-import com.itextpdf.kernel.geom.Rectangle;
-import com.itextpdf.kernel.pdf.*;
-import com.itextpdf.kernel.pdf.annot.PdfWidgetAnnotation;
-import com.itextpdf.forms.PdfAcroForm;
-import com.itextpdf.forms.fields.PdfFormField;
-import com.itextpdf.kernel.pdf.canvas.PdfCanvas;
-import com.itextpdf.layout.Canvas;
-import com.itextpdf.layout.element.ListItem;
-import com.itextpdf.layout.element.Paragraph;
-
-//storage
-import com.fpt.producerworkbench.repository.ContractDocumentRepository;
-import com.fpt.producerworkbench.service.StorageService;
-
 @Service
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class ContractPdfServiceImpl implements ContractPdfService {
 
-    static final BigDecimal DEFAULT_VAT_RATE = new BigDecimal("0.08"); // 8%
+    static final BigDecimal DEFAULT_VAT_RATE = new BigDecimal("0.08");
+    static final float INCH = 72f;
 
     UserRepository userRepository;
     ProjectRepository projectRepository;
     ContractRepository contractRepository;
     MilestoneRepository milestoneRepository;
-
-    //storage
     ContractDocumentRepository contractDocumentRepository;
     StorageService storageService;
-
     Resource templateResource;
     Resource fontResource;
 
@@ -95,53 +92,38 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
     @Override
     public byte[] fillTemplate(Authentication auth, ContractPdfFillRequest req) {
-        // ---- 0) Quyền OWNER ----
-//        assertOwner(auth);
-
-        // ---- 1) RÀNG BUỘC NGHIỆP VỤ MỚI ----
-        // TÍNH TOÁN sumAmount, vatAmount, grandTotal
         MoneyTotals totals = computeTotals(req);
-        String sumFmt  = formatMoney(totals.sum);
-        String vatFmt  = formatMoney(totals.vat);
-        String gtFmt   = formatMoney(totals.grandTotal);
-        // bắt buộc chọn đúng 1 phương thức thanh toán
+        String sumFmt = formatMoney(totals.sum);
+        String vatFmt = formatMoney(totals.vat);
+        String gtFmt = formatMoney(totals.grandTotal);
+
         boolean payOnce = Boolean.TRUE.equals(req.getPayOnce());
         boolean payMilestone = Boolean.TRUE.equals(req.getPayMilestone());
-        if (payOnce == payMilestone) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-        if (payMilestone) {
-            validateMilestonesAmount(req.getMilestones(), totals.grandTotal);
-        }
-
-        // ---- 2.1) LƯU CONTRACT = DRAFT ----
+        if (payOnce == payMilestone) throw new AppException(ErrorCode.BAD_REQUEST);
+        if (payMilestone) validateMilestonesAmount(req.getMilestones(), totals.grandTotal);
         if (req.getProjectId() == null) throw new AppException(ErrorCode.BAD_REQUEST);
+
         Project project = projectRepository.findById(req.getProjectId())
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
-        Contract contract = new Contract();
+        Contract contract = contractRepository.findByProjectId(project.getId())
+                .orElseGet(Contract::new);
         contract.setProject(project);
         contract.setContractDetails("Sinh hợp đồng từ PDF fill: " + Optional.ofNullable(req.getContractNo()).orElse(""));
         contract.setTotalAmount(parseMoney(req.getLine1Amount())
                 .add(parseMoney(req.getLine2Amount()))
-                .add(parseMoney(req.getLine3Amount()))); // tổng trước VAT (tuỳ nghiệp vụ)
-        contract.setPaymentType(Boolean.TRUE.equals(req.getPayOnce())
-                ? PaymentType.FULL : PaymentType.MILESTONE); // đổi theo enum của bạn
+                .add(parseMoney(req.getLine3Amount())));
+        contract.setPaymentType(payOnce ? PaymentType.FULL : PaymentType.MILESTONE);
         contract.setStatus(ContractStatus.DRAFT);
-
-        // Nếu bạn đã áp dụng phiên bản Contract “mở rộng” cho SignNow (signnowStatus,...):
-        // contract.setSignnowStatus(ContractStatus.DRAFT);
-
         contract = contractRepository.save(contract);
 
-        // ---- 2.2) LƯU MILESTONES (nếu payMilestone) ----
-        if (Boolean.TRUE.equals(req.getPayMilestone()) && req.getMilestones() != null) {
+        if (payMilestone && req.getMilestones() != null) {
             int idx = 1;
             for (MilestoneRequest m : req.getMilestones()) {
                 Milestone ms = Milestone.builder()
                         .contract(contract)
                         .title(Optional.ofNullable(m.getTitle()).orElse("Cột mốc " + idx))
-                        .description(m.getDescription())               // <-- chỉ còn description
+                        .description(m.getDescription())
                         .amount(parseMoney(m.getAmount()))
                         .dueDate(m.getDueDate())
                         .status(MilestoneStatus.PENDING)
@@ -159,29 +141,20 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             PdfWriter writer = new PdfWriter(baos);
             PdfDocument pdf = new PdfDocument(reader, writer);
 
-            // font unicode
             PdfFont font = loadUnicodeFont();
             log.info("Loaded font for iText: {}", fontResource.getFilename());
 
-            // AcroForm
             PdfAcroForm acro = PdfAcroForm.getAcroForm(pdf, true);
             acro.setGenerateAppearance(true);
             for (PdfFormField f : acro.getFormFields().values()) {
                 f.setFont(font).setFontSize(10f);
             }
 
-            // ---- 3) Điền các field (không dùng sum/vat/gt từ client) ----
             Map<String, String> fields = mapDtoToPdfFields(req);
-
-            // ghi đè 3 ô tổng hợp bằng kết quả tính toán
-            fields.put("Text Box 37", sumFmt);     // sumAmount
-            fields.put("Text Box 38", vatFmt);     // VAT tiền (8%)
-            fields.put("Text Box 39", gtFmt);      // grandTotal
-
-            // Nếu PayOnce: Text Box 42 bắt buộc & = grandTotal
-            if (payOnce) {
-                fields.put("Text Box 42", gtFmt);
-            }
+            fields.put("Text Box 37", sumFmt);
+            fields.put("Text Box 38", vatFmt);
+            fields.put("Text Box 39", gtFmt);
+            if (payOnce) fields.put("Text Box 42", gtFmt);
 
             for (var e : fields.entrySet()) {
                 PdfFormField f = acro.getField(e.getKey());
@@ -192,23 +165,18 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 f.setValue(e.getValue() == null ? "" : e.getValue());
             }
 
-            // checkbox
             setCheck(acro, "Check Box 1", payOnce);
             setCheck(acro, "Check Box 2", payMilestone);
 
-            // ---- 4) Vẽ milestones CHỈ khi payMilestone ----
             if (payMilestone) {
                 drawMilestones(pdf, acro, font, req.getMilestones());
             }
 
-            // ---- 5) Flatten ----
             acro.flattenFields();
             pdf.close();
 
-            //storage
             byte[] out = baos.toByteArray();
 
-// === GHI FILE ĐÃ FILL VÀO STORAGE + TẠO CONTRACT_DOCUMENT ===
             int nextVersion = contractDocumentRepository.findMaxVersion(contract.getId(), ContractDocumentType.FILLED) + 1;
             String key = "contracts/%d/filled_v%d.pdf".formatted(contract.getId(), nextVersion);
             String url = storageService.save(out, key);
@@ -223,132 +191,141 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
             return out;
 
-            //gốc
-//            return baos.toByteArray();
-
         } catch (IOException ex) {
             log.error("iText fill error", ex);
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
     }
 
-    // ================== Helper: QUYỀN OWNER ==================
-//    private void assertOwner(Authentication authentication) {
-//        if (authentication == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
-//
-//        // 1) từ GrantedAuthority
-//        for (GrantedAuthority ga : authentication.getAuthorities()) {
-//            String a = ga.getAuthority();
-//            if ("ROLE_OWNER".equalsIgnoreCase(a) || "OWNER".equalsIgnoreCase(a)) return;
-//        }
-//        // 2) từ JWT claim (project_role hoặc role)
-//        Object p = authentication.getPrincipal();
-//        if (p instanceof Jwt jwt) {
-//            String r = Optional.ofNullable(jwt.getClaimAsString("project_role"))
-//                    .orElse(jwt.getClaimAsString("role"));
-//            if (r != null && r.equalsIgnoreCase("OWNER")) return;
-//        }
-//        // 3) fallback DB (nếu User có field role)
-//        if (p instanceof UserDetails ud) {
-//            if (ud.getAuthorities().stream().anyMatch(ga ->
-//                    "ROLE_OWNER".equalsIgnoreCase(ga.getAuthority()) || "OWNER".equalsIgnoreCase(ga.getAuthority()))) return;
-//        } else if (p instanceof User u) {
-//            if (u.getRole() != null && u.getRole().name().equalsIgnoreCase("OWNER")) return;
-//        }
-//        throw new AppException(ErrorCode.BAD_REQUEST);
-//    }
-
-    // ================== Helper: FONT ==================
     private PdfFont loadUnicodeFont() throws IOException {
         byte[] fontBytes;
         try (InputStream fin = fontResource.getInputStream()) {
             fontBytes = StreamUtils.copyToByteArray(fin);
         }
         FontProgram fp = FontProgramFactory.createFont(fontBytes);
-        return PdfFontFactory.createFont(fp, PdfEncodings.IDENTITY_H); // embed mặc định
+        return PdfFontFactory.createFont(fp, PdfEncodings.IDENTITY_H);
     }
 
-    // ================== Helper: Milestones Layout ==================
     private void drawMilestones(PdfDocument pdf,
                                 PdfAcroForm acro,
                                 PdfFont font,
                                 List<MilestoneRequest> milestones) {
-
-        if (milestones == null || milestones.isEmpty()) {
-            return;
-        }
+        if (milestones == null || milestones.isEmpty()) return;
 
         Rectangle rect;
         PdfPage page;
-
-        PdfFormField frame = acro.getField("MilestonesFrame");
-        if (frame != null && !frame.getWidgets().isEmpty()) {
+        PdfFormField frame = acro != null ? acro.getField("MilestonesFrame") : null;
+        if (frame != null && !frame.getWidgets().isEmpty() && frame.getWidgets().get(0).getPage() != null) {
             PdfWidgetAnnotation w = frame.getWidgets().get(0);
             rect = w.getRectangle().toRectangle();
             page = w.getPage();
         } else {
-            // Fallback: toạ độ bạn đã đo (inches -> points)
-            final float INCH = 72f;
-            float x = 0.9732f * INCH;
-            float y = 0.4268f * INCH;
-            float w = 6.4629f * INCH;
-            float h = 5.9503f * INCH;
-            rect = new Rectangle(x, y, w, h);
-            page = pdf.getPage(3); // đúng trang chứa khu vực milestones
+            rect = new Rectangle(0.9732f * INCH, 0.4268f * INCH, 6.4629f * INCH, 5.9503f * INCH);
+            int pageIndex = Math.min(3, Math.max(1, pdf.getNumberOfPages()));
+            page = pdf.getPage(pageIndex);
         }
 
-        PdfCanvas pdfCanvas = new PdfCanvas(page);
-        Canvas canvas = new Canvas(pdfCanvas, rect);
-        java.time.format.DateTimeFormatter df = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
-
-        com.itextpdf.layout.element.List outer =
-                new com.itextpdf.layout.element.List()
-                        .setSymbolIndent(12)
-                        .setFont(font)
-                        .setFontSize(10.5f)
-                        .setListSymbol("\u25A0"); // ■
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        int pageNum = pdf.getPageNumber(page);
+        Canvas canvas = new Canvas(page, rect);
+        float remaining = rect.getHeight();
 
         for (int i = 0; i < milestones.size(); i++) {
-            var m = milestones.get(i);
+            MilestoneRequest m = milestones.get(i);
 
             String title = nvl(m.getTitle(), "Cột mốc " + (i + 1));
-            String due   = (m.getDueDate() != null) ? m.getDueDate().format(df) : "......";
+            String due = m.getDueDate() != null ? m.getDueDate().format(df) : "......";
+            String amountStr = (m.getAmount() == null) ? "....................." : String.valueOf(m.getAmount());
+            String money = "• Số tiền: " + amountStr + " VND";
+            String desc = (m.getDescription() == null || m.getDescription().trim().isEmpty()) ? null : ("• Mô tả: " + m.getDescription());
 
-            ListItem li = new ListItem();
-            li.add(new Paragraph(title + "  (Đến hạn: " + due + ")")
-                    .setBold()
-                    .setFont(font)
-                    .setFontSize(11));
+            com.itextpdf.layout.element.Div probe = buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc);
+            float needed = measureHeight(probe, rect);
 
-
-            com.itextpdf.layout.element.List inner =
-                    new com.itextpdf.layout.element.List()
-                            .setListSymbol("\u2022") // •
-                            .setSymbolIndent(10)
-                            .setMarginLeft(8)
-                            .setFont(font)
-                            .setFontSize(10.5f);
-
-            String moneyLine = "Số tiền: " + nvl(m.getAmount(), ".....................") + " VND";
-            ListItem moneyItem = new ListItem();
-            moneyItem.add(new Paragraph(moneyLine).setFont(font));
-            inner.add(moneyItem);
-
-            if (!isBlank(m.getDescription())) {
-                ListItem noteItem = new ListItem();
-                noteItem.add(new Paragraph("Mô tả: " + m.getDescription()).setFont(font));
-                inner.add(noteItem);
+            if (needed > remaining) {
+                canvas.close();
+                PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                pageNum += 1;
+                page = newPage;
+                canvas = new Canvas(page, rect);
+                remaining = rect.getHeight();
             }
 
-            li.add(inner);
-            outer.add(li);
+            com.itextpdf.layout.element.Div real = buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc);
+            canvas.add(real);
+            remaining -= needed;
         }
 
-        canvas.add(outer);
         canvas.close();
     }
 
-    // ================== Helper: Checkbox ==================
+    private com.itextpdf.layout.element.Div buildMilestoneBlock(PdfFont font, float width,
+                                                                String title, String due,
+                                                                String money, String desc) {
+        com.itextpdf.layout.Style base = new com.itextpdf.layout.Style()
+                .setFont(font).setFontSize(10.5f);
+
+        com.itextpdf.layout.element.Div block = new com.itextpdf.layout.element.Div()
+                .addStyle(base)
+                .setWidth(width)
+                .setMargin(0).setPadding(0)
+                .setMarginBottom(6);
+
+        com.itextpdf.layout.element.Text tTitle = new com.itextpdf.layout.element.Text(title + "  (Đến hạn: " + due + ")")
+                .setFont(font).setFontSize(11f)
+                .setCharacterSpacing(0f).setWordSpacing(0f);
+        Paragraph pTitle = new Paragraph(tTitle)
+                .setFont(font).setFontSize(11f)
+                .setBold()
+                .setMultipliedLeading(1.2f)
+                .setMargin(0).setPadding(0);
+        block.add(pTitle);
+
+        com.itextpdf.layout.element.Text tMoney = new com.itextpdf.layout.element.Text(money)
+                .setFont(font).setFontSize(10.5f)
+                .setCharacterSpacing(0f).setWordSpacing(0f);
+        Paragraph pMoney = new Paragraph(tMoney)
+                .setFont(font).setFontSize(10.5f)
+                .setMultipliedLeading(1.15f)
+                .setMargin(0).setPadding(0);
+        block.add(pMoney);
+
+        if (desc != null) {
+            com.itextpdf.layout.element.Text tDesc = new com.itextpdf.layout.element.Text(desc)
+                    .setFont(font).setFontSize(10.5f)
+                    .setCharacterSpacing(0f).setWordSpacing(0f);
+            Paragraph pDesc = new Paragraph(tDesc)
+                    .setFont(font).setFontSize(10.5f)
+                    .setMultipliedLeading(1.15f)
+                    .setMargin(0).setPadding(0);
+            block.add(pDesc);
+        }
+        return block;
+    }
+
+    private float measureHeight(com.itextpdf.layout.element.Div block, Rectangle rect) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(baos);
+        PdfDocument scratchPdf = new PdfDocument(writer);
+        com.itextpdf.layout.Document scratchDoc = new com.itextpdf.layout.Document(scratchPdf);
+
+        try {
+            com.itextpdf.layout.renderer.IRenderer r = block.createRendererSubTree();
+            r.setParent(scratchDoc.getRenderer());
+            com.itextpdf.layout.layout.LayoutArea area =
+                    new com.itextpdf.layout.layout.LayoutArea(1, new Rectangle(rect));
+            com.itextpdf.layout.layout.LayoutContext ctx =
+                    new com.itextpdf.layout.layout.LayoutContext(area);
+            com.itextpdf.layout.layout.LayoutResult res = r.layout(ctx);
+            if (res == null || res.getOccupiedArea() == null || res.getOccupiedArea().getBBox() == null) {
+                return 14f;
+            }
+            return res.getOccupiedArea().getBBox().getHeight();
+        } finally {
+            scratchDoc.close();
+        }
+    }
+
     private void setCheck(PdfAcroForm acro, String name, boolean checked) {
         PdfFormField f = acro.getField(name);
         if (f == null) {
@@ -361,28 +338,24 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         f.setValue(checked ? on : "Off");
     }
 
-    // ================== Helper: Tổng hợp & Field map ==================
     private Map<String, String> mapDtoToPdfFields(ContractPdfFillRequest req) {
         DateTimeFormatter d = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         Map<String, String> m = new LinkedHashMap<>();
 
-        // Header
-        m.put("Text Box 1",  ns(req.getContractNo()));
-        m.put("Text Box 2",  req.getSignDate() != null ? req.getSignDate().format(d) : "");
-        m.put("Text Box 3",  ns(req.getSignPlace()));
+        m.put("Text Box 1", ns(req.getContractNo()));
+        m.put("Text Box 2", req.getSignDate() != null ? req.getSignDate().format(d) : "");
+        m.put("Text Box 3", ns(req.getSignPlace()));
 
-        // Bên A
-        m.put("Text Box 4",  ns(req.getAName()));
-        m.put("Text Box 5",  ns(req.getACccd()));
-        m.put("Text Box 6",  req.getACccdIssueDate() != null ? req.getACccdIssueDate().format(d) : "");
-        m.put("Text Box 7",  ns(req.getACccdIssuePlace()));
-        m.put("Text Box 8",  ns(req.getAAddress()));
-        m.put("Text Box 9",  ns(req.getAPhone()));
+        m.put("Text Box 4", ns(req.getAName()));
+        m.put("Text Box 5", ns(req.getACccd()));
+        m.put("Text Box 6", req.getACccdIssueDate() != null ? req.getACccdIssueDate().format(d) : "");
+        m.put("Text Box 7", ns(req.getACccdIssuePlace()));
+        m.put("Text Box 8", ns(req.getAAddress()));
+        m.put("Text Box 9", ns(req.getAPhone()));
         m.put("Text Box 10", ns(req.getARepresentative()));
         m.put("Text Box 11", ns(req.getATitle()));
         m.put("Text Box 12", ns(req.getAPoANo()));
 
-        // Bên B
         m.put("Text Box 13", ns(req.getBName()));
         m.put("Text Box 14", ns(req.getBCccd()));
         m.put("Text Box 15", req.getBCccdIssueDate() != null ? req.getBCccdIssueDate().format(d) : "");
@@ -393,7 +366,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         m.put("Text Box 20", ns(req.getBTitle()));
         m.put("Text Box 21", ns(req.getBPoANo()));
 
-        // Hạng mục
         m.put("Text Box 22", ns(req.getLine1Item()));
         m.put("Text Box 23", ns(req.getLine1Unit()));
         m.put("Text Box 24", req.getLine1Qty() == null ? "" : String.valueOf(req.getLine1Qty()));
@@ -412,49 +384,30 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         m.put("Text Box 35", ns(req.getLine3Price()));
         m.put("Text Box 36", ns(req.getLine3Amount()));
 
-        // 37/38/39/42 sẽ bị ghi đè bằng kết quả tính toán ở fillTemplate()
         return m;
     }
 
-    // ================== Helper: Validate Milestones ==================
     private void validateMilestonesAmount(List<MilestoneRequest> milestones, BigDecimal grandTotal) {
-        if (milestones == null || milestones.isEmpty()) {
-            throw new AppException(ErrorCode.BAD_REQUEST); // yêu cầu mốc nhưng không có mốc nào
-        }
+        if (milestones == null || milestones.isEmpty()) throw new AppException(ErrorCode.BAD_REQUEST);
 
-        BigDecimal remaining = grandTotal; // số tiền còn lại của dự án (sum + VAT)
+        BigDecimal remaining = grandTotal;
         for (int i = 0; i < milestones.size(); i++) {
             MilestoneRequest m = milestones.get(i);
-
-            // Validate bắt buộc
             if (m.getTitle() == null || m.getTitle().isBlank()
                     || m.getAmount() == null || m.getAmount().isBlank()
                     || m.getDueDate() == null) {
                 throw new AppException(ErrorCode.BAD_REQUEST);
             }
-
             BigDecimal amt = parseMoney(m.getAmount());
-            if (amt.signum() <= 0) {
-                // số tiền mỗi mốc phải > 0
-                throw new AppException(ErrorCode.BAD_REQUEST);
-            }
-
-            // Quy tắc: mốc hiện tại không vượt số tiền còn lại
+            if (amt.signum() <= 0) throw new AppException(ErrorCode.BAD_REQUEST);
             if (amt.compareTo(remaining) > 0) {
                 log.warn("Milestone #{} amount {} exceeds remaining {}", (i + 1), amt, remaining);
                 throw new AppException(ErrorCode.BAD_REQUEST);
             }
-
             remaining = remaining.subtract(amt);
         }
-
-        // KHÔNG bắt buộc tổng == grandTotal (nếu cần, mở comment bên dưới)
-        // if (remaining.compareTo(BigDecimal.ZERO) != 0) {
-        //     throw new AppException(ErrorCode.BAD_REQUEST);
-        // }
     }
 
-    // ================== Helper: Tính tiền ==================
     private record MoneyTotals(BigDecimal sum, BigDecimal vat, BigDecimal grandTotal) {}
 
     private MoneyTotals computeTotals(ContractPdfFillRequest req) {
@@ -463,23 +416,20 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         sum = sum.add(parseMoney(req.getLine2Amount()));
         sum = sum.add(parseMoney(req.getLine3Amount()));
 
-        // VAT tiền = sum * 8%
         BigDecimal vat = sum.multiply(DEFAULT_VAT_RATE).setScale(0, RoundingMode.HALF_UP);
-        // Grand total = sum + vat   (chuẩn hoá nghiệp vụ)
         BigDecimal total = sum.add(vat);
         return new MoneyTotals(sum, vat, total);
     }
 
     private BigDecimal parseMoney(String s) {
         if (s == null || s.isBlank()) return BigDecimal.ZERO;
-        // nhận "10,000,000" hoặc "10.000.000" hoặc "10800000"
         String digits = s.replaceAll("[^0-9-]", "");
         if (digits.isBlank()) return BigDecimal.ZERO;
         return new BigDecimal(digits);
     }
 
     private String formatMoney(BigDecimal v) {
-        NumberFormat nf = NumberFormat.getInstance(Locale.US); // "10,000,000"
+        NumberFormat nf = NumberFormat.getInstance(Locale.US);
         nf.setMaximumFractionDigits(0);
         nf.setMinimumFractionDigits(0);
         return nf.format(v);
