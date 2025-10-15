@@ -27,4 +27,7 @@ public class MilestoneRequest {
     @NotNull(message = "Milestone dueDate is required")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate dueDate;
+
+    @JsonProperty("editCount")
+    Integer editCount;
 }

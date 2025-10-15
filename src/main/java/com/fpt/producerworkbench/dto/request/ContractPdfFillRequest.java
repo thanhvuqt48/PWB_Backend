@@ -180,4 +180,11 @@ public class ContractPdfFillRequest {
     @JsonProperty("milestones") private List<MilestoneRequest> milestones;
 
     @JsonProperty("projectId") Long projectId;
+
+    @NotBlank
+    @JsonProperty("percent")
+    String percent;
+
+    @JsonProperty("fpEditAmount")
+    Integer fpEditAmount;
 }
