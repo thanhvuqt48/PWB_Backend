@@ -14,6 +14,7 @@ public enum ErrorCode {
     INVALID_KEY(1001, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
     EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
     TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
+    URL_GENERATION_FAILED(1012, "Không thể tạo URL. Vui lòng thử lại.", HttpStatus.INTERNAL_SERVER_ERROR),
 
     // ===== Lỗi Xác thực & Phân quyền (2xxx) =====
     UNAUTHENTICATED(2001, "Yêu cầu xác thực. Vui lòng đăng nhập.", HttpStatus.UNAUTHORIZED),
@@ -68,6 +69,7 @@ public enum ErrorCode {
     // ===== 7xxx: Tích hợp SignNow (MỚI) =====
     SIGNNOW_UPLOAD_FAILED(7001, "Upload tài liệu lên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
     SIGNNOW_INVITE_FAILED(7002, "Tạo lời mời ký trên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
+    SIGNNOW_DOC_HAS_NO_FIELDS(7003, "Tài liệu chưa có field/role.", HttpStatus.BAD_GATEWAY),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),

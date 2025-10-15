@@ -1,87 +1,113 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
-import com.fpt.producerworkbench.dto.response.UploadResponse;
-import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.S3TestService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Map;
-import java.util.UUID;
+import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/test/s3")
+@RequestMapping("/api/v1/s3-test")
 @RequiredArgsConstructor
 public class S3TestController {
 
-    private final FileStorageService fileStorageService;
+    private final S3TestService s3TestService;
 
-    @Value("${cloudfront.domain}")
-    private String cloudfrontDomain;
+    // --- UPLOAD ENDPOINTS ---
 
     /**
-     * API để test chức năng upload file.
-     * Dùng Postman (hoặc công cụ tương tự) với phương thức POST, chọn Body -> form-data.
-     * Tạo một key tên là "file" và chọn type là "File", sau đó chọn file bạn muốn tải lên.
+     * Test upload ảnh đại diện người dùng.
+     * Dùng form-data với key "userId" và "file".
      */
-    @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<UploadResponse>> uploadTestFile(@RequestParam("file") MultipartFile file) {
-
-        String fileExtension = getFileExtension(file.getOriginalFilename());
-
-        String objectKey = "test-uploads/" + UUID.randomUUID().toString() + fileExtension;
-
-        fileStorageService.uploadFile(file, objectKey);
-
-        String publicUrl = "https://" + cloudfrontDomain + "/" + objectKey;
-
-        UploadResponse result = UploadResponse.builder()
-                .objectKey(objectKey)
-                .url(publicUrl)
-                .build();
-
-        return ResponseEntity.ok(ApiResponse.<UploadResponse>builder()
-                .message("Test file uploaded successfully.")
-                .result(result)
-                .build());
+    @PostMapping("/upload/user-avatar")
+    public ApiResponse<String> uploadAvatar(@RequestParam Long userId, @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadUserAvatar(userId, file);
+        return ApiResponse.<String>builder().result(key).message("Upload avatar thành công. Key: " + key).build();
     }
 
+    /**
+     * Test upload file nhạc cho dự án.
+     * Dùng form-data với key "projectId" và "file".
+     */
+    @PostMapping("/upload/project-music")
+    public ApiResponse<String> uploadMusic(@RequestParam Long projectId, @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadProjectMusic(projectId, file);
+        return ApiResponse.<String>builder().result(key).message("Upload nhạc thành công. Key: " + key).build();
+    }
+
+    /**
+     * Test upload file video cho dự án.
+     * Dùng form-data với key "projectId" và "file".
+     */
+    @PostMapping("/upload/project-video")
+    public ApiResponse<String> uploadVideo(@RequestParam Long projectId, @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadProjectVideo(projectId, file);
+        return ApiResponse.<String>builder().result(key).message("Upload video thành công. Key: " + key).build();
+    }
+
+    /**
+     * Test upload file zip cho cột mốc.
+     * Dùng form-data với key "projectId", "milestoneId", và "file".
+     */
+    @PostMapping("/upload/milestone-zip")
+    public ApiResponse<String> uploadZip(@RequestParam Long projectId, @RequestParam Long milestoneId, @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadMilestoneZip(projectId, milestoneId, file);
+        return ApiResponse.<String>builder().result(key).message("Upload file zip thành công. Key: " + key).build();
+    }
+
+    /**
+     * Test upload file PDF cho hợp đồng.
+     * Dùng form-data với key "contractId", "fileName" (ví dụ: "signed_final.pdf"), và "file".
+     */
+    @PostMapping("/upload/contract-pdf")
+    public ApiResponse<String> uploadContract(@RequestParam Long contractId, @RequestParam String fileName, @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadContractPdf(contractId, fileName, file);
+        return ApiResponse.<String>builder().result(key).message("Upload hợp đồng thành công. Key: " + key).build();
+    }
+
+    /**
+     * Lấy URL để XEM TRỰC TIẾP file trên trình duyệt.
+     * Truyền object key bạn nhận được từ API upload vào query param "key".
+     */
     @GetMapping("/view")
-    public ResponseEntity<ApiResponse<String>> getTestFileUrl(@RequestParam("key") String objectKey) {
-        String publicUrl = "https://" + cloudfrontDomain + "/" + objectKey;
-
-        return ResponseEntity.ok(ApiResponse.<String>builder()
-                .message("File URL retrieved.")
-                .result(publicUrl)
-                .build());
+    public ApiResponse<String> getViewUrl(@RequestParam String key) {
+        String url = s3TestService.getViewableUrl(key);
+        return ApiResponse.<String>builder().result(url).message("URL để XEM TRỰC TIẾP, có hiệu lực trong 15 phút.").build();
     }
 
     /**
-     * API để test chức năng xóa file.
-     * Dùng phương thức DELETE và truyền objectKey qua query parameter "key".
-     * Ví dụ: DELETE http://localhost:8080/api/v1/test/s3/delete?key=test-uploads/your-file-key.mp3
+     * Lấy URL để BUỘC TẢI XUỐNG file về máy.
+     * Truyền object key và tên file gốc (để gợi ý tên file khi lưu).
      */
-    // SỬA LẠI MAPPING VÀ THAM SỐ Ở ĐÂY
+    @GetMapping("/download")
+    public ApiResponse<String> getDownloadUrl(@RequestParam String key, @RequestParam String originalFileName) {
+        String url = s3TestService.getDownloadUrl(key, originalFileName);
+        return ApiResponse.<String>builder().result(url).message("URL để TẢI XUỐNG, có hiệu lực trong 15 phút.").build();
+    }
+
+    /**
+     * Xóa một file khỏi S3.
+     */
     @DeleteMapping("/delete")
-    public ResponseEntity<ApiResponse<String>> deleteTestFile(@RequestParam("key") String objectKey) {
-        fileStorageService.deleteFile(objectKey);
-
-        return ResponseEntity.ok(ApiResponse.<String>builder()
-                .message("File '" + objectKey + "' has been deleted.")
-                .build());
+    public ApiResponse<Void> deleteFile(@RequestParam String key) {
+        s3TestService.deleteFile(key);
+        return ApiResponse.<Void>builder().message("Đã xóa file với key: " + key).build();
     }
 
-    /**
-     * Phương thức private để lấy đuôi file một cách an toàn.
-     */
-    private String getFileExtension(String filename) {
-        if (!StringUtils.hasText(filename) || !filename.contains(".")) {
-            return "";
-        }
-        return filename.substring(filename.lastIndexOf("."));
+    @PostMapping("/upload/project-files-multiple")
+    public ApiResponse<List<String>> uploadMultipleProjectFiles(
+            @RequestParam Long projectId,
+            @RequestParam("files") List<MultipartFile> files) {
+
+        List<String> keys = s3TestService.uploadProjectFiles(projectId, files);
+
+        return ApiResponse.<List<String>>builder()
+                .result(keys)
+                .message(String.format("Upload thành công %d file.", keys.size()))
+                .build();
     }
+
 }
