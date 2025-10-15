@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -27,7 +28,6 @@ import java.util.List;
 @AllArgsConstructor
 public class Contract extends AbstractEntity<Long> {
 
-    // Gốc của bạn: giữ nguyên
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", unique = true, nullable = false)
     private Project project;
@@ -42,7 +42,6 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "payment_type", nullable = false)
     private PaymentType paymentType;
 
-    /** Trạng thái nghiệp vụ tổng thể của hợp đồng trong hệ thống của bạn */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private ContractStatus status;
@@ -50,52 +49,43 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "fp_edit_amount")
     private Integer fpEditAmount;
 
-    // ====== Bổ sung cho SignNow / ký điện tử ======
     @Column(name = "signnow_template_id", length = 128)
     private String signnowTemplateId;
 
-    /** ID document trên SignNow (khi upload file đã fill, hoặc khi tạo từ template) */
     @Column(name = "signnow_document_id", length = 128, unique = true)
     private String signnowDocumentId;
 
-    /** Trạng thái phía SignNow: DRAFT/OUT_FOR_SIGNATURE/COMPLETED/... */
     @Enumerated(EnumType.STRING)
     @Column(name = "signnow_status", length = 32, nullable = false)
     private ContractStatus signnowStatus = ContractStatus.DRAFT;
 
-    /** Hình thức mời ký: EMAIL | EMBEDDED */
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_mode", length = 16, nullable = false)
     private SigningMode signingMode = SigningMode.EMAIL;
 
-    /** Thứ tự ký: SEQUENTIAL | PARALLEL */
+    @Builder.Default // Thêm annotation này
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_order_type", length = 16, nullable = false)
     private SigningOrderType signingOrderType = SigningOrderType.SEQUENTIAL;
 
-    /** Thời hạn ký (nếu đặt) */
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "expires_at")
     private Date expiresAt;
 
-    /** Ghi lỗi cuối cùng khi gọi API ký (nếu có) */
     @Lob
     @Column(name = "last_error")
     private String lastError;
-
-    //Quan hệ phục vụ ký điện tử
-    @Builder.Default
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("signOrder ASC, id ASC")
-    private List<ContractParty> parties = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ContractField> fields = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("version ASC")
     private List<ContractDocument> documents = new ArrayList<>();
+
+    @Column(name = "review_token", length = 64, unique = true)
+    private String reviewToken;
+
+    @Column(name = "review_token_expires_at")
+    private LocalDateTime reviewTokenExpiresAt;
 
 }

@@ -2,36 +2,29 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.service.ContractPdfService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/contracts/pdf")
+@RequestMapping("/api/v1/contracts/{contractId}")
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-@Slf4j
 public class ContractPdfController {
 
-    ContractPdfService contractPdfService;
+    private final ContractPdfService contractPdfService;
 
-    @PostMapping(value = "fill", produces = "application/pdf")
-//    @PreAuthorize("hasRole('OWNER')")
-    public ResponseEntity<byte[]> fill(
-            Authentication auth,
+    @PostMapping(value = "/send-for-review", produces = "application/pdf")
+    public ResponseEntity<byte[]> generateAndSendReview(
+            @PathVariable Long contractId,
             @Valid @RequestBody ContractPdfFillRequest req,
-            HttpServletRequest request
+            Authentication auth
     ) {
-        byte[] pdf = contractPdfService.fillTemplate(auth, req);
+        byte[] pdf = contractPdfService.generateAndSendReviewPdf(auth, contractId, req);
+
         return ResponseEntity.ok()
-                .header("Content-Disposition", "inline; filename=contract.pdf")
+                .header("Content-Disposition", "inline; filename=contract_review.pdf")
                 .body(pdf);
     }
 }
-

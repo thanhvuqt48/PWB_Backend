@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Khách hàng Yêu cầu Chỉnh sửa Hợp đồng</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .header { font-size: 24px; font-weight: bold; color: #dc3545; margin-bottom: 20px; }
+        .button { display: inline-block; padding: 12px 25px; margin-top: 20px; background-color: #007bff; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold; }
+        .comment-box { background-color: #f8f9fa; border-left: 4px solid #ffc107; padding: 15px; margin-top: 20px; white-space: pre-wrap; font-style: italic; }
+        .footer { margin-top: 30px; font-size: 12px; color: #777; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">Yêu cầu Chỉnh sửa Hợp đồng</div>
+    <p>
+        Xin chào <strong th:text="${recipientName}">Producer</strong>,
+    </p>
+    <p>
+        Khách hàng <strong th:text="${clientName}">Tên Khách hàng</strong> đã xem trước hợp đồng cho dự án <strong th:text="${projectName}">Tên Dự án</strong> và có một vài yêu cầu chỉnh sửa.
+    </p>
+    <p>
+        <b>Nội dung yêu cầu:</b>
+    </p>
+    <div class="comment-box" th:text="${comments}">
+        Nội dung bình luận của khách hàng sẽ được hiển thị ở đây.
+    </div>
+    <p>
+        Trạng thái của hợp đồng đã được chuyển về "Nháp" để bạn có thể cập nhật. Vui lòng xem lại và gửi lại cho khách hàng sau khi hoàn tất.
+    </p>
+    <a th:href="${projectLink}" class="button">Xem lại Hợp đồng</a>
+    <div class="footer">
+        <p>Đây là email tự động từ hệ thống Producer Workbench.</p>
+    </div>
+</div>
+</body>
+</html>

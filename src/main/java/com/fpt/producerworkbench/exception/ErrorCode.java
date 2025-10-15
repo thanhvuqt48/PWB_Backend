@@ -55,25 +55,29 @@ public enum ErrorCode {
     INVITATION_SELF_NOT_ALLOWED(5010, "Không thể mời chính bạn vào dự án.", HttpStatus.BAD_REQUEST),
     USER_ALREADY_MEMBER(5011, "Người dùng này đã là thành viên của dự án.", HttpStatus.BAD_REQUEST),
 
-    // ===== 5xxx: Hợp đồng / Ký số (MỚI) =====
+    // ===== Lỗi Hợp đồng (5xxx) =====
     CONTRACT_NOT_FOUND(5001, "Không tìm thấy hợp đồng.", HttpStatus.NOT_FOUND),
-    CONTRACT_FILLED_PDF_NOT_FOUND(5002, "Chưa có file hợp đồng đã soạn (FILLED) để mời ký.", HttpStatus.BAD_REQUEST),
-    SIGNERS_REQUIRED(5003, "Thiếu danh sách người ký.", HttpStatus.BAD_REQUEST),
-    SIGNER_EMAIL_REQUIRED(5004, "Thiếu email người ký.", HttpStatus.BAD_REQUEST),
-    ROLE_ID_REQUIRED(5005, "Thiếu roleId cho người ký (Field Invite yêu cầu roleId).", HttpStatus.BAD_REQUEST),
-    PDF_BASE64_INVALID(5006, "pdfBase64 không hợp lệ.", HttpStatus.BAD_REQUEST),
+    CONTRACT_ALREADY_EXISTS(5002, "Dự án này đã có hợp đồng.", HttpStatus.CONFLICT),
+    CONTRACT_NOT_IN_DRAFT_STATUS(5003, "Hợp đồng không ở trạng thái Nháp để thực hiện hành động này.", HttpStatus.BAD_REQUEST),
+    CONTRACT_INVALID_STATUS_FOR_SIGNING(5004, "Trạng thái hợp đồng không hợp lệ để mời ký.", HttpStatus.BAD_REQUEST),
+    MILESTONES_REQUIRED_FOR_PAYMENT_TYPE(5005, "Phương thức thanh toán theo cột mốc yêu cầu phải có danh sách cột mốc.", HttpStatus.BAD_REQUEST),
+    CONTRACT_FILLED_PDF_NOT_FOUND(5006, "Chưa có file hợp đồng đã soạn (FILLED) để mời ký.", HttpStatus.BAD_REQUEST),
+    SIGNERS_REQUIRED(5007, "Thiếu danh sách người ký.", HttpStatus.BAD_REQUEST),
+    SIGNER_EMAIL_REQUIRED(5008, "Thiếu email người ký.", HttpStatus.BAD_REQUEST),
+    ROLE_ID_REQUIRED(5009, "Thiếu roleId cho người ký (Field Invite yêu cầu roleId).", HttpStatus.BAD_REQUEST),
+    PDF_BASE64_INVALID(5010, "pdfBase64 không hợp lệ.", HttpStatus.BAD_REQUEST),
+    CONTRACT_DOC_NOT_FOUND(5011, "Không tìm thấy tài liệu của hợp đồng.", HttpStatus.NOT_FOUND),
 
     // ===== 6xxx: Storage (MỚI) =====
-    STORAGE_READ_FAILED(6001, "Không đọc được file từ storage.", HttpStatus.INTERNAL_SERVER_ERROR),
+    SIGNNOW_UPLOAD_FAILED(6001, "Upload tài liệu lên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
+    SIGNNOW_INVITE_FAILED(6002, "Tạo lời mời ký trên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
+    SIGNNOW_DOC_HAS_NO_FIELDS(6003, "Tài liệu trên SignNow chưa có field/role được định nghĩa.", HttpStatus.BAD_REQUEST),
+    SIGNNOW_DOC_ID_NOT_FOUND(6004, "Không tìm thấy ID tài liệu trên SignNow.", HttpStatus.NOT_FOUND),
+    SIGNNOW_DOWNLOAD_FAILED(6005, "Tải file đã ký từ SignNow thất bại.", HttpStatus.BAD_GATEWAY),
+    SIGNNOW_DOC_NOT_COMPLETED(6006, "Hợp đồng chưa được ký hoàn tất trên SignNow.", HttpStatus.BAD_REQUEST),
 
     // ===== 7xxx: Tích hợp SignNow (MỚI) =====
-    SIGNNOW_UPLOAD_FAILED(7001, "Upload tài liệu lên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
-    SIGNNOW_INVITE_FAILED(7002, "Tạo lời mời ký trên SignNow thất bại.", HttpStatus.BAD_GATEWAY),
-    SIGNNOW_DOC_HAS_NO_FIELDS(7003, "Tài liệu chưa có field/role.", HttpStatus.BAD_GATEWAY),
-    SIGNNOW_DOC_ID_NOT_FOUND(7004, "Không tìm thấy tài liệu.", HttpStatus.NOT_FOUND),
-    SIGNNOW_DOWNLOAD_FAILED(7005, "Tải thất bại.", HttpStatus.BAD_REQUEST),
-    SIGNNOW_DOC_NOT_COMPLETED(7006, "Hợp đồng chưa hoàn tất ký.", HttpStatus.BAD_REQUEST),
-    CONTRACT_DOC_NOT_FOUND(7007, "Không tìm thấy hợp đồng.", HttpStatus.BAD_REQUEST),
+    STORAGE_READ_FAILED(7001, "Không đọc được file từ hệ thống lưu trữ.", HttpStatus.INTERNAL_SERVER_ERROR),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -82,6 +86,10 @@ public enum ErrorCode {
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
     PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
     CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST)
+
+    // ===== Lỗi Hợp Đồng(xxx)
+
+
     ;
 
     private final int code;

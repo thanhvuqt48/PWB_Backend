@@ -15,11 +15,12 @@ public class ContractInviteController {
 
     private final ContractInviteService contractInviteService;
 
-    @PostMapping("/{id}/invites")
-    public ApiResponse<StartSigningResponse> invite(@PathVariable Long id,
-                                                    @RequestBody ContractInviteRequest req,
-                                                    Authentication auth) {
-        var result = contractInviteService.invite(auth, id, req);
-        return ApiResponse.<StartSigningResponse>builder().code(200).result(result).build();
+    @PostMapping
+    public ApiResponse<Void> inviteToSign(@PathVariable Long contractId) {
+        contractInviteService.sendSigningInvitation(contractId);
+        return ApiResponse.<Void>builder()
+                .code(200)
+                .message("Lời mời ký hợp đồng đã được gửi đi thành công qua SignNow.")
+                .build();
     }
 }

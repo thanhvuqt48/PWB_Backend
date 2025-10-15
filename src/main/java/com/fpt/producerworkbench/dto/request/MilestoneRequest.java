@@ -4,11 +4,17 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
-@Setter @Getter @AllArgsConstructor @NoArgsConstructor @Builder
+@Setter
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class MilestoneRequest {
 
     @JsonProperty("title")
@@ -19,9 +25,9 @@ public class MilestoneRequest {
     private String description;
 
 
-    @JsonProperty("amount")
-    @NotBlank(message = "Milestone amount is required")
-    private String amount;
+    @NotNull(message = "Số tiền không được để trống")
+    @Positive(message = "Số tiền phải là số dương")
+    private BigDecimal amount;
 
     @JsonProperty("dueDate")
     @NotNull(message = "Milestone dueDate is required")

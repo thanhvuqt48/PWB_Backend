@@ -5,6 +5,5 @@ import org.springframework.security.core.Authentication;
 
 public interface ContractPdfService {
 
-    //Điền dữ liệu vào PDF mẫu và trả về mảng bytes PDF đã fill (đã flatten).
-    byte[] fillTemplate(Authentication auth, ContractPdfFillRequest req);
+    byte[] generateAndSendReviewPdf(Authentication auth, Long contractId, ContractPdfFillRequest req);
 }
