@@ -1,11 +1,12 @@
 package com.fpt.producerworkbench.configuration;
 
 import com.fpt.producerworkbench.service.SignNowAuthService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -104,6 +105,28 @@ public class SignNowClient {
         return map;
     }
 
+    @SuppressWarnings("unchecked")
+    public String getDocumentOwnerEmail(String docId) {
+        Map<String, Object> doc = apiClient.get()
+                .uri("/document/{id}", docId)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, r ->
+                        r.bodyToMono(String.class).defaultIfEmpty("<empty>")
+                                .flatMap(b -> toError("getDocument(owner)", r.statusCode().value(), r.statusCode(), b)))
+                .bodyToMono(Map.class)
+                .block();
+
+        if (doc == null) return null;
+        Object owner = doc.get("owner");
+        if (owner instanceof String s) return s;
+        if (owner instanceof Map<?,?> m) {
+            Object email = m.get("email");
+            return email == null ? null : String.valueOf(email);
+        }
+        return authService.getFromEmail();
+    }
+
     public Map<String, Object> createFieldInvite(String docId, List<Map<String, Object>> to, boolean sequential, String fromEmail) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("signing_order", sequential ? "sequential" : "parallel");
@@ -163,26 +186,66 @@ public class SignNowClient {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public String getDocumentOwnerEmail(String docId) {
-        Map<String, Object> doc = apiClient.get()
-                .uri("/document/{id}", docId)
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, r ->
-                        r.bodyToMono(String.class).defaultIfEmpty("<empty>")
-                                .flatMap(b -> toError("getDocument(owner)", r.statusCode().value(), r.statusCode(), b)))
-                .bodyToMono(Map.class)
-                .block();
 
-        if (doc == null) return null;
-        Object owner = doc.get("owner");
-        if (owner instanceof String s) return s;
-        if (owner instanceof Map<?,?> m) {
-            Object email = m.get("email");
-            return email == null ? null : String.valueOf(email);
+
+    public boolean canDownloadCollapsed(String documentId, boolean withHistory) {
+        try {
+            apiClient.get()
+                    .uri(b -> {
+                        var u = b.path("/document/{id}/download")
+                                .queryParam("type", "collapsed");
+                        if (withHistory) u = u.queryParam("with_history", 1);
+                        return u.build(documentId);
+                    })
+                    .accept(MediaType.APPLICATION_PDF)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
+            return true;
+        } catch (WebClientResponseException ex) {
+            int sc = ex.getStatusCode().value();
+            if (sc == 400 || sc == 409 || sc == 422) return false;
+            throw ex;
         }
-        return authService.getFromEmail();
+    }
+
+
+    public byte[] downloadFinalPdf(String documentId, boolean withHistory) {
+        return apiClient.get()
+                .uri(b -> {
+                    var u = b.path("/document/{id}/download").queryParam("type", "collapsed");
+                    if (withHistory) u = u.queryParam("with_history", 1);
+                    return u.build(documentId);
+                })
+                .accept(MediaType.APPLICATION_PDF)
+                .exchangeToMono(resp -> {
+                    if (resp.statusCode().is2xxSuccessful()) {
+                        return resp.bodyToFlux(DataBuffer.class)
+                                .map(db -> {
+                                    byte[] bytes = new byte[db.readableByteCount()];
+                                    db.read(bytes);
+                                    DataBufferUtils.release(db);
+                                    return bytes;
+                                })
+                                .collectList()
+                                .map(parts -> {
+                                    int total = parts.stream().mapToInt(b -> b.length).sum();
+                                    byte[] all = new byte[total];
+                                    int pos = 0;
+                                    for (byte[] p : parts) { System.arraycopy(p, 0, all, pos, p.length); pos += p.length; }
+                                    if (all.length == 0) throw new IllegalStateException("SignNow returned 200 with empty body");
+                                    return all;
+                                });
+                    }
+                    return resp.bodyToMono(String.class).defaultIfEmpty("<empty>").flatMap(body -> {
+                        var sc = resp.statusCode();
+                        return Mono.error(new WebClientResponseException(
+                                "SignNow download failed",
+                                sc.value(), sc.toString(), null,
+                                body.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8
+                        ));
+                    });
+                })
+                .block();
     }
 }
-

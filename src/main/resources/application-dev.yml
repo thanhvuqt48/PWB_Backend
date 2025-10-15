@@ -104,9 +104,9 @@ logging:
   
 outbound:
   identity:
-    client-id: ${CLIENT_ID}
-    client-secret: ${CLIENT_SECRET}
-    redirect-uri: ${REDIRECT_URI}
+    client-id: ${OUTBOUND_CLIENT_ID}
+    client-secret: ${OUTBOUND_CLIENT_SECRET}
+    redirect-uri: ${OUTBOUND_REDIRECT_URI}
 
 cors:
   allowed-origin: ${ALLOWED_ORIGIN}

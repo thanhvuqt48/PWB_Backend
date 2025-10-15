@@ -4,4 +4,5 @@ public interface StorageService {
 
     String save(byte[] bytes, String key);
     byte[] load(String url);
+    byte[] read(String key);
 }
