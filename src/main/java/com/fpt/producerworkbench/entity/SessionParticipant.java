@@ -1,58 +1,136 @@
 package com.fpt.producerworkbench.entity;
 
 import com.fpt.producerworkbench.common.InvitationStatus;
-import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.ParticipantRole;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.security.Timestamp;
+import java.time.LocalDateTime;
 
-@Getter
-@Setter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @Entity
 @Table(name = "session_participants",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"session_id", "user_id"}))
-public class SessionParticipant extends AbstractEntity<Long>{
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_session_user",
+                columnNames = {"session_id", "user_id"}
+        ))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class SessionParticipant extends AbstractEntity<Long> {
 
-    @ManyToOne
+    // ========== Relationships ==========
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id", nullable = false)
     private LiveSession session;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ProjectRole participantRole;
-
-    private Boolean canControlPlayback = false;
-
-    private Boolean canApproveFiles = false;
+    // ========== Role & Status ==========
 
     @Enumerated(EnumType.STRING)
-    private InvitationStatus invitationStatus; // INVITED, ACCEPTED, DECLINED, REMOVED
+    @Column(name = "participant_role", nullable = false)
+    private ParticipantRole participantRole;
 
-    private Timestamp joinedAt;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "invitation_status", nullable = false)
+    private InvitationStatus invitationStatus = InvitationStatus.PENDING;
 
-    private Timestamp leftAt;
+    // ========== Agora Credentials ==========
 
-    private Long totalSessionTime = 0L;
-
-    @Column(columnDefinition = "INT UNSIGNED")
+    @Column(name = "agora_uid")
     private Integer agoraUid;
 
-    @Column(length = 500)
+    @Column(name = "agora_token", length = 500)
     private String agoraToken;
 
-    private Timestamp agoraTokenExpiresAt;
+    @Column(name = "agora_token_expires_at")
+    private LocalDateTime agoraTokenExpiresAt;
 
+    // ========== Session Timing ==========
+
+    @Column(name = "invited_at")
+    private LocalDateTime invitedAt;
+
+    @Column(name = "joined_at")
+    private LocalDateTime joinedAt;
+
+    @Column(name = "left_at")
+    private LocalDateTime leftAt;
+
+    @Column(name = "total_session_time")
+    private Long totalSessionTime = 0L; // seconds
+
+    // ========== Online Status ==========
+
+    @Column(name = "is_online", nullable = false)
     private Boolean isOnline = false;
 
+    @Column(name = "audio_enabled")
     private Boolean audioEnabled = true;
 
+    @Column(name = "video_enabled")
     private Boolean videoEnabled = true;
+
+    // ========== Permissions ==========
+
+    @Column(name = "can_share_audio")
+    private Boolean canShareAudio = true;
+
+    @Column(name = "can_share_video")
+    private Boolean canShareVideo = true;
+
+    @Column(name = "can_control_playback")
+    private Boolean canControlPlayback = false;
+
+    @Column(name = "can_approve_files")
+    private Boolean canApproveFiles = false;
+
+    // ========== Business Methods ==========
+
+    public boolean isOwner() {
+        return this.participantRole == ParticipantRole.OWNER;
+    }
+
+    public boolean isPending() {
+        return this.invitationStatus == InvitationStatus.PENDING;
+    }
+
+    public boolean hasAccepted() {
+        return this.invitationStatus == InvitationStatus.ACCEPTED;
+    }
+
+    public boolean canPublish() {
+        return this.participantRole != ParticipantRole.OBSERVER;
+    }
+
+    public void acceptInvitation() {
+        this.invitationStatus = InvitationStatus.ACCEPTED;
+    }
+
+    public void declineInvitation() {
+        this.invitationStatus = InvitationStatus.DECLINED;
+    }
+
+    public void markAsOnline() {
+        this.isOnline = true;
+        if (this.joinedAt == null) {
+            this.joinedAt = LocalDateTime.now();
+        }
+    }
+
+    public void markAsOffline() {
+        this.isOnline = false;
+        this.leftAt = LocalDateTime.now();
+
+        // Calculate total session time
+        if (this.joinedAt != null && this.leftAt != null) {
+            long seconds = java.time.Duration.between(this.joinedAt, this.leftAt).getSeconds();
+            this.totalSessionTime += seconds;
+        }
+    }
 }

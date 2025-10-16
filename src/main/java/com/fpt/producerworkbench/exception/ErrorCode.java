@@ -81,7 +81,41 @@ public enum ErrorCode {
     INVALID_DOB(400, "Ngày sinh phải lớn hơn 1950 và nhỏ hơn ngày hiện tại", HttpStatus.BAD_REQUEST),
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
     PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
-    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST)
+    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
+
+    // Agora RTC/RTM Token - 6xxx
+    AGORA_TOKEN_GENERATION_FAILED(6001, "Lỗi khi tạo Agora token", HttpStatus.INTERNAL_SERVER_ERROR),
+    AGORA_CONFIG_MISSING(6002, "Cấu hình Agora bị thiếu", HttpStatus.INTERNAL_SERVER_ERROR),
+    AGORA_CHANNEL_INVALID(6003, "Tên kênh Agora không hợp lệ", HttpStatus.BAD_REQUEST),
+    AGORA_TOKEN_INVALID(6004, "Định dạng mã thông báo Agora không hợp lệ", HttpStatus.BAD_REQUEST),
+    AGORA_TOKEN_EXPIRED(6005, "Tên kênh Agora không hợp lệ", HttpStatus.UNAUTHORIZED),
+    AGORA_UID_INVALID(6006, "Agora UID không hợp lệ", HttpStatus.BAD_REQUEST),
+    // ========== File Related (7xxx) ==========
+    FILE_NOT_FOUND(7001, "File not found", HttpStatus.NOT_FOUND),
+    FILE_NOT_IN_PROJECT(7002, "File does not belong to this project", HttpStatus.FORBIDDEN),
+    INVALID_FILE_FORMAT(7003, "Invalid file format", HttpStatus.BAD_REQUEST),
+
+    // ========== Playback Related (8xxx) ==========
+    PLAYBACK_CONTROL_DENIED(8001, "You do not have permission to control playback", HttpStatus.FORBIDDEN),
+    NO_FILE_PLAYING(8002, "No file is currently playing", HttpStatus.BAD_REQUEST),
+    INVALID_PLAYBACK_POSITION(8003, "Invalid playback position", HttpStatus.BAD_REQUEST),
+
+    // ========== Chat Related (9xxx) ==========
+    CHAT_MESSAGE_NOT_FOUND(9001, "Chat message not found", HttpStatus.NOT_FOUND),
+    CANNOT_DELETE_MESSAGE(9002, "You do not have permission to delete this message", HttpStatus.FORBIDDEN),
+    MESSAGE_TOO_LONG(9003, "Message exceeds maximum length", HttpStatus.BAD_REQUEST),
+
+    SESSION_NOT_FOUND(5009, "Session not found", HttpStatus.NOT_FOUND),
+    SESSION_NOT_ACTIVE(5010, "Session is not active", HttpStatus.BAD_REQUEST),
+    SESSION_FULL(5011, "Session has reached maximum participants", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_ACTIVE(5012, "Session is already active", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_ENDED(5013, "Session has already ended", HttpStatus.BAD_REQUEST),
+
+    PARTICIPANT_NOT_FOUND(5101, "Participant not found in session", HttpStatus.NOT_FOUND),
+    USER_ALREADY_INVITED(5102, "User already invited to this session", HttpStatus.CONFLICT),
+    USER_NOT_IN_PROJECT(5103, "User is not a member of this project", HttpStatus.FORBIDDEN),
+    INVITATION_DECLINED(5104, "Invitation was declined", HttpStatus.BAD_REQUEST),
+    ONLY_HOST_CAN_PERFORM_ACTION(5105, "Only session host can perform this action", HttpStatus.FORBIDDEN),
     ;
 
     private final int code;

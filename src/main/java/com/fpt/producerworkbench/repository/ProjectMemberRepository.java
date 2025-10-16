@@ -26,4 +26,19 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     Page<ProjectMember> findVisibleForAnonymousCollaborator(@Param("projectId") Long projectId, Pageable pageable);
 
     Optional<ProjectMember> findByProjectIdAndUserEmail(Long projectId, String email);
+
+    @Query("SELECT pm FROM ProjectMember pm " +
+            "WHERE pm.project.id = :projectId AND pm.user.id = :userId")
+    Optional<ProjectMember> findByProjectIdAndUserId(
+            @Param("projectId") Long projectId,
+            @Param("userId") Long userId
+    );
+
+    @Query("SELECT CASE WHEN COUNT(pm) > 0 THEN true ELSE false END " +
+            "FROM ProjectMember pm " +
+            "WHERE pm.project.id = :projectId AND pm.user.id = :userId")
+    boolean existsByProjectIdAndUserId(
+            @Param("projectId") Long projectId,
+            @Param("userId") Long userId
+    );
 }

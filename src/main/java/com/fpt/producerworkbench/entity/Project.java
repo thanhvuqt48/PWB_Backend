@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "projects")
@@ -46,4 +48,7 @@ public class Project  extends AbstractEntity<Long>{
     @Enumerated(EnumType.STRING)
     @Column(name = "project_type", nullable = false)
     private ProjectType type;
+
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    private List<LiveSession> liveSessions = new ArrayList<>();
 }
