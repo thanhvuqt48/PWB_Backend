@@ -1,0 +1,383 @@
+# TEST CASE TEMPLATE - ĐĂNG KÝ TÀI KHOẢN
+
+## BƯỚC 1: THÔNG TIN CHUNG
+
+| Thông tin | Giá trị |
+|-----------|---------|
+| **Function Code** | UC_01 |
+| **Function Name** | Đăng ký tài khoản (User Registration) |
+| **Created by** | [Tên người tạo test case] |
+| **Executed by** | [Tên người thực thi test] |
+| **Test requirement** | Kiểm tra chức năng đăng ký tài khoản mới, đảm bảo hệ thống xử lý đúng các trường hợp dữ liệu hợp lệ, không hợp lệ, validation và xử lý lỗi chính xác. |
+| **Created Date** | [Ngày tạo] |
+| **Executed Date** | [Ngày thực thi] |
+
+### BẢNG THỐNG KÊ KẾT QUẢ
+| Loại | Tổng số | Passed | Failed | Pass Rate |
+|------|---------|--------|--------|-----------|
+| Normal (N) | 3 | 0 | 0 | 0% |
+| Abnormal (A) | 8 | 0 | 0 | 0% |
+| Boundary (B) | 2 | 0 | 0 | 0% |
+| **TỔNG CỘNG** | **13** | **0** | **0** | **0%** |
+
+---
+
+## BƯỚC 2: THIẾT KẾ TEST CASE
+
+### API THÔNG TIN
+- **HTTP Method:** POST
+- **API Endpoint:** `/api/v1/users/register`
+- **Request Body:** JSON
+- **Response:** JSON
+
+### MA TRẬN TEST CASE
+
+| Yếu tố | UTCID01 | UTCID02 | UTCID03 | UTCID04 | UTCID05 | UTCID06 | UTCID07 | UTCID08 | UTCID09 | UTCID10 | UTCID11 | UTCID12 | UTCID13 |
+|--------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|---------|
+| **CONDITION** |
+| Email chưa tồn tại trong DB | O | O | O | O | O | O | O | O | O | O | O | O | O |
+| **HTTP METHOD** |
+| POST | O | O | O | O | O | O | O | O | O | O | O | O | O |
+| **API ENDPOINT** |
+| /api/v1/users/register | O | O | O | O | O | O | O | O | O | O | O | O | O |
+| **INPUT - OTP** |
+| Valid OTP | O | | | | | | | | | | | | |
+| Invalid OTP | | O | | | | | | | | | | | |
+| Expired OTP | | | O | | | | | | | | | | |
+| Empty OTP | | | | O | | | | | | | | | |
+| **INPUT - EMAIL** |
+| Valid email format | O | O | O | O | O | | | | | | | | |
+| Invalid email format | | | | | | O | O | O | O | | | | |
+| Empty email | | | | | | | | | | | O | | |
+| **INPUT - PASSWORD** |
+| Valid password (≥6 chars) | O | O | O | O | | | | | | | | | |
+| Invalid password (<6 chars) | | | | | | O | O | O | O | | | | |
+| Empty password | | | | | | | | | | | | O | |
+| **INPUT - FIRSTNAME** |
+| Valid firstname | O | O | O | O | | | | | | | | | |
+| Empty firstname | | | | | | O | O | O | O | | | | |
+| **INPUT - LASTNAME** |
+| Valid lastname | O | O | O | O | | | | | | | | | |
+| Empty lastname | | | | | | O | O | O | O | | | | |
+| **INPUT - DATEOFBIRTH** |
+| Valid date format | O | O | O | O | | | | | | | | | |
+| Invalid date format | | | | | | O | O | O | O | | | | |
+| Future date | | | | | | | | | | | | | O |
+| **CONFIRM - HTTP STATUS** |
+| 201 Created | O | | | | | | | | | | | | |
+| 400 Bad Request | | O | O | O | O | O | O | O | O | O | O | O | |
+| **CONFIRM - RESPONSE BODY** |
+| UserResponse object | O | | | | | | | | | | | | |
+| Error message | | O | O | O | O | O | O | O | O | O | O | O | |
+| **CONFIRM - LOG MESSAGE** |
+| "User created successfully" | O | | | | | | | | | | | | |
+| "Invalid OTP" | | O | | | | | | | | | | | |
+| "OTP expired" | | | O | | | | | | | | | | |
+| "OTP is required" | | | | O | | | | | | | | | |
+| "Invalid email format" | | | | | | O | O | O | O | | | | |
+| "Email is required" | | | | | | | | | | | O | | |
+| "Password must be at least 6 characters" | | | | | | O | O | O | O | | | | |
+| "Password is required" | | | | | | | | | | | | O | |
+| "First name is required" | | | | | | O | O | O | O | | | | |
+| "Last name is required" | | | | | | O | O | O | O | | | | |
+| "Invalid date format" | | | | | | O | O | O | O | | | | |
+| "Date of birth cannot be in the future" | | | | | | | | | | | | | O |
+
+---
+
+## BƯỚC 3: CHI TIẾT TEST CASE
+
+### UTCID01: Đăng ký thành công với dữ liệu hợp lệ
+**Mô tả:** Kiểm tra luồng đăng ký thành công với tất cả dữ liệu hợp lệ
+**Type:** N (Normal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ đã được gửi
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 201 Created, UserResponse object
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID02: Đăng ký thất bại do OTP không hợp lệ
+**Mô tả:** Kiểm tra xử lý khi OTP không đúng
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=000000`
+**Expected Result:** 400 Bad Request, "Invalid OTP"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID03: Đăng ký thất bại do OTP hết hạn
+**Mô tả:** Kiểm tra xử lý khi OTP đã hết hạn
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP đã hết hạn
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456` (expired)
+**Expected Result:** 400 Bad Request, "OTP expired"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID04: Đăng ký thất bại do thiếu OTP
+**Mô tả:** Kiểm tra xử lý khi không cung cấp OTP
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** (empty)
+**Expected Result:** 400 Bad Request, "OTP is required"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID05: Đăng ký thất bại do mật khẩu quá ngắn
+**Mô tả:** Kiểm tra validation mật khẩu tối thiểu 6 ký tự
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, "Password must be at least 6 characters"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID06: Đăng ký thất bại do email không đúng định dạng
+**Mô tả:** Kiểm tra validation định dạng email
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "invalid-email",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, "Invalid email format"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID07: Đăng ký thất bại do email không đúng định dạng + mật khẩu ngắn
+**Mô tả:** Kiểm tra multiple validation errors
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "invalid-email",
+  "passwordHash": "123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, Multiple validation errors
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID08: Đăng ký thất bại do email không đúng định dạng + thiếu firstname
+**Mô tả:** Kiểm tra multiple validation errors
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "invalid-email",
+  "passwordHash": "password123",
+  "firstName": "",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, Multiple validation errors
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID09: Đăng ký thất bại do email không đúng định dạng + thiếu lastname
+**Mô tả:** Kiểm tra multiple validation errors
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "invalid-email",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, Multiple validation errors
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID10: Đăng ký thất bại do email không đúng định dạng + ngày sinh không hợp lệ
+**Mô tả:** Kiểm tra multiple validation errors
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "invalid-email",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "invalid-date"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, Multiple validation errors
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID11: Đăng ký thất bại do thiếu email
+**Mô tả:** Kiểm tra validation email bắt buộc
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, "Email is required"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID12: Đăng ký thất bại do thiếu mật khẩu
+**Mô tả:** Kiểm tra validation mật khẩu bắt buộc
+**Type:** A (Abnormal)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "1990/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, "Password is required"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+### UTCID13: Đăng ký thất bại do ngày sinh trong tương lai
+**Mô tả:** Kiểm tra validation ngày sinh không được trong tương lai
+**Type:** B (Boundary)
+**Pre-condition:** Email chưa tồn tại trong database, OTP hợp lệ
+**Test Data:**
+```json
+{
+  "email": "newuser@example.com",
+  "passwordHash": "password123",
+  "firstName": "John",
+  "lastName": "Doe",
+  "dateOfBirth": "2030/01/01"
+}
+```
+**Query Parameter:** `otp=123456`
+**Expected Result:** 400 Bad Request, "Date of birth cannot be in the future"
+**Actual Result:** [Điền sau khi test]
+**Status:** [P/F]
+
+---
+
+## BƯỚC 4: GHI NHẬN KẾT QUẢ
+
+| UTCID | Type | Passed/Failed | Executed Date | Defect ID | Notes |
+|-------|------|---------------|---------------|-----------|-------|
+| UTCID01 | N | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID02 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID03 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID04 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID05 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID06 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID07 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID08 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID09 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID10 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID11 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID12 | A | [P/F] | [Date] | [ID] | [Ghi chú] |
+| UTCID13 | B | [P/F] | [Date] | [ID] | [Ghi chú] |
+
+---
+
+## HƯỚNG DẪN THỰC THI
+
+### Chuẩn bị môi trường:
+1. Đảm bảo server đang chạy trên port 8080
+2. Database sạch (không có email test nào tồn tại)
+3. Có thể gửi OTP qua email (cấu hình SMTP)
+
+### Công cụ test:
+- **Postman Collection:** Import các request đã tạo
+- **Environment Variables:** 
+  - `baseUrl`: `http://localhost:8080`
+  - `validOtp`: `123456` (hoặc OTP thực tế)
+  - `invalidOtp`: `000000`
+
+### Thứ tự thực thi:
+1. **Bước 1:** Gửi OTP đăng ký cho email test
+2. **Bước 2:** Thực thi các test case theo thứ tự UTCID01 → UTCID13
+3. **Bước 3:** Ghi nhận kết quả vào bảng Bước 4
+4. **Bước 4:** Cập nhật bảng thống kê ở Bước 1
+
+### Lưu ý quan trọng:
+- Mỗi test case cần chạy độc lập
+- Reset database sau mỗi test case nếu cần
+- Ghi lại response thực tế để so sánh với expected result
+- Tạo bug report cho các test case Failed
