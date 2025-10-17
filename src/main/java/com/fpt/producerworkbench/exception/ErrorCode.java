@@ -110,12 +110,20 @@ public enum ErrorCode {
     SESSION_FULL(5011, "Session has reached maximum participants", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ACTIVE(5012, "Session is already active", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ENDED(5013, "Session has already ended", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_STARTED(5014, "Session already started", HttpStatus.BAD_REQUEST),
+    SESSION_NOT_PAUSED(5015, "Session is not paused", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Can only cancel scheduled sessions", HttpStatus.BAD_REQUEST),
+
 
     PARTICIPANT_NOT_FOUND(5101, "Participant not found in session", HttpStatus.NOT_FOUND),
     USER_ALREADY_INVITED(5102, "User already invited to this session", HttpStatus.CONFLICT),
     USER_NOT_IN_PROJECT(5103, "User is not a member of this project", HttpStatus.FORBIDDEN),
     INVITATION_DECLINED(5104, "Invitation was declined", HttpStatus.BAD_REQUEST),
     ONLY_HOST_CAN_PERFORM_ACTION(5105, "Only session host can perform this action", HttpStatus.FORBIDDEN),
+
+    // Project errors (4xxx)
+    ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Only project owner can create session", HttpStatus.FORBIDDEN),
+    PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Project already has an active session", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

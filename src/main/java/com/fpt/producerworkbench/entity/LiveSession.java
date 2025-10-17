@@ -4,8 +4,14 @@ import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.common.SessionType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 
 @Entity
 @Table(name = "live_sessions")
@@ -14,10 +20,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LiveSession extends AbstractEntity<String> {
+public class LiveSession {
 
+    @Id
+    @GeneratedValue(generator = "uuid2")
+    @GenericGenerator(name = "uuid2", strategy = "uuid2")
+    @Column(name = "id", length = 36)
+    private String id;
     // ========== Relationships ==========
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
@@ -89,6 +99,16 @@ public class LiveSession extends AbstractEntity<String> {
 
     @Column(name = "demo_scenario")
     private String demoScenario;
+
+    @CreatedBy
+    private String createdBy;
+    @LastModifiedBy
+    private String updatedBy;
+    @CreationTimestamp
+    private Date createdAt;
+    @UpdateTimestamp
+    private Date updatedAt;
+
 
     // ========== Business Methods ==========
 

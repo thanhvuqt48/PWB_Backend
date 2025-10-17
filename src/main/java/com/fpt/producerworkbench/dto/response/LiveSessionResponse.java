@@ -32,12 +32,10 @@ public class LiveSessionResponse {
 
     // Agora Info
     private String agoraChannelName;
-    private String agoraAppId;
 
     // Participants
     private Integer maxParticipants;
     private Integer currentParticipants;
-    private List<SessionParticipantResponse> participants;
 
     // Timing
     private LocalDateTime scheduledStart;
@@ -50,9 +48,11 @@ public class LiveSessionResponse {
 
     // Playback
     private Long currentPlayingFileId;
-    private LocalDateTime playbackStartedAt;
 
     // Metadata
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    // Participants list (optional, for detail view)
+    private List<SessionParticipantResponse> participants;
 }

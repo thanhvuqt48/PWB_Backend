@@ -2,6 +2,8 @@ package com.fpt.producerworkbench.repository;
 
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.entity.LiveSession;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -22,23 +24,24 @@ public interface LiveSessionRepository extends JpaRepository<LiveSession, String
     /**
      * Find all sessions by project ID
      */
-    @Query("SELECT s FROM LiveSession s WHERE s.project.id = :projectId ORDER BY s.createdAt DESC")
-    List<LiveSession> findByProjectId(@Param("projectId") Long projectId);
+    @Query("SELECT s FROM LiveSession s WHERE s.project.id = :projectId")
+    Page<LiveSession> findByProjectId(@Param("projectId") Long projectId, Pageable pageable);
 
     /**
      * Find sessions by project ID and status
      */
-    @Query("SELECT s FROM LiveSession s WHERE s.project.id = :projectId AND s.status = :status ORDER BY s.createdAt DESC")
-    List<LiveSession> findByProjectIdAndStatus(
+    @Query("SELECT s FROM LiveSession s WHERE s.project.id = :projectId AND s.status = :status")
+    Page<LiveSession> findByProjectIdAndStatus(
             @Param("projectId") Long projectId,
-            @Param("status") SessionStatus status
+            @Param("status") SessionStatus status,
+            Pageable pageable
     );
 
     /**
      * Find all sessions hosted by user
      */
-    @Query("SELECT s FROM LiveSession s WHERE s.host.id = :hostId ORDER BY s.createdAt DESC")
-    List<LiveSession> findByHostId(@Param("hostId") Long hostId);
+    @Query("SELECT s FROM LiveSession s WHERE s.host.id = :hostId")
+    Page<LiveSession> findByHostId(@Param("hostId") Long hostId, Pageable pageable);
 
     /**
      * Find all demo sessions (for testing)
