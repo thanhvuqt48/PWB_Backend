@@ -4,13 +4,15 @@ import com.fpt.producerworkbench.dto.request.ProjectCreateRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ProjectResponse;
 import com.fpt.producerworkbench.entity.Project;
-import com.fpt.producerworkbench.entity.User;
+import com.fpt.producerworkbench.exception.AppException;
+import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.mapper.ProjectMapper;
 import com.fpt.producerworkbench.service.ProjectService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,12 +27,19 @@ public class ProjectController {
 
     private final ProjectService projectService;
     private final ProjectMapper projectMapper;
+    private final ProjectPermissionService projectPermissionService;
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('PRODUCER', 'ADMIN')")
     public ResponseEntity<ApiResponse<ProjectResponse>> createProject(
             @Valid @RequestBody ProjectCreateRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication auth) {
+
+        // Check permissions using service
+        var permissions = projectPermissionService.checkProjectPermissions(auth, null);
+        if (!permissions.isCanCreateProject()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
 
         String creatorEmail = jwt.getSubject();
 

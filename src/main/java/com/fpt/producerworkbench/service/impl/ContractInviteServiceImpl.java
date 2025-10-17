@@ -13,7 +13,10 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractInviteService;
-import com.fpt.producerworkbench.service.StorageService;
+import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import org.springframework.kafka.core.KafkaTemplate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,28 +34,55 @@ public class ContractInviteServiceImpl implements ContractInviteService {
 
     private final ContractRepository contractRepository;
     private final ContractDocumentRepository contractDocumentRepository;
-    private final StorageService storageService;
+    private final FileStorageService fileStorageService;
     private final SignNowClient signNowClient;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final ContractPermissionService contractPermissionService;
 
 
     private static boolean eqIgnore(String a, String b) {
         return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
     }
 
-    private static List<ContractInviteRequest.Signer> normalizeSequentialOrders(List<ContractInviteRequest.Signer> signers) {
-        int idx = 1;
-        List<ContractInviteRequest.Signer> out = new ArrayList<>(signers.size());
-        for (var s : signers) {
-            var copy = ContractInviteRequest.Signer.builder()
-                    .email(s.getEmail())
-                    .fullName(s.getFullName())
-                    .roleId(s.getRoleId())
-                    .roleName(s.getRoleName())
-                    .order(idx++)
-                    .build();
-            out.add(copy);
+
+    /**
+     * Tự động tạo danh sách signers từ project client và owner
+     */
+    private List<ContractInviteRequest.Signer> generateAutoSigners(com.fpt.producerworkbench.entity.Project project, SigningOrderType signingOrder) {
+        List<ContractInviteRequest.Signer> signers = new ArrayList<>();
+        
+        // Kiểm tra project có client không
+        if (project.getClient() == null) {
+            throw new AppException(ErrorCode.CLIENT_NOT_FOUND);
         }
-        return out;
+        
+        boolean isSequential = signingOrder == SigningOrderType.SEQUENTIAL;
+        
+        // Client - ký trước (order = 1)
+        ContractInviteRequest.Signer clientSigner = ContractInviteRequest.Signer.builder()
+                .email(project.getClient().getEmail())
+                .fullName(project.getClient().getFullName())
+                .roleName("SignerA")
+                .order(1)
+                .build();
+        signers.add(clientSigner);
+        
+        // Owner - ký sau (order = 2 nếu sequential, order = 1 nếu parallel)
+        ContractInviteRequest.Signer ownerSigner = ContractInviteRequest.Signer.builder()
+                .email(project.getCreator().getEmail())
+                .fullName(project.getCreator().getFullName())
+                .roleName("SignerB")
+                .order(isSequential ? 2 : 1)
+                .build();
+        signers.add(ownerSigner);
+        
+        log.info("Auto-generated signers for project {}: Client={} (SignerA, order=1), Owner={} (SignerB, order={})", 
+                project.getId(), 
+                project.getClient().getEmail(), 
+                project.getCreator().getEmail(),
+                isSequential ? 2 : 1);
+        
+        return signers;
     }
 
     @Override
@@ -61,9 +91,26 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         Contract c = contractRepository.findById(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
-        if (req.getSigners() == null || req.getSigners().isEmpty()) {
-            throw new AppException(ErrorCode.SIGNERS_REQUIRED);
+        if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.COMPLETED
+                || c.getSignnowStatus() == com.fpt.producerworkbench.common.ContractStatus.COMPLETED) {
+            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
+        var existingSigned = contractDocumentRepository
+                .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, com.fpt.producerworkbench.common.ContractDocumentType.SIGNED)
+                .orElse(null);
+        if (existingSigned != null) {
+            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
+        }
+
+        // Check permissions using service
+        var permissions = contractPermissionService.checkContractPermissions(auth, c.getProject().getId());
+        if (!permissions.isCanInviteToSign()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // Auto-generate signers from project client and owner
+        List<ContractInviteRequest.Signer> autoSigners = generateAutoSigners(c.getProject(), req.getSigningOrder());
+        
         boolean sequential = req.getSigningOrder() == SigningOrderType.SEQUENTIAL;
 
         if (c.getSignnowDocumentId() == null) {
@@ -79,7 +126,7 @@ public class ContractInviteServiceImpl implements ContractInviteService {
                         .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.FILLED)
                         .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_FILLED_PDF_NOT_FOUND));
                 try {
-                    pdfBytes = storageService.load(filled.getStorageUrl());
+                    pdfBytes = fileStorageService.downloadBytes(filled.getStorageUrl());
                 } catch (RuntimeException ex) {
                     throw new AppException(ErrorCode.STORAGE_READ_FAILED);
                 }
@@ -95,24 +142,24 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         }
 
         String ownerEmail = signNowClient.getDocumentOwnerEmail(c.getSignnowDocumentId());
-        List<ContractInviteRequest.Signer> inputSigners = Optional.ofNullable(req.getSigners()).orElseGet(List::of);
         List<ContractInviteRequest.Signer> filtered = new ArrayList<>();
-        for (var s : inputSigners) {
+        
+        // Use auto-generated signers instead of request signers
+        for (var s : autoSigners) {
             if (s.getEmail() == null || s.getEmail().isBlank())
                 throw new AppException(ErrorCode.SIGNER_EMAIL_REQUIRED);
             if (eqIgnore(s.getEmail(), ownerEmail)) continue;
             filtered.add(s);
         }
+        
         if (filtered.isEmpty()) {
             throw new AppException(ErrorCode.SIGNERS_REQUIRED);
-        }
-        if (sequential) {
-            filtered = normalizeSequentialOrders(filtered);
         }
 
         StartSigningResponse resp = new StartSigningResponse();
         try {
-            if (Boolean.TRUE.equals(req.getUseFieldInvite())) {
+            // Mặc định luôn sử dụng field invite
+            if (req.getUseFieldInvite() == null || Boolean.TRUE.equals(req.getUseFieldInvite())) {
                 Map<String, String> roleIdMap = signNowClient.getRoleIdMap(c.getSignnowDocumentId());
                 if (roleIdMap.isEmpty()) {
                     throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
@@ -146,8 +193,41 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
         }
 
-        c.setStatus(ContractStatus.DRAFT);
+        c.setStatus(ContractStatus.OUT_FOR_SIGNATURE);
         contractRepository.save(c);
+
+        try {
+            String previewUrl = null;
+            try {
+                var filledDoc = contractDocumentRepository
+                        .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.FILLED)
+                        .orElse(null);
+                if (filledDoc != null) {
+                    previewUrl = fileStorageService.generatePresignedUrl(filledDoc.getStorageUrl(), false, null);
+                }
+            } catch (Exception ignore) { }
+
+            for (var s : filtered) {
+                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
+                NotificationEvent event = NotificationEvent.builder()
+                        .subject("Yêu cầu ký hợp đồng - Project #" + c.getProject().getId())
+                        .recipient(s.getEmail().trim())
+                        .templateCode("contract-invite-sent.html")
+                        .param(new java.util.HashMap<>())
+                        .build();
+                event.getParam().put("projectId", String.valueOf(c.getProject().getId()));
+                event.getParam().put("projectTitle", c.getProject().getTitle());
+                event.getParam().put("contractId", String.valueOf(c.getId()));
+                event.getParam().put("recipient", s.getFullName() == null ? s.getEmail() : s.getFullName());
+                if (previewUrl != null) {
+                    event.getParam().put("previewUrl", previewUrl);
+                }
+                kafkaTemplate.send("notification-delivery", event);
+            }
+        } catch (Exception mailEx) {
+            log.warn("Failed to publish contract invite notification emails: {}", mailEx.getMessage());
+        }
+
         return resp;
     }
 }

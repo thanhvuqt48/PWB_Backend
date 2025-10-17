@@ -179,7 +179,7 @@ public class ContractPdfFillRequest {
     // Khi payMilestone = true, milestones là BẮT BUỘC
     @JsonProperty("milestones") private List<MilestoneRequest> milestones;
 
-    @JsonProperty("projectId") Long projectId;
+    // projectId moved to path variable; do not send in body
 
     @NotBlank
     @JsonProperty("percent")
