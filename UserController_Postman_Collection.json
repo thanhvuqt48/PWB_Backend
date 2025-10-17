@@ -1,0 +1,737 @@
+{
+	"info": {
+		"_postman_id": "user-controller-tests",
+		"name": "UserController API Tests",
+		"description": "Comprehensive test collection for UserController endpoints including registration, OTP verification, and password management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Send OTP for Registration",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 200);",
+							"    pm.expect(responseJson).to.have.property('message', 'Send Otp Successfully');",
+							"});",
+							"",
+							"// Store email for later use",
+							"if (pm.response.code === 200) {",
+							"    pm.environment.set('test_email', pm.request.body.raw);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/send-otp-register",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"send-otp-register"
+					]
+				},
+				"description": "Send OTP to email for user registration"
+			},
+			"response": []
+		},
+		{
+			"name": "2. Register User (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 201\", function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 201);",
+							"    pm.expect(responseJson).to.have.property('result');",
+							"    pm.expect(responseJson.result).to.have.property('email');",
+							"    pm.expect(responseJson.result).to.have.property('firstName');",
+							"    pm.expect(responseJson.result).to.have.property('lastName');",
+							"    pm.expect(responseJson.result).to.have.property('dateOfBirth');",
+							"    pm.expect(responseJson.result).to.have.property('role');",
+							"});",
+							"",
+							"// Store user info for later tests",
+							"if (pm.response.code === 201) {",
+							"    const responseJson = pm.response.json();",
+							"    pm.environment.set('user_email', responseJson.result.email);",
+							"    pm.environment.set('user_firstName', responseJson.result.firstName);",
+							"    pm.environment.set('user_lastName', responseJson.result.lastName);",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\",\n    \"passwordHash\": \"password123\",\n    \"firstName\": \"John\",\n    \"lastName\": \"Doe\",\n    \"dateOfBirth\": \"1990-01-01\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/register?otp={{test_otp}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"register"
+					],
+					"query": [
+						{
+							"key": "otp",
+							"value": "{{test_otp}}"
+						}
+					]
+				},
+				"description": "Register a new user with valid OTP"
+			},
+			"response": []
+		},
+		{
+			"name": "3. Register User (Invalid OTP)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 or 500\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([400, 500]);",
+							"});",
+							"",
+							"pm.test(\"Response indicates error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code');",
+							"    pm.expect(responseJson.code).to.not.equal(201);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test2@example.com\",\n    \"passwordHash\": \"password123\",\n    \"firstName\": \"Jane\",\n    \"lastName\": \"Smith\",\n    \"dateOfBirth\": \"1995-05-15\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/register?otp=invalid_otp",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"register"
+					],
+					"query": [
+						{
+							"key": "otp",
+							"value": "invalid_otp"
+						}
+					]
+				},
+				"description": "Try to register user with invalid OTP"
+			},
+			"response": []
+		},
+		{
+			"name": "4. Register User (Invalid Data)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response indicates validation error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 400);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"invalid-email\",\n    \"passwordHash\": \"123\",\n    \"firstName\": \"\",\n    \"lastName\": \"\",\n    \"dateOfBirth\": \"2025-01-01\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/register?otp={{test_otp}}",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"register"
+					],
+					"query": [
+						{
+							"key": "otp",
+							"value": "{{test_otp}}"
+						}
+					]
+				},
+				"description": "Try to register user with invalid data (short password, invalid email, future date of birth)"
+			},
+			"response": []
+		},
+		{
+			"name": "5. Send OTP for Forgot Password",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 200);",
+							"    pm.expect(responseJson).to.have.property('message', 'OTP sent successfully to the email.');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/send-otp-forgot-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"send-otp-forgot-password"
+					]
+				},
+				"description": "Send OTP to email for password reset"
+			},
+			"response": []
+		},
+		{
+			"name": "6. Verify OTP (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 200);",
+							"    pm.expect(responseJson).to.have.property('message', 'Verify Otp Successfully');",
+							"    pm.expect(responseJson).to.have.property('result');",
+							"    pm.expect(responseJson.result).to.have.property('valid');",
+							"});",
+							"",
+							"pm.test(\"OTP is valid\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson.result.valid).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\",\n    \"otp\": \"{{test_otp}}\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/verify-otp",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"verify-otp"
+					]
+				},
+				"description": "Verify OTP with valid email and OTP"
+			},
+			"response": []
+		},
+		{
+			"name": "7. Verify OTP (Invalid)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 or 500\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([400, 500]);",
+							"});",
+							"",
+							"pm.test(\"Response indicates error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code');",
+							"    pm.expect(responseJson.code).to.not.equal(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\",\n    \"otp\": \"invalid_otp\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/verify-otp",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"verify-otp"
+					]
+				},
+				"description": "Try to verify OTP with invalid OTP"
+			},
+			"response": []
+		},
+		{
+			"name": "8. Reset Password (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 200);",
+							"    pm.expect(responseJson).to.have.property('message', 'Reset Password Successfully');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\",\n    \"otp\": \"{{test_otp}}\",\n    \"password\": \"newpassword123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/reset-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"reset-password"
+					]
+				},
+				"description": "Reset password with valid email, OTP and new password"
+			},
+			"response": []
+		},
+		{
+			"name": "9. Reset Password (Invalid OTP)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 or 500\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([400, 500]);",
+							"});",
+							"",
+							"pm.test(\"Response indicates error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code');",
+							"    pm.expect(responseJson.code).to.not.equal(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"test@example.com\",\n    \"otp\": \"invalid_otp\",\n    \"password\": \"newpassword123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/reset-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"reset-password"
+					]
+				},
+				"description": "Try to reset password with invalid OTP"
+			},
+			"response": []
+		},
+		{
+			"name": "10. Reset Password (Invalid Data)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response indicates validation error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 400);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"email\": \"\",\n    \"otp\": \"\",\n    \"password\": \"123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/reset-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"reset-password"
+					]
+				},
+				"description": "Try to reset password with invalid data (empty email, empty OTP, short password)"
+			},
+			"response": []
+		},
+		{
+			"name": "11. Change Password (Success)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has correct structure\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 200);",
+							"    pm.expect(responseJson).to.have.property('result');",
+							"    pm.expect(responseJson.result).to.have.property('success');",
+							"    pm.expect(responseJson.result).to.have.property('message');",
+							"});",
+							"",
+							"pm.test(\"Password change is successful\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson.result.success).to.be.true;",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currentPassword\": \"password123\",\n    \"newPassword\": \"newpassword123\",\n    \"confirmPassword\": \"newpassword123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/change-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"change-password"
+					]
+				},
+				"description": "Change password with valid current password and matching new passwords"
+			},
+			"response": []
+		},
+		{
+			"name": "12. Change Password (Password Mismatch)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400 or 500\", function () {",
+							"    pm.expect(pm.response.code).to.be.oneOf([400, 500]);",
+							"});",
+							"",
+							"pm.test(\"Response indicates error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code');",
+							"    pm.expect(responseJson.code).to.not.equal(200);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currentPassword\": \"password123\",\n    \"newPassword\": \"newpassword123\",\n    \"confirmPassword\": \"differentpassword123\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/change-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"change-password"
+					]
+				},
+				"description": "Try to change password with mismatched new password and confirm password"
+			},
+			"response": []
+		},
+		{
+			"name": "13. Change Password (Invalid Data)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 400\", function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test(\"Response indicates validation error\", function () {",
+							"    const responseJson = pm.response.json();",
+							"    pm.expect(responseJson).to.have.property('code', 400);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currentPassword\": \"123\",\n    \"newPassword\": \"456\",\n    \"confirmPassword\": \"\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/users/change-password",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"users",
+						"change-password"
+					]
+				},
+				"description": "Try to change password with invalid data (short passwords, empty confirm password)"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set base URL if not already set",
+					"if (!pm.environment.get('base_url')) {",
+					"    pm.environment.set('base_url', 'http://localhost:8080');",
+					"}",
+					"",
+					"// Set test OTP if not already set",
+					"if (!pm.environment.get('test_otp')) {",
+					"    pm.environment.set('test_otp', '123456'); // Replace with actual OTP from your system",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test to check if API is accessible",
+					"pm.test(\"API is accessible\", function () {",
+					"    pm.expect(pm.response.code).to.not.equal(0);",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "test_otp",
+			"value": "123456",
+			"type": "string"
+		}
+	]
+}
