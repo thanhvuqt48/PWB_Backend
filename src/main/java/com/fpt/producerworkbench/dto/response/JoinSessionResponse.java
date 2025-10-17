@@ -24,6 +24,8 @@ public class JoinSessionResponse {
 
     private Integer expiresIn; // seconds
 
-    // WebSocket URL (optional)
-    private String wsUrl;
+    // Optional: Session info
+    private String sessionTitle;
+    private Integer currentParticipants;
+    private Integer maxParticipants;
 }

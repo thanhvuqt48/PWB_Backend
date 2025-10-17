@@ -98,4 +98,6 @@ public interface SessionParticipantService {
      * @return Participant role
      */
     ParticipantRole determineParticipantRole(Long projectId, Long userId);
+
+    void removeParticipant(String sessionId, Long userId, Long removedBy);
 }

@@ -5,6 +5,7 @@ import lombok.Getter;
 @Getter
 public class AgoraTokenException extends AppException {
 
+
     public AgoraTokenException(ErrorCode errorCode) {
         super(errorCode);
     }

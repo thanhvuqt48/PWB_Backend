@@ -16,9 +16,9 @@ public interface SessionParticipantMapper {
     @Mapping(source = "user", target = "userName", qualifiedByName = "mapUserName")
     @Mapping(source = "user.email", target = "userEmail")
     @Mapping(source = "user.avatarUrl", target = "userAvatarUrl")
-    SessionParticipantResponse toDTO(SessionParticipant participant);
+    SessionParticipantResponse toResponse(SessionParticipant participant);
 
-    List<SessionParticipantResponse> toDTOList(List<SessionParticipant> participants);
+    List<SessionParticipantResponse> toResponseList(List<SessionParticipant> participants);
 
     @Named("mapUserName")
     default String mapUserName(com.fpt.producerworkbench.entity.User user) {

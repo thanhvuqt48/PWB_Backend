@@ -44,6 +44,12 @@ public class SecurityConfiguration {
             "/api/v1/users/send-otp-forgot-password",
             "/api/v1/users/reset-password",
             "/api/v1/auth/**",
+            // WebSocket endpoints
+            "/ws/**",
+            "/app/**",
+            "/topic/**",
+            "/queue/**",
+            "/user/**"
     };
 
     @Bean

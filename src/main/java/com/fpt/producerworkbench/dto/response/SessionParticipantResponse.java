@@ -16,8 +16,10 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SessionParticipantResponse {
+
     private Long id;
     private String sessionId;
+
     // User info
     private Long userId;
     private String userName;
@@ -43,5 +45,5 @@ public class SessionParticipantResponse {
     private LocalDateTime invitedAt;
     private LocalDateTime joinedAt;
     private LocalDateTime leftAt;
-    private Long totalSessionTime; // in seconds
+    private Long totalSessionTime; // seconds
 }

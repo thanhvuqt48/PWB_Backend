@@ -1,6 +1,5 @@
 package com.fpt.producerworkbench.service.impl;
 
-import com.fpt.producerworkbench.service.SessionParticipantService;
 import com.fpt.producerworkbench.common.InvitationStatus;
 import com.fpt.producerworkbench.common.ParticipantRole;
 import com.fpt.producerworkbench.common.ProjectRole;
@@ -9,6 +8,8 @@ import com.fpt.producerworkbench.dto.request.InviteParticipantRequest;
 import com.fpt.producerworkbench.dto.request.UpdateParticipantPermissionRequest;
 import com.fpt.producerworkbench.dto.response.JoinSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionParticipantResponse;
+import com.fpt.producerworkbench.dto.websocket.ParticipantEvent;
+import com.fpt.producerworkbench.dto.websocket.SystemNotification;
 import com.fpt.producerworkbench.entity.LiveSession;
 import com.fpt.producerworkbench.entity.ProjectMember;
 import com.fpt.producerworkbench.entity.SessionParticipant;
@@ -21,7 +22,9 @@ import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.SessionParticipantRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AgoraTokenService;
-import io.agora.media.RtcTokenBuilder.Role;
+import com.fpt.producerworkbench.service.SessionParticipantService;
+import com.fpt.producerworkbench.service.WebSocketService;
+import io.agora.media.RtcTokenBuilder2;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,18 +32,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class SessionParticipantServiceImpl implements SessionParticipantService {
+
     private final SessionParticipantRepository participantRepository;
     private final LiveSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final AgoraTokenService agoraTokenService;
     private final SessionParticipantMapper participantMapper;
+    private final WebSocketService webSocketService; // ✅ Add WebSocket service
 
     private static final int TOKEN_EXPIRATION_SECONDS = 86400; // 24 hours
 
@@ -53,25 +57,18 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
 
         log.info("Inviting user {} to session {} by user {}", request.getUserId(), sessionId, invitedBy);
 
-        // Validate session
         LiveSession session = validateSession(sessionId);
-
-        // Validate inviter is host
         validateIsHost(session, invitedBy);
 
-        // Validate invitee exists
         User invitee = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Check if already invited
         if (participantRepository.existsBySessionIdAndUserId(sessionId, request.getUserId())) {
             throw new AppException(ErrorCode.USER_ALREADY_INVITED);
         }
 
-        // Determine role based on project membership
         ParticipantRole role = determineParticipantRole(session.getProject().getId(), request.getUserId());
 
-        // Create participant
         SessionParticipant participant = SessionParticipant.builder()
                 .session(session)
                 .user(invitee)
@@ -89,11 +86,20 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
 
         SessionParticipant saved = participantRepository.save(participant);
 
+        // ✅ Send private notification to invited user
+        webSocketService.sendToUser(request.getUserId(), "/queue/invitation",
+                SystemNotification.builder()
+                        .type("INFO")
+                        .title("Session Invitation")
+                        .message("You've been invited to join: " + session.getTitle())
+                        .requiresAction(true)
+                        .actionUrl("/sessions/" + sessionId + "/join")
+                        .build()
+        );
+
         log.info("User {} invited to session {} with role {}", request.getUserId(), sessionId, role);
 
-        // TODO: Send notification to invitee
-
-        return participantMapper.toDTO(saved);
+        return participantMapper.toResponse(saved);
     }
 
     @Override
@@ -101,36 +107,31 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     public JoinSessionResponse joinSession(String sessionId, Long userId) {
         log.info("User {} joining session {}", userId, sessionId);
 
-        // Validate session
         LiveSession session = validateSession(sessionId);
 
-        // Check session is active
         if (session.getStatus() != SessionStatus.ACTIVE) {
             throw new AppException(ErrorCode.SESSION_NOT_ACTIVE);
         }
 
-        // Check session not full
         if (session.isFull()) {
             throw new AppException(ErrorCode.SESSION_FULL);
         }
 
-        // Get or create participant
         SessionParticipant participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, userId)
                 .orElseGet(() -> createParticipantForUser(session, userId));
 
-        // Check invitation status
         if (participant.getInvitationStatus() == InvitationStatus.DECLINED) {
             throw new AppException(ErrorCode.INVITATION_DECLINED);
         }
 
-        // Generate Agora UID
         int agoraUid = generateAgoraUid(userId);
 
-        // Determine Agora role
-        Role agoraRole = participant.canPublish() ? Role.Role_Publisher : Role.Role_Subscriber;
+        // ✅ Use RtcTokenBuilder2.Role instead of just Role
+        RtcTokenBuilder2.Role agoraRole = participant.canPublish()
+                ? RtcTokenBuilder2.Role.ROLE_PUBLISHER
+                : RtcTokenBuilder2.Role.ROLE_SUBSCRIBER;
 
-        // Generate Agora token
         String agoraToken = agoraTokenService.generateRtcToken(
                 session.getAgoraChannelName(),
                 agoraUid,
@@ -138,7 +139,6 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 TOKEN_EXPIRATION_SECONDS
         );
 
-        // Update participant
         participant.setAgoraUid(agoraUid);
         participant.setAgoraToken(agoraToken);
         participant.setAgoraTokenExpiresAt(LocalDateTime.now().plusSeconds(TOKEN_EXPIRATION_SECONDS));
@@ -147,13 +147,34 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
 
         participantRepository.save(participant);
 
-        // Update session participant count
         session.incrementParticipants();
         sessionRepository.save(session);
 
-        log.info("User {} joined session {} successfully with UID {}", userId, sessionId, agoraUid);
+        // WebSocket broadcasts...
+        webSocketService.broadcastParticipantEvent(sessionId,
+                ParticipantEvent.builder()
+                        .action("JOINED")
+                        .userId(userId)
+                        .userName(getFullName(participant.getUser()))
+                        .userAvatarUrl(participant.getUser().getAvatarUrl())
+                        .role(participant.getParticipantRole())
+                        .isOnline(true)
+                        .audioEnabled(participant.getAudioEnabled())
+                        .videoEnabled(participant.getVideoEnabled())
+                        .currentParticipants(session.getCurrentParticipants())
+                        .build()
+        );
 
-        // TODO: Broadcast via WebSocket: user joined
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("INFO")
+                        .title("Participant Joined")
+                        .message(getFullName(participant.getUser()) + " joined the session")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("User {} joined session {} successfully with UID {}", userId, sessionId, agoraUid);
 
         return JoinSessionResponse.builder()
                 .sessionId(sessionId)
@@ -163,6 +184,9 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 .uid(agoraUid)
                 .role(agoraRole.name())
                 .expiresIn(TOKEN_EXPIRATION_SECONDS)
+                .sessionTitle(session.getTitle())
+                .currentParticipants(session.getCurrentParticipants())
+                .maxParticipants(session.getMaxParticipants())
                 .build();
     }
 
@@ -171,25 +195,43 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     public void leaveSession(String sessionId, Long userId) {
         log.info("User {} leaving session {}", userId, sessionId);
 
-        // Get participant
         SessionParticipant participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PARTICIPANT_NOT_FOUND));
 
-        // Mark as offline
         participant.markAsOffline();
         participantRepository.save(participant);
 
-        // Update session participant count
         LiveSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
 
         session.decrementParticipants();
         sessionRepository.save(session);
 
-        log.info("User {} left session {}", userId, sessionId);
+        // ✅ Broadcast participant left
+        webSocketService.broadcastParticipantEvent(sessionId,
+                ParticipantEvent.builder()
+                        .action("LEFT")
+                        .userId(userId)
+                        .userName(getFullName(participant.getUser()))
+                        .userAvatarUrl(participant.getUser().getAvatarUrl())
+                        .role(participant.getParticipantRole())
+                        .isOnline(false)
+                        .currentParticipants(session.getCurrentParticipants())
+                        .build()
+        );
 
-        // TODO: Broadcast via WebSocket: user left
+        // ✅ Send system notification
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("INFO")
+                        .title("Participant Left")
+                        .message(getFullName(participant.getUser()) + " left the session")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("User {} left session {}", userId, sessionId);
     }
 
     @Override
@@ -198,9 +240,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
         log.debug("Getting participants for session {}", sessionId);
 
         List<SessionParticipant> participants = participantRepository.findBySessionId(sessionId);
-        return participants.stream()
-                .map(participantMapper::toDTO)
-                .collect(Collectors.toList());
+        return participantMapper.toResponseList(participants);
     }
 
     @Override
@@ -211,9 +251,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
         List<SessionParticipant> participants = participantRepository
                 .findOnlineParticipantsBySessionId(sessionId);
 
-        return participants.stream()
-                .map(participantMapper::toDTO)
-                .collect(Collectors.toList());
+        return participantMapper.toResponseList(participants);
     }
 
     @Override
@@ -226,18 +264,13 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
 
         log.info("Updating permissions for user {} in session {} by {}", userId, sessionId, updatedBy);
 
-        // Validate session
         LiveSession session = validateSession(sessionId);
-
-        // Validate updater is host
         validateIsHost(session, updatedBy);
 
-        // Get participant
         SessionParticipant participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PARTICIPANT_NOT_FOUND));
 
-        // Update permissions
         if (request.getCanShareAudio() != null) {
             participant.setCanShareAudio(request.getCanShareAudio());
         }
@@ -253,11 +286,33 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
 
         SessionParticipant updated = participantRepository.save(participant);
 
+        // ✅ Broadcast permissions updated
+        webSocketService.broadcastParticipantEvent(sessionId,
+                ParticipantEvent.builder()
+                        .action("PERMISSIONS_UPDATED")
+                        .userId(userId)
+                        .userName(getFullName(participant.getUser()))
+                        .role(participant.getParticipantRole())
+                        .isOnline(participant.getIsOnline())
+                        .audioEnabled(participant.getAudioEnabled())
+                        .videoEnabled(participant.getVideoEnabled())
+                        .currentParticipants(session.getCurrentParticipants())
+                        .build()
+        );
+
+        // ✅ Send private notification to user
+        webSocketService.sendToUser(userId, "/queue/notification",
+                SystemNotification.builder()
+                        .type("WARNING")
+                        .title("Permissions Updated")
+                        .message("Your session permissions have been updated by the host")
+                        .requiresAction(false)
+                        .build()
+        );
+
         log.info("Permissions updated for user {} in session {}", userId, sessionId);
 
-        // TODO: Broadcast via WebSocket: permissions updated
-
-        return participantMapper.toDTO(updated);
+        return participantMapper.toResponse(updated);
     }
 
     @Override
@@ -265,17 +320,18 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     public String refreshAgoraToken(String sessionId, Long userId) {
         log.info("Refreshing Agora token for user {} in session {}", userId, sessionId);
 
-        // Get participant
         SessionParticipant participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PARTICIPANT_NOT_FOUND));
 
-        // Get session
         LiveSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
 
-        // Generate new token
-        Role agoraRole = participant.canPublish() ? Role.Role_Publisher : Role.Role_Subscriber;
+        // ✅ Use RtcTokenBuilder2.Role
+        RtcTokenBuilder2.Role agoraRole = participant.canPublish()
+                ? RtcTokenBuilder2.Role.ROLE_PUBLISHER
+                : RtcTokenBuilder2.Role.ROLE_SUBSCRIBER;
+
         String newToken = agoraTokenService.generateRtcToken(
                 session.getAgoraChannelName(),
                 participant.getAgoraUid(),
@@ -283,7 +339,6 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 TOKEN_EXPIRATION_SECONDS
         );
 
-        // Update participant
         participant.setAgoraToken(newToken);
         participant.setAgoraTokenExpiresAt(LocalDateTime.now().plusSeconds(TOKEN_EXPIRATION_SECONDS));
         participantRepository.save(participant);
@@ -296,24 +351,20 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     @Override
     @Transactional(readOnly = true)
     public boolean canUserJoinSession(String sessionId, Long userId) {
-        // Check session exists and is active
         LiveSession session = sessionRepository.findById(sessionId).orElse(null);
         if (session == null || session.getStatus() != SessionStatus.ACTIVE) {
             return false;
         }
 
-        // Check session not full
         if (session.isFull()) {
             return false;
         }
 
-        // Check user is invited or is in project
         boolean isInvited = participantRepository.existsBySessionIdAndUserId(sessionId, userId);
         if (isInvited) {
             return true;
         }
 
-        // Check user is in project
         boolean isInProject = projectMemberRepository.existsByProjectIdAndUserId(
                 session.getProject().getId(),
                 userId
@@ -330,6 +381,69 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECT));
 
         return mapProjectRoleToParticipantRole(member.getProjectRole());
+    }
+
+    @Override
+    @Transactional
+    public void removeParticipant(String sessionId, Long userId, Long removedBy) {
+        log.info("Removing user {} from session {} by user {}", userId, sessionId, removedBy);
+
+        LiveSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
+
+        validateIsHost(session, removedBy);
+
+        if (session.isHost(userId)) {
+            throw new AppException(ErrorCode.CANNOT_REMOVE_HOST);
+        }
+
+        SessionParticipant participant = participantRepository
+                .findBySessionIdAndUserId(sessionId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PARTICIPANT_NOT_FOUND));
+
+        if (participant.getIsOnline()) {
+            participant.markAsOffline();
+            participantRepository.save(participant);
+
+            session.decrementParticipants();
+            sessionRepository.save(session);
+        }
+
+        participantRepository.delete(participant);
+
+        // ✅ Broadcast participant removed
+        webSocketService.broadcastParticipantEvent(sessionId,
+                ParticipantEvent.builder()
+                        .action("REMOVED")
+                        .userId(userId)
+                        .userName(getFullName(participant.getUser()))
+                        .role(participant.getParticipantRole())
+                        .isOnline(false)
+                        .currentParticipants(session.getCurrentParticipants())
+                        .build()
+        );
+
+        // ✅ Send private notification to removed user
+        webSocketService.sendToUser(userId, "/queue/notification",
+                SystemNotification.builder()
+                        .type("ERROR")
+                        .title("Removed from Session")
+                        .message("You have been removed from the session by the host")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        // ✅ Send system notification to all
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("WARNING")
+                        .title("Participant Removed")
+                        .message(getFullName(participant.getUser()) + " has been removed from the session")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("User {} removed from session {}", userId, sessionId);
     }
 
     // ========== Private Helper Methods ==========
@@ -366,8 +480,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     }
 
     private int generateAgoraUid(Long userId) {
-        // Generate unique UID from user ID
-        return userId.intValue() % 1000000;
+        return userId.intValue();
     }
 
     private ParticipantRole mapProjectRoleToParticipantRole(ProjectRole projectRole) {
@@ -377,5 +490,10 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
             case CLIENT -> ParticipantRole.CLIENT;
             case OBSERVER -> ParticipantRole.OBSERVER;
         };
+    }
+
+    // ✅ Helper method to get full name
+    private String getFullName(User user) {
+        return user.getFirstName() + " " + user.getLastName();
     }
 }

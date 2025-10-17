@@ -4,6 +4,8 @@ import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
+import com.fpt.producerworkbench.dto.websocket.SessionStateChangeEvent;
+import com.fpt.producerworkbench.dto.websocket.SystemNotification;
 import com.fpt.producerworkbench.entity.LiveSession;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.User;
@@ -15,6 +17,7 @@ import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.repository.SessionParticipantRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.LiveSessionService;
+import com.fpt.producerworkbench.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -24,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +38,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     private final ProjectRepository projectRepository;
     private final SessionParticipantRepository participantRepository;
     private final LiveSessionMapper sessionMapper;
+    private final WebSocketService webSocketService; // ✅ Add WebSocket service
 
     @Override
     @Transactional
@@ -60,10 +63,10 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.PROJECT_ALREADY_HAS_ACTIVE_SESSION);
         }
 
-        // Generate channel name
+        // Generate unique channel name
         String channelName = generateChannelName(request.getProjectId());
 
-        // Create session using builder
+        // Create session
         LiveSession session = LiveSession.builder()
                 .project(project)
                 .host(host)
@@ -102,15 +105,40 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.SESSION_ALREADY_STARTED);
         }
 
+        // Get host info for broadcast
+        User host = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
         // Update status
+        SessionStatus oldStatus = session.getStatus();
         session.setStatus(SessionStatus.ACTIVE);
         session.setActualStart(LocalDateTime.now());
 
         LiveSession updated = sessionRepository.save(session);
 
-        log.info("Session {} started", sessionId);
+        // ✅ Broadcast session started via WebSocket
+        webSocketService.broadcastSessionStateChange(sessionId,
+                SessionStateChangeEvent.builder()
+                        .sessionId(sessionId)
+                        .oldStatus(oldStatus)
+                        .newStatus(SessionStatus.ACTIVE)
+                        .triggeredBy(getFullName(host))
+                        .triggeredByUserId(userId)
+                        .message("Session has started")
+                        .build()
+        );
 
-        // TODO: Send notification to invited participants
+        // ✅ Send system notification
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("SUCCESS")
+                        .title("Session Started")
+                        .message(session.getTitle() + " is now live!")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("Session {} started", sessionId);
 
         return sessionMapper.toDTO(updated);
     }
@@ -127,12 +155,36 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.SESSION_NOT_ACTIVE);
         }
 
+        User host = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        SessionStatus oldStatus = session.getStatus();
         session.setStatus(SessionStatus.PAUSED);
         LiveSession updated = sessionRepository.save(session);
 
-        log.info("Session {} paused", sessionId);
+        // ✅ Broadcast session paused
+        webSocketService.broadcastSessionStateChange(sessionId,
+                SessionStateChangeEvent.builder()
+                        .sessionId(sessionId)
+                        .oldStatus(oldStatus)
+                        .newStatus(SessionStatus.PAUSED)
+                        .triggeredBy(getFullName(host))
+                        .triggeredByUserId(userId)
+                        .message("Session paused")
+                        .build()
+        );
 
-        // TODO: Broadcast pause event via WebSocket
+        // ✅ Send system notification
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("WARNING")
+                        .title("Session Paused")
+                        .message("The session has been paused by " + getFullName(host))
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("Session {} paused", sessionId);
 
         return sessionMapper.toDTO(updated);
     }
@@ -149,12 +201,36 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.SESSION_NOT_PAUSED);
         }
 
+        User host = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        SessionStatus oldStatus = session.getStatus();
         session.setStatus(SessionStatus.ACTIVE);
         LiveSession updated = sessionRepository.save(session);
 
-        log.info("Session {} resumed", sessionId);
+        // ✅ Broadcast session resumed
+        webSocketService.broadcastSessionStateChange(sessionId,
+                SessionStateChangeEvent.builder()
+                        .sessionId(sessionId)
+                        .oldStatus(oldStatus)
+                        .newStatus(SessionStatus.ACTIVE)
+                        .triggeredBy(getFullName(host))
+                        .triggeredByUserId(userId)
+                        .message("Session resumed")
+                        .build()
+        );
 
-        // TODO: Broadcast resume event via WebSocket
+        // ✅ Send system notification
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("INFO")
+                        .title("Session Resumed")
+                        .message("The session has been resumed")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("Session {} resumed", sessionId);
 
         return sessionMapper.toDTO(updated);
     }
@@ -171,6 +247,11 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.SESSION_ALREADY_ENDED);
         }
 
+        User host = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        SessionStatus oldStatus = session.getStatus();
+
         // Update session
         session.setStatus(SessionStatus.ENDED);
         session.setActualEnd(LocalDateTime.now());
@@ -186,11 +267,37 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             }
         });
 
+        // Build summary
+        SessionSummaryResponse summary = buildSessionSummary(session);
+
+        // ✅ Broadcast session ended
+        webSocketService.broadcastSessionStateChange(sessionId,
+                SessionStateChangeEvent.builder()
+                        .sessionId(sessionId)
+                        .oldStatus(oldStatus)
+                        .newStatus(SessionStatus.ENDED)
+                        .triggeredBy(getFullName(host))
+                        .triggeredByUserId(userId)
+                        .message("Session has ended")
+                        .build()
+        );
+
+        // ✅ Broadcast session summary
+        webSocketService.broadcastSessionSummary(sessionId, summary);
+
+        // ✅ Send system notification
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("INFO")
+                        .title("Session Ended")
+                        .message("Thank you for participating! Duration: " + summary.getDuration())
+                        .requiresAction(false)
+                        .build()
+        );
+
         log.info("Session {} ended", sessionId);
 
-        // TODO: Broadcast end event via WebSocket
-
-        return buildSessionSummary(session);
+        return summary;
     }
 
     @Override
@@ -205,12 +312,36 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.CAN_ONLY_CANCEL_SCHEDULED_SESSION);
         }
 
+        User host = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        SessionStatus oldStatus = session.getStatus();
         session.setStatus(SessionStatus.CANCELLED);
         LiveSession updated = sessionRepository.save(session);
 
-        log.info("Session {} cancelled. Reason: {}", sessionId, reason);
+        // ✅ Broadcast session cancelled
+        webSocketService.broadcastSessionStateChange(sessionId,
+                SessionStateChangeEvent.builder()
+                        .sessionId(sessionId)
+                        .oldStatus(oldStatus)
+                        .newStatus(SessionStatus.CANCELLED)
+                        .triggeredBy(getFullName(host))
+                        .triggeredByUserId(userId)
+                        .message(reason != null ? reason : "Session cancelled")
+                        .build()
+        );
 
-        // TODO: Notify invited participants
+        // ✅ Send system notification
+        webSocketService.broadcastSystemNotification(sessionId,
+                SystemNotification.builder()
+                        .type("WARNING")
+                        .title("Session Cancelled")
+                        .message(reason != null ? reason : "This session has been cancelled")
+                        .requiresAction(false)
+                        .build()
+        );
+
+        log.info("Session {} cancelled. Reason: {}", sessionId, reason);
 
         return sessionMapper.toDTO(updated);
     }
@@ -299,5 +430,10 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         } else {
             return String.format("%dm", minutes);
         }
+    }
+
+    // ✅ Helper method to get full name
+    private String getFullName(User user) {
+        return user.getFirstName() + " " + user.getLastName();
     }
 }

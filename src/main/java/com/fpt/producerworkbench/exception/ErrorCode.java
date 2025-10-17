@@ -113,6 +113,8 @@ public enum ErrorCode {
     SESSION_ALREADY_STARTED(5014, "Session already started", HttpStatus.BAD_REQUEST),
     SESSION_NOT_PAUSED(5015, "Session is not paused", HttpStatus.BAD_REQUEST),
     CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Can only cancel scheduled sessions", HttpStatus.BAD_REQUEST),
+    CANNOT_REMOVE_HOST(5106, "Cannot remove session host", HttpStatus.BAD_REQUEST),
+
 
 
     PARTICIPANT_NOT_FOUND(5101, "Participant not found in session", HttpStatus.NOT_FOUND),
