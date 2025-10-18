@@ -53,8 +53,8 @@ spring:
 
 jwt:
   secret-key: ${SECRET_KEY}
-  valid-duration: 24
-  refreshable-duration: 14
+  valid-duration: 240
+  refreshable-duration: 140
 
 admin:
   username: ${ADMIN_USERNAME}

@@ -81,7 +81,13 @@ public enum ErrorCode {
     INVALID_DOB(400, "Ngày sinh phải lớn hơn 1950 và nhỏ hơn ngày hiện tại", HttpStatus.BAD_REQUEST),
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
     PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
-    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST)
+    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
+    CONVERSATION_NOT_FOUND(404, "Đoạn trò chuyện không tồn tại", HttpStatus.NOT_FOUND),
+    MESSAGE_NOT_PART_OF_STORY(400, "Tin nhắn không thuộc đoạn trò chuyện này", HttpStatus.BAD_REQUEST),
+    MESSAGE_NOT_FOUND(404, "Tin nhắn không tồn tại", HttpStatus.NOT_FOUND),
+    MEDIA_URL_NOT_BLANK(400, "URL của file đính kèm không được để trống", HttpStatus.BAD_REQUEST),
+
+    PARTICIPANT_INVALID(400, "Một hoặc nhiều người dùng không tồn tại", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;
