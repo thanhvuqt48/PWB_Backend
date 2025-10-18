@@ -110,7 +110,6 @@ public class ContractPdfFillRequest {
 
     @JsonProperty("contractNo") String contractNo;
 
-    // ===== BẮT BUỘC =====
     @NotNull
     @JsonProperty("signDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
@@ -144,7 +143,6 @@ public class ContractPdfFillRequest {
     @NotBlank @JsonProperty("line1Price")  String line1Price;
     @NotBlank @JsonProperty("line1Amount") String line1Amount;
 
-    // ===== KHÔNG BẮT BUỘC =====
     @JsonProperty("signPlace") String signPlace;
 
     @JsonProperty("aPhone")          String aPhone;
@@ -169,17 +167,10 @@ public class ContractPdfFillRequest {
     @JsonProperty("line3Price")  String line3Price;
     @JsonProperty("line3Amount") String line3Amount;
 
-    // Các trường tổng hợp sẽ do server tự tính – client KHÔNG cần gửi
-    // sumAmount, vat8(%), grandTotal
-
-    // Thanh toán – BẮT BUỘC chọn đúng 1
     @JsonProperty("payOnce")      Boolean payOnce;
     @JsonProperty("payMilestone") Boolean payMilestone;
 
-    // Khi payMilestone = true, milestones là BẮT BUỘC
     @JsonProperty("milestones") private List<MilestoneRequest> milestones;
-
-    @JsonProperty("projectId") Long projectId;
 
     @NotBlank
     @JsonProperty("percent")

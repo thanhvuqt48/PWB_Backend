@@ -11,7 +11,9 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractSigningService;
-import com.fpt.producerworkbench.service.StorageService;
+// removed local StorageService after S3 migration
+import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.FileKeyGenerator;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,7 +27,8 @@ public class ContractSigningServiceImpl implements ContractSigningService {
 
     private final ContractRepository contractRepository;
     private final ContractDocumentRepository contractDocumentRepository;
-    private final StorageService storageService;
+    private final FileStorageService fileStorageService;
+    private final FileKeyGenerator fileKeyGenerator;
     private final SignNowClient signNowClient;
 
 
@@ -63,10 +66,15 @@ public class ContractSigningServiceImpl implements ContractSigningService {
         ContractDocument latest = contractDocumentRepository
                 .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.SIGNED)
                 .orElse(null);
-        int nextVer = latest == null ? 1 : latest.getVersion() + 1;
+        if (latest != null) {
+            // Already has a signed final; forbid saving again
+            throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+        }
+        int nextVer = 1;
 
-        String storageUrl = "contracts/" + contractId + "/signed_v" + nextVer + ".pdf";
-        storageService.save(pdf, storageUrl);
+        String fileName = "signed_v" + nextVer + ".pdf";
+        String storageUrl = fileKeyGenerator.generateContractDocumentKey(contractId, fileName);
+        fileStorageService.uploadBytes(pdf, storageUrl, "application/pdf");
 
         ContractDocument doc = new ContractDocument();
         doc.setContract(c);
@@ -76,6 +84,7 @@ public class ContractSigningServiceImpl implements ContractSigningService {
         contractDocumentRepository.save(doc);
 
         c.setSignnowStatus(ContractStatus.COMPLETED);
+        c.setStatus(ContractStatus.COMPLETED);
         contractRepository.save(c);
 
         return SignedContractResponse.builder()

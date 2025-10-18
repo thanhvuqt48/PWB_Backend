@@ -68,6 +68,32 @@ public class S3ServiceImpl implements FileStorageService {
     }
 
     @Override
+    public String uploadBytes(byte[] bytes, String objectKey, String contentType) {
+        try {
+            java.nio.file.Path tempPath = java.nio.file.Files.createTempFile("pwb-upload-", ".tmp");
+            java.nio.file.Files.write(tempPath, bytes);
+
+            UploadFileRequest uploadRequest = UploadFileRequest.builder()
+                    .putObjectRequest(req -> req
+                            .bucket(awsProperties.getS3().getBucketName())
+                            .key(objectKey)
+                            .contentType(contentType))
+                    .source(tempPath)
+                    .build();
+
+            FileUpload fileUpload = s3TransferManager.uploadFile(uploadRequest);
+            CompletedFileUpload completedUpload = fileUpload.completionFuture().join();
+            log.info("Upload bytes thành công '{}' ETag: {}", objectKey, completedUpload.response().eTag());
+
+            java.nio.file.Files.deleteIfExists(tempPath);
+            return objectKey;
+        } catch (Exception e) {
+            log.error("Lỗi upload bytes '{}' : {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    @Override
     public void deleteFile(String objectKey) {
         try {
             DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
@@ -122,6 +148,19 @@ public class S3ServiceImpl implements FileStorageService {
         } catch (Exception e) {
             log.error("Lỗi khi tạo presigned URL cho file '{}': {}", objectKey, e.getMessage());
             throw new AppException(ErrorCode.URL_GENERATION_FAILED);
+        }
+    }
+
+    @Override
+    public byte[] downloadBytes(String objectKey) {
+        try {
+            var resp = s3Client.getObjectAsBytes(b -> b
+                    .bucket(awsProperties.getS3().getBucketName())
+                    .key(objectKey));
+            return resp.asByteArray();
+        } catch (Exception e) {
+            log.error("Lỗi download '{}' từ S3: {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.STORAGE_READ_FAILED);
         }
     }
 

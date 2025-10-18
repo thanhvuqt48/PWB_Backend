@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <title>Hợp đồng bị từ chối</title>
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; color: #222; }
+        .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+        .muted { color: #666; font-size: 12px; }
+        .reason { background: #f7f7f7; border-left: 4px solid #e74c3c; padding: 10px 12px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Hợp đồng bị từ chối</h2>
+    <p>Xin chào <b th:text="${recipient}">Owner</b>,</p>
+    <p>Khách hàng đã <b>từ chối</b> hợp đồng của dự án <b th:text="${projectTitle}">Project</b>
+        (Contract ID: <span th:text="${contractId}">0</span>, Project ID: <span th:text="${projectId}">0</span>).</p>
+
+    <p>Lý do được cung cấp:</p>
+    <div class="reason" th:text="${reason}">Lý do chi tiết...</div>
+
+    <p>Vui lòng chỉnh sửa hợp đồng và gửi lại để khách hàng duyệt tiếp.</p>
+
+    <p class="muted">Producer Workbench</p>
+</div>
+</body>
+</html>
+
+
