@@ -33,7 +33,6 @@ public class ContractPreviewController {
             throw new AppException(ErrorCode.PROJECT_NOT_FOUND);
         }
 
-        // Use permission service to check access
         var permissions = contractPermissionService.checkContractPermissions(auth, project.getId());
         if (!permissions.isCanViewContract()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);

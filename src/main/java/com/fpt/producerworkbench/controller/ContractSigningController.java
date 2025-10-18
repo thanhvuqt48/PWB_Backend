@@ -15,6 +15,14 @@ import com.fpt.producerworkbench.common.ContractDocumentType;
 
 
 
+/**
+ * Controller xử lý việc lưu bản ký cuối của hợp đồng
+ * 
+ * CHÚ Ý: Chức năng webhook tự động đã bị vô hiệu hóa.
+ * Chỉ sử dụng API thủ công này để lưu bản ký cuối.
+ * 
+ * Endpoint: POST /api/v1/contracts/{id}/signed
+ */
 @RestController
 @RequestMapping("/api/v1/contracts")
 @RequiredArgsConstructor

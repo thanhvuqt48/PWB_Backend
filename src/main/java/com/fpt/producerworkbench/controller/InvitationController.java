@@ -39,7 +39,6 @@ public class InvitationController {
             @AuthenticationPrincipal Jwt jwt,
             Authentication auth) {
 
-        // Check permissions using service
         var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
         if (!permissions.isCanInviteMembers()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
@@ -60,7 +59,6 @@ public class InvitationController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<InvitationResponse>>> getPendingInvitations(@PathVariable Long projectId, @AuthenticationPrincipal Jwt jwt, Authentication auth) {
-        // Check permissions using service
         var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
         if (!permissions.isCanManageInvitations()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
@@ -79,9 +77,8 @@ public class InvitationController {
             @RequestParam(name = "status", required = false) InvitationStatus status,
             Pageable pageable,
             Authentication auth) {
-        // Check permissions - only PRODUCER and ADMIN can view owned invitations
         var permissions = projectPermissionService.checkProjectPermissions(auth, null);
-        if (!permissions.isCanCreateProject()) { // Same logic as create project
+        if (!permissions.isCanCreateProject()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 

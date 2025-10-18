@@ -41,19 +41,15 @@ public class ContractPermissionServiceImpl implements ContractPermissionService 
                     .build();
         }
 
-        // Get user
         User user = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Get project
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
-        // Check if user is project creator (owner)
         boolean isProjectOwner = project.getCreator() != null && 
                 user.getId().equals(project.getCreator().getId());
 
-        // Get project role if user is a member
         Optional<ProjectMember> memberOpt = projectMemberRepository
                 .findByProjectIdAndUserEmail(projectId, user.getEmail());
         

@@ -46,31 +46,26 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                     .build();
         }
 
-        // Get user
         User user = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         UserRole userRole = user.getRole();
 
-        // For project creation, we don't need projectId
         if (projectId == null) {
             return ProjectPermissionResponse.builder()
                     .userRole(userRole)
                     .canCreateProject(canCreateProject(userRole))
-                    .canViewMyInvitations(true) // Authenticated users can view their invitations
+                    .canViewMyInvitations(true)
                     .reason(getCreateProjectReason(userRole))
                     .build();
         }
 
-        // Get project
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
-        // Check if user is project creator (owner)
-        boolean isProjectOwner = project.getCreator() != null && 
+        boolean isProjectOwner = project.getCreator() != null &&
                 user.getId().equals(project.getCreator().getId());
 
-        // Get project role if user is a member
         Optional<ProjectMember> memberOpt = projectMemberRepository
                 .findByProjectIdAndUserEmail(projectId, user.getEmail());
         
@@ -96,45 +91,41 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                 .canDeleteProject(canDeleteProject(userRole, isProjectOwner))
                 .canViewMembers(canViewMembers(userRole, isProjectOwner, projectRole))
                 .canManageInvitations(canManageInvitations(userRole, isProjectOwner))
-                .canAcceptInvitation(true) // All authenticated users can accept invitations
-                .canDeclineInvitation(true) // All authenticated users can decline invitations
-                .canViewMyInvitations(true) // All authenticated users can view their invitations
+                .canAcceptInvitation(true)
+                .canDeclineInvitation(true)
+                .canViewMyInvitations(true)
                 .reason(getPermissionReason(userRole, projectRole, isProjectOwner, isProjectMember))
                 .build();
     }
 
     private boolean canCreateProject(UserRole userRole) {
-        // Chỉ PRODUCER và ADMIN mới được tạo dự án
+
         return userRole == UserRole.PRODUCER || userRole == UserRole.ADMIN;
     }
 
     private boolean canInviteMembers(UserRole userRole, boolean isProjectOwner) {
-        // ADMIN hoặc OWNER của project mới được mời thành viên
+
         return userRole == UserRole.ADMIN || isProjectOwner;
     }
 
     private boolean canViewProject(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole) {
-        // ADMIN, OWNER, hoặc thành viên của project có thể xem
+
         return userRole == UserRole.ADMIN || isProjectOwner || projectRole != null;
     }
 
     private boolean canEditProject(UserRole userRole, boolean isProjectOwner) {
-        // Chỉ ADMIN hoặc OWNER mới được chỉnh sửa dự án
         return userRole == UserRole.ADMIN || isProjectOwner;
     }
 
     private boolean canDeleteProject(UserRole userRole, boolean isProjectOwner) {
-        // Chỉ ADMIN hoặc OWNER mới được xóa dự án
         return userRole == UserRole.ADMIN || isProjectOwner;
     }
 
     private boolean canViewMembers(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole) {
-        // ADMIN, OWNER, hoặc thành viên có thể xem danh sách thành viên
         return userRole == UserRole.ADMIN || isProjectOwner || projectRole != null;
     }
 
     private boolean canManageInvitations(UserRole userRole, boolean isProjectOwner) {
-        // ADMIN hoặc OWNER mới được quản lý lời mời
         return userRole == UserRole.ADMIN || isProjectOwner;
     }
 
@@ -147,7 +138,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
             return "Chỉ PRODUCER hoặc ADMIN mới có quyền tạo dự án";
         }
         
-        return null; // Có quyền
+        return null;
     }
 
     private String getPermissionReason(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner, boolean isProjectMember) {
@@ -159,6 +150,6 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
             return "Bạn không phải là thành viên của dự án này";
         }
         
-        return null; // Có quyền
+        return null;
     }
 }

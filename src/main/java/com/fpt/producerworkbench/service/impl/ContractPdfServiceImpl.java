@@ -98,7 +98,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     public byte[] fillTemplate(Authentication auth, Long projectId, ContractPdfFillRequest req) {
         if (req.getPercent() == null || req.getPercent().isBlank()) throw new AppException(ErrorCode.BAD_REQUEST);
 
-        // Check permissions for contract creation
         var permissions = contractPermissionService.checkContractPermissions(auth, projectId);
         if (!permissions.isCanCreateContract()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);

@@ -33,7 +33,6 @@ public class ProjectContractController {
         resp.put("status", c.getStatus());
         resp.put("signnowStatus", c.getSignnowStatus());
 
-        // Only return one documentUrl: prefer SIGNED if exists else FILLED
         var signed = contractDocumentRepository
                 .findTopByContract_IdAndTypeOrderByVersionDesc(c.getId(), ContractDocumentType.SIGNED)
                 .orElse(null);

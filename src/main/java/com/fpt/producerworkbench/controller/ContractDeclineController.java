@@ -31,7 +31,6 @@ public class ContractDeclineController {
         Contract c = contractRepository.findById(id)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
-        // Only CLIENT of project or ADMIN can decline
         String email = auth == null ? null : auth.getName();
         if (email == null || email.isBlank()) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
@@ -43,17 +42,22 @@ public class ContractDeclineController {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        // Set status to DECLINED; allow owner to edit again
+        // Check if contract can be declined
+        if (c.getStatus() == ContractStatus.COMPLETED) {
+            throw new AppException(ErrorCode.CONTRACT_ALREADY_COMPLETED);
+        }
+        if (c.getStatus() == ContractStatus.DECLINED) {
+            throw new AppException(ErrorCode.CONTRACT_ALREADY_DECLINED);
+        }
+
         c.setStatus(ContractStatus.DECLINED);
         c.setSignnowStatus(ContractStatus.DECLINED);
         contractRepository.save(c);
 
-        // Notify owner by email
         String ownerEmail = c.getProject() != null && c.getProject().getCreator() != null
                 ? c.getProject().getCreator().getEmail()
                 : null;
         if (ownerEmail != null) {
-            // Dùng template Thymeleaf contract-declined.html qua Kafka-compatible EmailService
             try {
                 com.fpt.producerworkbench.dto.event.NotificationEvent evt = com.fpt.producerworkbench.dto.event.NotificationEvent.builder()
                         .subject("Hợp đồng bị từ chối - Contract #" + c.getId())
@@ -67,10 +71,8 @@ public class ContractDeclineController {
                 evt.getParam().put("contractId", String.valueOf(c.getId()));
                 evt.getParam().put("reason", reason == null ? "(không cung cấp)" : reason);
 
-                // Gửi trực tiếp qua Kafka để EmailServiceImpl render template
                 kafkaTemplate.send("notification-delivery", evt);
             } catch (Exception ex) {
-                // fallback: gửi email đơn giản nếu Kafka lỗi
                 String subject = "Hợp đồng bị từ chối - Contract #" + c.getId();
                 String content = "<p>Hợp đồng đã bị từ chối với lý do:</p><p>" + (reason == null ? "(không cung cấp)" : reason) + "</p>"
                         + "<p>Vui lòng chỉnh sửa và gửi lại để khách hàng duyệt tiếp.</p>";

@@ -35,7 +35,6 @@ public class ProjectController {
             @AuthenticationPrincipal Jwt jwt,
             Authentication auth) {
 
-        // Check permissions using service
         var permissions = projectPermissionService.checkProjectPermissions(auth, null);
         if (!permissions.isCanCreateProject()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
