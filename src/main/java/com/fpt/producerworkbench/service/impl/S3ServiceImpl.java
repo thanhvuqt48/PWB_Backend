@@ -111,18 +111,14 @@ public class S3ServiceImpl implements FileStorageService {
     @Override
     public String generatePresignedUrl(String objectKey, boolean forDownload, String fileName) {
         try {
-            // Xây dựng GetObjectRequest builder
             GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
                     .bucket(awsProperties.getS3().getBucketName())
                     .key(objectKey);
 
-            // Thêm Content-Disposition dựa trên yêu cầu
             if (forDownload) {
-                // Buộc trình duyệt tải xuống file với tên gốc
                 String disposition = "attachment; filename=\"" + fileName + "\"";
                 requestBuilder.responseContentDisposition(disposition);
             } else {
-                // Yêu cầu trình duyệt hiển thị file (nếu có thể)
                 requestBuilder.responseContentDisposition("inline");
             }
 
@@ -134,7 +130,6 @@ public class S3ServiceImpl implements FileStorageService {
             String presignedUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
             log.info("Đã tạo presigned URL cho key '{}' với chế độ: {}", objectKey, forDownload ? "Download" : "View");
 
-            // Tối ưu: Thay thế domain S3 bằng domain CloudFront
             String s3Host = String.format("%s.s3.%s.amazonaws.com",
                     awsProperties.getS3().getBucketName(),
                     awsProperties.getRegion());
