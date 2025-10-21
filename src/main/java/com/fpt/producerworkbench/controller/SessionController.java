@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class SessionController {
 
     private final LiveSessionService sessionService;
-    private final SecurityUtils securityUtils; // ✅ Inject as dependency
+    private final SecurityUtils securityUtils;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

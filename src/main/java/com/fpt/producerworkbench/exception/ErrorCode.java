@@ -91,41 +91,39 @@ public enum ErrorCode {
     AGORA_TOKEN_EXPIRED(6005, "Tên kênh Agora không hợp lệ", HttpStatus.UNAUTHORIZED),
     AGORA_UID_INVALID(6006, "Agora UID không hợp lệ", HttpStatus.BAD_REQUEST),
     // ========== File Related (7xxx) ==========
-    FILE_NOT_FOUND(7001, "File not found", HttpStatus.NOT_FOUND),
-    FILE_NOT_IN_PROJECT(7002, "File does not belong to this project", HttpStatus.FORBIDDEN),
-    INVALID_FILE_FORMAT(7003, "Invalid file format", HttpStatus.BAD_REQUEST),
+    FILE_NOT_FOUND(7001, "Không tìm thấy file", HttpStatus.NOT_FOUND),
+    FILE_NOT_IN_PROJECT(7002, "File không thuộc về dự án này", HttpStatus.FORBIDDEN),
+    INVALID_FILE_FORMAT(7003, "Định dạng file không hợp lệ", HttpStatus.BAD_REQUEST),
 
     // ========== Playback Related (8xxx) ==========
-    PLAYBACK_CONTROL_DENIED(8001, "You do not have permission to control playback", HttpStatus.FORBIDDEN),
-    NO_FILE_PLAYING(8002, "No file is currently playing", HttpStatus.BAD_REQUEST),
-    INVALID_PLAYBACK_POSITION(8003, "Invalid playback position", HttpStatus.BAD_REQUEST),
-
+    PLAYBACK_CONTROL_DENIED(8001, "Bạn không có quyền điều khiển phát lại", HttpStatus.FORBIDDEN),
+    NO_FILE_PLAYING(8002, "Hiện tại không có file nào đang phát", HttpStatus.BAD_REQUEST),
+    INVALID_PLAYBACK_POSITION(8003, "Vị trí phát lại không hợp lệ", HttpStatus.BAD_REQUEST),
     // ========== Chat Related (9xxx) ==========
-    CHAT_MESSAGE_NOT_FOUND(9001, "Chat message not found", HttpStatus.NOT_FOUND),
-    CANNOT_DELETE_MESSAGE(9002, "You do not have permission to delete this message", HttpStatus.FORBIDDEN),
-    MESSAGE_TOO_LONG(9003, "Message exceeds maximum length", HttpStatus.BAD_REQUEST),
+    CHAT_MESSAGE_NOT_FOUND(9001, "Không tìm thấy tin nhắn chat", HttpStatus.NOT_FOUND),
+    CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),
+    MESSAGE_TOO_LONG(9003, "Tin nhắn vượt quá độ dài tối đa", HttpStatus.BAD_REQUEST),
 
-    SESSION_NOT_FOUND(5009, "Session not found", HttpStatus.NOT_FOUND),
-    SESSION_NOT_ACTIVE(5010, "Session is not active", HttpStatus.BAD_REQUEST),
-    SESSION_FULL(5011, "Session has reached maximum participants", HttpStatus.BAD_REQUEST),
-    SESSION_ALREADY_ACTIVE(5012, "Session is already active", HttpStatus.BAD_REQUEST),
-    SESSION_ALREADY_ENDED(5013, "Session has already ended", HttpStatus.BAD_REQUEST),
-    SESSION_ALREADY_STARTED(5014, "Session already started", HttpStatus.BAD_REQUEST),
-    SESSION_NOT_PAUSED(5015, "Session is not paused", HttpStatus.BAD_REQUEST),
-    CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Can only cancel scheduled sessions", HttpStatus.BAD_REQUEST),
-    CANNOT_REMOVE_HOST(5106, "Cannot remove session host", HttpStatus.BAD_REQUEST),
+    SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
+    SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
+    SESSION_FULL(5011, "Phiên đã đạt số lượng người tham gia tối đa", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_ACTIVE(5012, "Phiên đã hoạt động", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_ENDED(5013, "Phiên đã kết thúc", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_STARTED(5014, "Phiên đã bắt đầu", HttpStatus.BAD_REQUEST),
+    SESSION_NOT_PAUSED(5015, "Phiên không bị tạm dừng", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Chỉ có thể hủy phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CANNOT_REMOVE_HOST(5106, "Không thể xóa người chủ trì phiên", HttpStatus.BAD_REQUEST),
 
 
-
-    PARTICIPANT_NOT_FOUND(5101, "Participant not found in session", HttpStatus.NOT_FOUND),
-    USER_ALREADY_INVITED(5102, "User already invited to this session", HttpStatus.CONFLICT),
-    USER_NOT_IN_PROJECT(5103, "User is not a member of this project", HttpStatus.FORBIDDEN),
-    INVITATION_DECLINED(5104, "Invitation was declined", HttpStatus.BAD_REQUEST),
-    ONLY_HOST_CAN_PERFORM_ACTION(5105, "Only session host can perform this action", HttpStatus.FORBIDDEN),
+    PARTICIPANT_NOT_FOUND(5101, "Không tìm thấy người tham gia trong phiên", HttpStatus.NOT_FOUND),
+    USER_ALREADY_INVITED(5102, "Người dùng đã được mời vào phiên này", HttpStatus.CONFLICT),
+    USER_NOT_IN_PROJECT(5103, "Người dùng không phải là thành viên của dự án này", HttpStatus.FORBIDDEN),
+    INVITATION_DECLINED(5104, "Lời mời đã bị từ chối", HttpStatus.BAD_REQUEST),
+    ONLY_HOST_CAN_PERFORM_ACTION(5105, "Chỉ người chủ trì phiên mới có thể thực hiện hành động này", HttpStatus.FORBIDDEN),
 
     // Project errors (4xxx)
-    ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Only project owner can create session", HttpStatus.FORBIDDEN),
-    PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Project already has an active session", HttpStatus.BAD_REQUEST),
+    ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
+    PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

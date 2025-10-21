@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.common.InvitationStatus;
 import com.fpt.producerworkbench.common.ParticipantRole;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.SessionStatus;
+import com.fpt.producerworkbench.configuration.AgoraConfig;
 import com.fpt.producerworkbench.dto.request.InviteParticipantRequest;
 import com.fpt.producerworkbench.dto.request.UpdateParticipantPermissionRequest;
 import com.fpt.producerworkbench.dto.response.JoinSessionResponse;
@@ -45,7 +46,6 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     private final AgoraTokenService agoraTokenService;
     private final SessionParticipantMapper participantMapper;
     private final WebSocketService webSocketService; // ✅ Add WebSocket service
-
     private static final int TOKEN_EXPIRATION_SECONDS = 86400; // 24 hours
 
     @Override

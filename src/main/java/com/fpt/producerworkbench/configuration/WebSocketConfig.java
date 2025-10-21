@@ -47,7 +47,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setMessageSizeLimit(128 * 1024)    // 128KB max message size
                 .setSendBufferSizeLimit(512 * 1024) // 512KB send buffer
                 .setSendTimeLimit(20 * 1000);       // 20 seconds timeout
-
         log.info("✅ WebSocket transport configured");
     }
 

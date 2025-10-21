@@ -22,7 +22,7 @@ public class SecurityUtils {
     private final UserRepository userRepository; // ✅ Non-static field
     private static final Random RANDOM = new Random();
 
-    // ✅ Instance method (not static)
+
     public Long getCurrentUserId() {
         SecurityContext contextHolder = SecurityContextHolder.getContext();
         Authentication authentication = contextHolder.getAuthentication();

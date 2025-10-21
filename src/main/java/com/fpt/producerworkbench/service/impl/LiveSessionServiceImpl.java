@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.SessionStatus;
+import com.fpt.producerworkbench.configuration.AgoraConfig;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
@@ -39,34 +40,33 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     private final SessionParticipantRepository participantRepository;
     private final LiveSessionMapper sessionMapper;
     private final WebSocketService webSocketService; // ✅ Add WebSocket service
-
+    private final AgoraConfig agoraConfig;
     @Override
     @Transactional
     public LiveSessionResponse createSession(CreateSessionRequest request, Long hostId) {
         log.info("Creating session for project {} by user {}", request.getProjectId(), hostId);
 
-        // Validate project exists
         Project project = projectRepository.findById(request.getProjectId())
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
-        // Validate user exists
+
         User host = userRepository.findById(hostId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Validate user is project owner
+
         if (!project.getCreator().getId().equals(hostId)) {
             throw new AppException(ErrorCode.ONLY_PROJECT_OWNER_CAN_CREATE_SESSION);
         }
 
-        // Check if project already has active session
+
         if (sessionRepository.hasActiveSessionForProject(request.getProjectId())) {
             throw new AppException(ErrorCode.PROJECT_ALREADY_HAS_ACTIVE_SESSION);
         }
 
-        // Generate unique channel name
+
         String channelName = generateChannelName(request.getProjectId());
 
-        // Create session
+
         LiveSession session = LiveSession.builder()
                 .project(project)
                 .host(host)
@@ -94,22 +94,22 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     public LiveSessionResponse startSession(String sessionId, Long userId) {
         log.info("Starting session {} by user {}", sessionId, userId);
 
-        // Get session
+
         LiveSession session = getSessionEntity(sessionId);
 
-        // Validate user is host
+
         validateIsHost(session, userId);
 
-        // Validate status
+
         if (session.getStatus() != SessionStatus.SCHEDULED) {
             throw new AppException(ErrorCode.SESSION_ALREADY_STARTED);
         }
 
-        // Get host info for broadcast
+
         User host = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Update status
+
         SessionStatus oldStatus = session.getStatus();
         session.setStatus(SessionStatus.ACTIVE);
         session.setActualStart(LocalDateTime.now());
@@ -399,7 +399,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
 
     private String getAgoraAppId() {
         // Get from AgoraConfig or environment
-        return "your-agora-app-id"; // TODO: Inject from config
+        return agoraConfig.getAppId(); // TODO: Inject from config
     }
 
     private SessionSummaryResponse buildSessionSummary(LiveSession session) {
