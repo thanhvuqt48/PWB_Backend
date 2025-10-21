@@ -80,6 +80,7 @@ public enum ErrorCode {
     CLIENT_NOT_FOUND(7010, "Dự án chưa có khách hàng. Vui lòng mời khách hàng tham gia dự án trước.", HttpStatus.BAD_REQUEST),
     CONTRACT_ALREADY_DECLINED(7011, "Hợp đồng đã bị từ chối trước đó. Không thể từ chối lại.", HttpStatus.CONFLICT),
     CONTRACT_ALREADY_COMPLETED(7012, "Hợp đồng đã hoàn tất ký. Không thể từ chối.", HttpStatus.CONFLICT),
+    CONTRACT_NOT_DECLINED(7013, "Hợp đồng chưa bị từ chối.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),

@@ -83,6 +83,11 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "last_error")
     private String lastError;
 
+    /** Lý do từ chối hợp đồng */
+    @Lob
+    @Column(name = "decline_reason")
+    private String declineReason;
+
     @Builder.Default
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("version ASC")
