@@ -645,7 +645,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             contract.setProject(project);
         }
         contract.setContractDetails("Sinh hợp đồng từ PDF fill: " + Optional.ofNullable(req.getContractNo()).orElse(""));
-        contract.setTotalAmount(totals.sum); // Tổng theo 10 dòng
+        contract.setTotalAmount(totals.sum);
         contract.setPaymentType(payOnce ? PaymentType.FULL : PaymentType.MILESTONE);
         contract.setStatus(ContractStatus.DRAFT);
         contract.setFpEditAmount(req.getFpEditAmount());
