@@ -37,36 +37,25 @@ public class SessionWebSocketController {
     public void sendChatMessage(
             @DestinationVariable String sessionId,
             @Payload ChatMessage message,
-            Principal principal) {
+            SimpMessageHeaderAccessor headerAccessor) {  // ✅ Thay Principal bằng SimpMessageHeaderAccessor
 
         log.info("📨 Received chat message in session {}", sessionId);
 
         try {
-            // ✅ Check if principal exists
-            if (principal == null) {
-                log.warn("⚠️ Anonymous chat message in session {}", sessionId);
+            // ✅ Get userId from session attributes (stored during CONNECT)
+            Long userId = (Long) headerAccessor.getSessionAttributes().get("userId");
 
-                // Send anonymous message
-                ChatMessage anonymousMessage = ChatMessage.builder()
-                        .messageId(UUID.randomUUID().toString())
-                        .sessionId(sessionId)
-                        .senderId(0L)
-                        .senderName("Anonymous")
-                        .senderAvatarUrl(null)
-                        .content(message.getContent())
-                        .type(message.getType() != null ? message.getType() : "TEXT")
-                        .timestamp(LocalDateTime.now())
-                        .build();
-
-                webSocketService.broadcastChatMessage(sessionId, anonymousMessage);
+            if (userId == null) {
+                log.warn("⚠️ Anonymous chat message in session {} - No userId in session", sessionId);
+                sendAnonymousMessage(sessionId, message);
                 return;
             }
 
-            // Get sender info from JWT principal
-            User sender = userRepository.findByEmail(principal.getName())
+            // ✅ Get user from database
+            User sender = userRepository.findById(userId)
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-            // Build complete message with sender info
+            // Build complete message
             ChatMessage completeMessage = ChatMessage.builder()
                     .messageId(UUID.randomUUID().toString())
                     .sessionId(sessionId)
@@ -78,13 +67,12 @@ public class SessionWebSocketController {
                     .timestamp(LocalDateTime.now())
                     .build();
 
-            // Broadcast to all participants in session
             webSocketService.broadcastChatMessage(sessionId, completeMessage);
 
-            log.info("✅ Chat message broadcasted from {}", sender.getEmail());
+            log.info("✅ Chat message broadcasted from {} (ID: {})", sender.getEmail(), userId);
 
         } catch (Exception e) {
-            log.error("❌ Error handling chat message: {}", e.getMessage());
+            log.error("❌ Error handling chat message: {}", e.getMessage(), e);
         }
     }
 
@@ -97,33 +85,30 @@ public class SessionWebSocketController {
     public void controlPlayback(
             @DestinationVariable String sessionId,
             @Payload PlaybackEvent event,
-            Principal principal) {
+            SimpMessageHeaderAccessor headerAccessor) {  // ✅ Changed
 
         log.info("🎵 Received playback event in session {}: {}", sessionId, event.getAction());
 
         try {
-            // ✅ Check if principal exists
-            if (principal == null) {
+            Long userId = (Long) headerAccessor.getSessionAttributes().get("userId");
+
+            if (userId == null) {
                 log.warn("⚠️ Anonymous playback control in session {}", sessionId);
                 event.setTriggeredByUserId(0L);
                 event.setTriggeredByUserName("Anonymous");
             } else {
-                // Get user info
-                User user = userRepository.findByEmail(principal.getName())
+                User user = userRepository.findById(userId)
                         .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-                // Add user info to event
                 event.setTriggeredByUserId(user.getId());
                 event.setTriggeredByUserName(user.getFirstName() + " " + user.getLastName());
             }
 
-            // Broadcast to all participants
             webSocketService.broadcastPlaybackEvent(sessionId, event);
-
             log.info("✅ Playback event broadcasted: {}", event.getAction());
 
         } catch (Exception e) {
-            log.error("❌ Error handling playback event: {}", e.getMessage());
+            log.error("❌ Error handling playback event: {}", e.getMessage(), e);
         }
     }
 
@@ -177,19 +162,19 @@ public class SessionWebSocketController {
     public void handleTyping(
             @DestinationVariable String sessionId,
             @Payload String action,
-            Principal principal) {
+            SimpMessageHeaderAccessor headerAccessor) {  // ✅ Changed
 
         try {
-            // ✅ Check if principal exists
-            if (principal == null) {
+            Long userId = (Long) headerAccessor.getSessionAttributes().get("userId");
+
+            if (userId == null) {
                 log.debug("⚠️ Anonymous typing indicator in session {}", sessionId);
                 return;
             }
 
-            User user = userRepository.findByEmail(principal.getName())
+            User user = userRepository.findById(userId)
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-            // Broadcast typing indicator (action: "start" or "stop")
             webSocketService.broadcastParticipantEvent(sessionId,
                     com.fpt.producerworkbench.dto.websocket.ParticipantEvent.builder()
                             .action("TYPING_" + action.toUpperCase())
@@ -199,7 +184,22 @@ public class SessionWebSocketController {
             );
 
         } catch (Exception e) {
-            log.error("❌ Error handling typing indicator: {}", e.getMessage());
+            log.error("❌ Error handling typing indicator: {}", e.getMessage(), e);
         }
+
+    }
+    private void sendAnonymousMessage(String sessionId, ChatMessage message) {
+        ChatMessage anonymousMessage = ChatMessage.builder()
+                .messageId(UUID.randomUUID().toString())
+                .sessionId(sessionId)
+                .senderId(0L)
+                .senderName("Anonymous")
+                .senderAvatarUrl(null)
+                .content(message.getContent())
+                .type(message.getType() != null ? message.getType() : "TEXT")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        webSocketService.broadcastChatMessage(sessionId, anonymousMessage);
     }
 }

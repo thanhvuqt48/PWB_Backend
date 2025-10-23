@@ -1,6 +1,5 @@
 package com.fpt.producerworkbench.configuration;
 
-import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
