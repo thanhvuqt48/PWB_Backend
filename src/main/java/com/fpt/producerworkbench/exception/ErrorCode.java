@@ -11,7 +11,7 @@ public enum ErrorCode {
     INVALID_PARAMETER_FORMAT(1002, "Định dạng tham số không hợp lệ.", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED(1003, "Lỗi xác thực dữ liệu.", HttpStatus.BAD_REQUEST),
     BAD_REQUEST(1004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
-    INVALID_KEY(1001, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_KEY(1005, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
     EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
     TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
     URL_GENERATION_FAILED(1012, "Không thể tạo URL. Vui lòng thử lại.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -25,6 +25,7 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(2006, "Tài khoản đã bị khóa.", HttpStatus.FORBIDDEN),
     ACCOUNT_DISABLED(2007, "Tài khoản đã bị vô hiệu hóa.", HttpStatus.FORBIDDEN),
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
+    FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
 
@@ -35,6 +36,8 @@ public enum ErrorCode {
     OTP_INVALID(3004, "Mã OTP không hợp lệ.", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(3005, "Mã OTP đã hết hạn.", HttpStatus.BAD_REQUEST),
     ACCOUNT_ALREADY_VERIFIED(3006, "Tài khoản này đã được xác thực trước đó.", HttpStatus.BAD_REQUEST),
+    USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),
+
 
     // ===== Lỗi liên quan đến Tài nguyên chung (4xxx) =====
     RESOURCE_NOT_FOUND(4001, "Không tìm thấy tài nguyên được yêu cầu.", HttpStatus.NOT_FOUND),
@@ -81,6 +84,8 @@ public enum ErrorCode {
     CONTRACT_ALREADY_DECLINED(7011, "Hợp đồng đã bị từ chối trước đó. Không thể từ chối lại.", HttpStatus.CONFLICT),
     CONTRACT_ALREADY_COMPLETED(7012, "Hợp đồng đã hoàn tất ký. Không thể từ chối.", HttpStatus.CONFLICT),
     CONTRACT_NOT_DECLINED(7013, "Hợp đồng chưa bị từ chối.", HttpStatus.BAD_REQUEST),
+    MILESTONES_TOTAL_NOT_ENOUGH(7014, "Tổng số tiền các cột mốc nhỏ hơn tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
+    MILESTONES_TOTAL_EXCEEDS(7015, "Tổng số tiền các cột mốc vượt quá tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
