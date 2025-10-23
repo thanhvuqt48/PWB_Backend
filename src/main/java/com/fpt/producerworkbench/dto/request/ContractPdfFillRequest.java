@@ -1,97 +1,3 @@
-//
-//package com.fpt.producerworkbench.dto.request;
-//
-//import com.fasterxml.jackson.annotation.JsonFormat;
-//import com.fasterxml.jackson.annotation.JsonProperty;
-//import lombok.*;
-//import lombok.experimental.FieldDefaults;
-//
-//import java.time.LocalDate;
-//import java.util.List;
-//
-//@Setter @Getter @Builder
-//@AllArgsConstructor @NoArgsConstructor
-//@FieldDefaults(level = AccessLevel.PRIVATE)
-//public class ContractPdfFillRequest {
-//
-//    @JsonProperty("contractNo") String contractNo;
-//
-//    @JsonProperty("signDate")
-//    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-//    LocalDate signDate;
-//
-//    @JsonProperty("signPlace") String signPlace;
-//
-//    // Bên A
-//    @JsonProperty("aName")  String aName;
-//    @JsonProperty("aCccd")  String aCccd;
-//
-//    @JsonProperty("aCccdIssueDate")
-//    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-//    LocalDate aCccdIssueDate;
-//
-//    @JsonProperty("aCccdIssuePlace") String aCccdIssuePlace;
-//    @JsonProperty("aAddress")        String aAddress;
-//    @JsonProperty("aPhone")          String aPhone;
-//    @JsonProperty("aRepresentative") String aRepresentative;
-//    @JsonProperty("aTitle")          String aTitle;
-//    @JsonProperty("aPoANo")          String aPoANo;
-//
-//    // Bên B
-//    @JsonProperty("bName")  String bName;
-//    @JsonProperty("bCccd")  String bCccd;
-//
-//    @JsonProperty("bCccdIssueDate")
-//    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
-//    LocalDate bCccdIssueDate;
-//
-//    @JsonProperty("bCccdIssuePlace") String bCccdIssuePlace;
-//    @JsonProperty("bAddress")        String bAddress;
-//    @JsonProperty("bPhone")          String bPhone;
-//    @JsonProperty("bRepresentative") String bRepresentative;
-//    @JsonProperty("bTitle")          String bTitle;
-//    @JsonProperty("bPoANo")          String bPoANo;
-//
-//    // Hạng mục 1–3
-//    @JsonProperty("line1Item")  String line1Item;
-//    @JsonProperty("line1Unit")  String line1Unit;
-//    @JsonProperty("line1Qty")   Integer line1Qty;
-//    @JsonProperty("line1Price") String line1Price;
-//    @JsonProperty("line1Amount")String line1Amount;
-//
-//    @JsonProperty("line2Item")  String line2Item;
-//    @JsonProperty("line2Unit")  String line2Unit;
-//    @JsonProperty("line2Qty")   Integer line2Qty;
-//    @JsonProperty("line2Price") String line2Price;
-//    @JsonProperty("line2Amount")String line2Amount;
-//
-//    @JsonProperty("line3Item")  String line3Item;
-//    @JsonProperty("line3Unit")  String line3Unit;
-//    @JsonProperty("line3Qty")   Integer line3Qty;
-//    @JsonProperty("line3Price") String line3Price;
-//    @JsonProperty("line3Amount")String line3Amount;
-//
-//    // Tổng hợp & giá trị HĐ
-//    @JsonProperty("sumAmount")            String sumAmount;
-//    @JsonProperty("vat8")                 String vat8;
-//    @JsonProperty("grandTotal")           String grandTotal;
-//    @JsonProperty("contractPriceText")    String contractPriceText;
-//    @JsonProperty("contractPriceInWords") String contractPriceInWords;
-//
-//    // Thanh toán
-//    @JsonProperty("payOnce")      Boolean payOnce;
-//    @JsonProperty("payMilestone") Boolean payMilestone;
-//
-//    @JsonProperty("ms1Amount") String ms1Amount;
-//    @JsonProperty("ms1Percent")String ms1Percent;
-//    @JsonProperty("ms2Amount") String ms2Amount;
-//    @JsonProperty("ms2Percent")String ms2Percent;
-//    @JsonProperty("ms3Amount") String ms3Amount;
-//    @JsonProperty("ms3Percent")String ms3Percent;
-//
-//    @JsonProperty("milestones") private List<MilestoneReq> milestones;
-//}
-//
 package com.fpt.producerworkbench.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -110,7 +16,6 @@ public class ContractPdfFillRequest {
 
     @JsonProperty("contractNo") String contractNo;
 
-    // ===== BẮT BUỘC =====
     @NotNull
     @JsonProperty("signDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
@@ -142,9 +47,8 @@ public class ContractPdfFillRequest {
     @NotBlank @JsonProperty("line1Unit")   String line1Unit;
     @NotNull  @Positive @JsonProperty("line1Qty") Integer line1Qty;
     @NotBlank @JsonProperty("line1Price")  String line1Price;
-    @NotBlank @JsonProperty("line1Amount") String line1Amount;
+    @JsonProperty("line1Amount") String line1Amount;
 
-    // ===== KHÔNG BẮT BUỘC =====
     @JsonProperty("signPlace") String signPlace;
 
     @JsonProperty("aPhone")          String aPhone;
@@ -169,15 +73,57 @@ public class ContractPdfFillRequest {
     @JsonProperty("line3Price")  String line3Price;
     @JsonProperty("line3Amount") String line3Amount;
 
-    // Các trường tổng hợp sẽ do server tự tính – client KHÔNG cần gửi
-    // sumAmount, vat8(%), grandTotal
+    @JsonProperty("line4Item")   String line4Item;
+    @JsonProperty("line4Unit")   String line4Unit;
+    @JsonProperty("line4Qty")    Integer line4Qty;
+    @JsonProperty("line4Price")  String line4Price;
+    @JsonProperty("line4Amount") String line4Amount;
 
-    // Thanh toán – BẮT BUỘC chọn đúng 1
+    @JsonProperty("line5Item")   String line5Item;
+    @JsonProperty("line5Unit")   String line5Unit;
+    @JsonProperty("line5Qty")    Integer line5Qty;
+    @JsonProperty("line5Price")  String line5Price;
+    @JsonProperty("line5Amount") String line5Amount;
+
+    @JsonProperty("line6Item")   String line6Item;
+    @JsonProperty("line6Unit")   String line6Unit;
+    @JsonProperty("line6Qty")    Integer line6Qty;
+    @JsonProperty("line6Price")  String line6Price;
+    @JsonProperty("line6Amount") String line6Amount;
+
+    @JsonProperty("line7Item")   String line7Item;
+    @JsonProperty("line7Unit")   String line7Unit;
+    @JsonProperty("line7Qty")    Integer line7Qty;
+    @JsonProperty("line7Price")  String line7Price;
+    @JsonProperty("line7Amount") String line7Amount;
+
+    @JsonProperty("line8Item")   String line8Item;
+    @JsonProperty("line8Unit")   String line8Unit;
+    @JsonProperty("line8Qty")    Integer line8Qty;
+    @JsonProperty("line8Price")  String line8Price;
+    @JsonProperty("line8Amount") String line8Amount;
+
+    @JsonProperty("line9Item")   String line9Item;
+    @JsonProperty("line9Unit")   String line9Unit;
+    @JsonProperty("line9Qty")    Integer line9Qty;
+    @JsonProperty("line9Price")  String line9Price;
+    @JsonProperty("line9Amount") String line9Amount;
+
+    @JsonProperty("line10Item")   String line10Item;
+    @JsonProperty("line10Unit")   String line10Unit;
+    @JsonProperty("line10Qty")    Integer line10Qty;
+    @JsonProperty("line10Price")  String line10Price;
+    @JsonProperty("line10Amount") String line10Amount;
+
     @JsonProperty("payOnce")      Boolean payOnce;
     @JsonProperty("payMilestone") Boolean payMilestone;
 
-    // Khi payMilestone = true, milestones là BẮT BUỘC
     @JsonProperty("milestones") private List<MilestoneRequest> milestones;
 
-    @JsonProperty("projectId") Long projectId;
+    @NotBlank
+    @JsonProperty("percent")
+    String percent;
+
+    @JsonProperty("fpEditAmount")
+    Integer fpEditAmount;
 }

@@ -68,7 +68,7 @@ spotify:
   client-secret: ${SPOTIFY_CLIENT_SECRET}
 
 signnow:
-  base-url: ${SN_BASE_URL:https://api-eval.signnow.com}
+  base-url: ${SN_BASE_URL:https://api.signnow.com}
   client-id: ${SN_CLIENT_ID}
   client-secret: ${SN_CLIENT_SECRET}
   auth:
@@ -76,7 +76,7 @@ signnow:
     password: ${SN_PASSWORD}
   http:
     connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
-    read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:20000}
+    read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
 
 
 pwb:
@@ -109,5 +109,11 @@ outbound:
     redirect-uri: ${OUTBOUND_REDIRECT_URI}
 
 cors:
-  allowed-origin: ${ALLOWED_ORIGIN}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
 
+payos:
+  client-id: ${PAYOS_CLIENT_ID}
+  api-key: ${PAYOS_API_KEY}
+  checksum-key: ${PAYOS_CHECKSUM_KEY}
+  return-url: ${PAYOS_RETURN_URL}
+  cancel-url: ${PAYOS_CANCEL_URL}

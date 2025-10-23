@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.configuration;
 
+import com.fpt.producerworkbench.service.SignNowAuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -7,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector; // <-- đúng
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -16,7 +17,7 @@ import reactor.netty.http.client.HttpClient;
 import reactor.netty.tcp.TcpClient;
 
 @Configuration
-@EnableConfigurationProperties(SignNowProperties.class) // <-- ĐĂNG KÝ bean properties ở đây
+@EnableConfigurationProperties(SignNowProperties.class)
 @RequiredArgsConstructor
 @Slf4j
 public class SignNowConfig {
@@ -40,7 +41,6 @@ public class SignNowConfig {
         return HttpClient.from(tcp);
     }
 
-    // Filter gắn Bearer (trừ khi request đã có Authorization hoặc đang gọi /oauth2/token)
     private ExchangeFilterFunction bearerInjector(SignNowAuthService authSvc) {
         return (request, next) -> {
             String path = request.url().getPath();
@@ -55,7 +55,6 @@ public class SignNowConfig {
         };
     }
 
-    // Nếu 401 thì refresh và retry 1 lần
     private ExchangeFilterFunction retryOn401(SignNowAuthService authSvc) {
         return (request, next) -> next.exchange(request)
                 .flatMap(res -> {
@@ -74,25 +73,19 @@ public class SignNowConfig {
                 });
     }
 
-    /** WebClient dành cho OAuth: KHÔNG có bearer filter */
     @Bean("signNowAuthWebClient")
     public WebClient signNowAuthWebClient() {
         return WebClient.builder()
                 .baseUrl(resolvedBaseUrl())
-                .clientConnector(new ReactorClientHttpConnector(httpClient())) // <-- đúng class
-                .filter(LogFilters.logRequest())
-                .filter(LogFilters.logResponse())
+                .clientConnector(new ReactorClientHttpConnector(httpClient()))
                 .build();
     }
 
-    /** WebClient API: có Bearer + auto-refresh */
     @Bean("signNowApiWebClient")
     public WebClient signNowApiWebClient(SignNowAuthService authSvc) {
         return WebClient.builder()
                 .baseUrl(resolvedBaseUrl())
-                .clientConnector(new ReactorClientHttpConnector(httpClient())) // <-- đúng class
-                .filter(LogFilters.logRequest())
-                .filter(LogFilters.logResponse())
+                .clientConnector(new ReactorClientHttpConnector(httpClient()))
                 .filter(bearerInjector(authSvc))
                 .filter(retryOn401(authSvc))
                 .build();
