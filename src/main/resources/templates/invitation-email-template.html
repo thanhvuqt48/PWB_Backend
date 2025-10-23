@@ -77,6 +77,7 @@
             font-size: 16px;
             margin-top: 20px;
             transition: all 0.3s ease;
+
         }
         .cta-button:hover {
             transform: scale(1.05);
@@ -120,9 +121,29 @@
             </div>
         </div>
         <p>Vui lòng nhấn vào nút dưới đây để chấp nhận. Liên kết có hiệu lực trong 2 ngày.</p>
-        <a th:href="${invitationLink}" class="cta-button">Chấp nhận Lời mời</a>
+        <a th:href="${invitationLink}"
+           style="
+       display:inline-block;
+       background:linear-gradient(90deg, #8A2BE2 0%, #4A00E0 100%);
+       color:#FFFFFF !important;
+       padding:16px 36px;
+       border-radius:12px;
+       text-decoration:none;
+       font-weight:700;
+       font-size:16px;
+       margin-top:25px;
+       text-align:center;
+       box-shadow:0 0 20px #8A2BE2, 0 0 40px #4A00E0;
+       transition: all 0.4s ease;
+   "
+           onmouseover="this.style.transform='scale(1.08) rotate(-1deg)'; this.style.boxShadow='0 0 25px #8A2BE2, 0 0 50px #4A00E0, 0 0 75px #38bdf8';"
+           onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.boxShadow='0 0 20px #8A2BE2, 0 0 40px #4A00E0';"
+        >
+            Chấp nhận Lời mời
+        </a>
+
     </div>
-    <div class="footer">
+    <div class="footer" >
         <p>Trân trọng,<br/><b>Đội ngũ Producer Workbench</b></p>
     </div>
 </div>

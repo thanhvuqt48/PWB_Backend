@@ -115,27 +115,67 @@ public class UserServiceImpl implements UserService {
 
         otpService.saveOtp(request.getEmail(), otp);
 
-        String subject = "Your OTP Code for Account Registration";
-
+        String subject = "Mã OTP cho tài khoản Producer Workbench";
+        String neonPink = "#FF007F";
+        String neonCyan = "#00FFFF";
         StringBuilder content = new StringBuilder();
-        content.append("<html>")
-                .append("<body style='font-family: Arial, sans-serif; line-height: 1.6;'>")
-                .append("<h2 style='color: #4CAF50;'>Welcome to PWB!</h2>")
-                .append("<p>Dear <strong>")
+        content.append("<!DOCTYPE html>")
+                .append("<html>")
+                .append("<head>")
+                .append("<meta charset='UTF-8'>")
+                .append("<meta name='viewport' content='width=device-width, initial-scale=1.0'>")
+                .append("<title>Mã OTP của bạn</title>")
+                // CSS inline cho hiệu ứng text-shadow (Neon Glow) - Hỗ trợ tốt trong Apple Mail/Outlook.com/Gmail(một phần)
+                .append("<style>")
+                .append(".neon-title { text-shadow: 0 0 5px ").append(neonCyan).append(", 0 0 10px ").append(neonCyan).append(" !important; }")
+                .append(".neon-otp { color: ").append(neonPink).append(" !important; text-shadow: 0 0 10px ").append(neonPink).append(", 0 0 20px ").append(neonPink).append(" !important; }")
+                .append(".otp-box { box-shadow: 0 0 15px rgba(0, 255, 255, 0.5), inset 0 0 10px rgba(0, 255, 255, 0.3) !important; border: 1px solid ").append(neonCyan).append(" !important; }")
+                .append("</style>")
+                .append("</head>")
+
+                // Main Content Table for centering and structure
+                .append("<table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0'>")
+                .append("<tr>")
+                .append("<td align='center' style='padding: 40px 10px;'>")
+
+                // Content Block - Background tối hơn và box-shadow glow
+                .append("<table role='presentation' width='100%' style='max-width: 600px; background-color: rgba(10, 0, 20, 0.9); border-radius: 12px; border: 1px solid ").append(neonCyan).append("; box-shadow: 0 0 25px rgba(0, 255, 255, 0.3);' cellspacing='0' cellpadding='0' border='0'>")
+                .append("<tr>")
+                .append("<td style='padding: 30px;'>")
+
+                // Header - Áp dụng hiệu ứng Neon Title
+                .append("<h2 class='neon-title' style='text-align: center; color: ").append(neonCyan).append("; margin-top: 0; font-size: 28px;'>🚀 CHÀO MỪNG ĐẾN VŨ TRỤ PWB!</h2>")
+                .append("<p style='text-align: center; font-size: 16px; color: #E0E0E0; margin-top: 25px;'>Xin chào <strong>")
                 .append(request.getEmail())
                 .append("</strong>,</p>")
-                .append("<p>Thank you for registering with <strong>Producer Workbench</strong>. We are excited to have you on board!</p>")
-                .append("<p style='font-size: 18px;'><strong>Your OTP Code is:</strong> ")
-                .append("<span style='font-size: 22px; color: #FF5733;'><strong>")
+                .append("<p style='text-align: center; font-size: 16px; color: #E0E0E0; margin-bottom: 30px;'>Cảm ơn bạn đã đăng ký **Producer Workbench**. Hãy cùng khám phá dải ngân hà âm nhạc!</p>")
+
+                // OTP Block - Áp dụng hiệu ứng Neon Box
+                .append("<div class='otp-box' style='text-align: center; margin: 30px auto; padding: 30px; background-color: #0b0c1b; border-radius: 10px; max-width: 250px;'>")
+                .append("<p style='font-size: 18px; color: ").append(neonCyan).append("; margin-bottom: 10px; margin-top: 0;'>MÃ OTP CỦA BẠN LÀ:</p>")
+                // Áp dụng hiệu ứng Neon OTP
+                .append("<p class='neon-otp' style='font-size: 42px; font-weight: bold; margin-top: 5px; margin-bottom: 0; line-height: 1.2;'>")
                 .append(otp)
-                .append("</strong></span></p>")
-                .append("<p><strong>Note:</strong> This OTP is valid for <em>5 minutes</em>. Please enter it as soon as possible to complete your registration.</p>")
-                .append("<p>If you did not request this code, please ignore this email. For your security, do not share this code with anyone.</p>")
-                .append("<br/>")
-                .append("<p>Best regards,</p>")
-                .append("<p><strong>PWB Team</strong></p>")
+                .append("</p>")
+                .append("</div>")
+
+                // Note/Footer
+                .append("<p style='text-align: center; font-size: 14px; color: #999; margin-top: 30px;'>**Lưu ý:** Mã OTP này chỉ có hiệu lực trong <strong style='color: ").append(neonPink).append(";'>5 phút</strong>. Vui lòng nhập ngay để hoàn tất đăng ký.</p>")
+                .append("<p style='text-align: center; font-size: 14px; color: #999;'>Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>")
+                .append("<p style='text-align: center; margin-top: 40px; font-size: 16px; color: ").append(neonCyan).append(";'>🎶 HÃY CÙNG BAY TRONG VŨ TRỤ ÂM NHẠC! 🎶</p>")
+                .append("<p style='text-align: center; font-weight: bold; color: #E0E0E0;'>ĐỘI NGŨ PWB</p>")
+
+                .append("</td>")
+                .append("</tr>")
+                .append("</table>") // End Content Block
+
+                .append("</td>")
+                .append("</tr>")
+                .append("</table>") // End Main Content Table
+
                 .append("</body>")
                 .append("</html>");
+
 
         String emailContent = content.toString();
         emailService.sendEmail(subject, emailContent, List.of(request.getEmail()));
