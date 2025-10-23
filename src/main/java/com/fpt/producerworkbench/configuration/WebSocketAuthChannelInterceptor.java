@@ -1,4 +1,3 @@
-// java
 package com.fpt.producerworkbench.configuration;
 
 import com.fpt.producerworkbench.entity.User;
@@ -12,10 +11,6 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.stereotype.Component;
 
-import java.security.Principal;
-import java.util.Map;
-import java.util.Optional;
-
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -28,35 +23,29 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
-            if (sessionAttributes == null) {
+            String userIdHeader = accessor.getFirstNativeHeader("userId");
+            String liveSessionIdHeader = accessor.getFirstNativeHeader("liveSessionId");
+
+            // ✅ Validate headers
+            if (userIdHeader == null || liveSessionIdHeader == null) {
+                log.warn("⚠️ Missing required headers: userId={}, liveSessionId={}",
+                        userIdHeader, liveSessionIdHeader);
                 return message;
             }
 
-            // 1) Put user info into session attributes when available
-            Principal principal = accessor.getUser();
-            if (principal != null) {
-                String email = principal.getName();
-                try {
-                    Optional<User> maybeUser = userRepository.findByEmail(email);
-                    maybeUser.ifPresent(user -> {
-                        sessionAttributes.put("userId", user.getId());
-                        sessionAttributes.put("userEmail", email);
-                        log.debug("Set ws session attributes userId={} userEmail={}", user.getId(), email);
-                    });
-                } catch (Exception e) {
-                    log.debug("Failed to lookup user for ws connect: {}", e.getMessage());
-                }
-            }
+            try {
+                Long userId = Long.parseLong(userIdHeader);
+                accessor.getSessionAttributes().put("userId", userId);
+                accessor.getSessionAttributes().put("liveSessionId", liveSessionIdHeader);
 
-            // 2) Accept liveSessionId from client CONNECT native header and store it
-            String liveSessionId = accessor.getFirstNativeHeader("liveSessionId");
-            if (liveSessionId != null && !liveSessionId.isBlank()) {
-                sessionAttributes.put("liveSessionId", liveSessionId);
-                log.debug("Set ws session attribute liveSessionId={}", liveSessionId);
+                log.info("🔌 STOMP CONNECT - userId: {}, liveSessionId: {}",
+                        userId, liveSessionIdHeader);
+            } catch (NumberFormatException e) {
+                log.error("❌ Invalid userId format: {}", userIdHeader);
             }
         }
 
         return message;
     }
+
 }

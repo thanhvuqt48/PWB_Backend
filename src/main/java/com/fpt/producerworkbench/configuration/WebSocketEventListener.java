@@ -1,6 +1,6 @@
 package com.fpt.producerworkbench.configuration;
 
-import com.fpt.producerworkbench.service.impl.SessionParticipantServiceImpl;
+import com.fpt.producerworkbench.service.SessionParticipantService;
 import com.fpt.producerworkbench.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,7 @@ import java.util.Map;
 @Slf4j
 public class WebSocketEventListener {
 
-    private final SessionParticipantServiceImpl participantService;
+    private final SessionParticipantService participantService;
     private final WebSocketService webSocketService;
 
     @EventListener
@@ -26,20 +26,17 @@ public class WebSocketEventListener {
         Map<String, Object> sessionAttributes = headerAccessor.getSessionAttributes();
         String sessionId = headerAccessor.getSessionId();
 
-        String userEmail = sessionAttributes != null && sessionAttributes.get("userEmail") != null
-                ? sessionAttributes.get("userEmail").toString()
+        Long userId = sessionAttributes != null && sessionAttributes.get("userId") != null
+                ? ((Number) sessionAttributes.get("userId")).longValue()
                 : null;
         String liveSessionId = sessionAttributes != null && sessionAttributes.get("liveSessionId") != null
                 ? sessionAttributes.get("liveSessionId").toString()
                 : null;
 
-        log.info("🔌 WebSocket CONNECTED - Session: {}, User: {}, LiveSession: {}",
-                sessionId, userEmail, liveSessionId);
+        log.info("🔌 WebSocket CONNECTED - Session: {}, User ID: {}, LiveSession: {}",
+                sessionId, userId, liveSessionId);
     }
 
-    /**
-     * ✅ CRITICAL: Handle WebSocket disconnect - Auto cleanup participants
-     */
     @EventListener
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
@@ -51,24 +48,22 @@ public class WebSocketEventListener {
             return;
         }
 
-        // Robust parsing of userId (Number or String)
         Object userIdObj = sessionAttributes.get("userId");
         Long userId = null;
         if (userIdObj instanceof Number) {
             userId = ((Number) userIdObj).longValue();
         } else if (userIdObj instanceof String) {
-            try { userId = Long.parseLong((String) userIdObj); } catch (NumberFormatException ignored) {}
+            try {
+                userId = Long.parseLong((String) userIdObj);
+            } catch (NumberFormatException ignored) {}
         }
 
-        String userEmail = sessionAttributes.get("userEmail") != null
-                ? sessionAttributes.get("userEmail").toString()
-                : null;
         String liveSessionId = sessionAttributes.get("liveSessionId") != null
                 ? sessionAttributes.get("liveSessionId").toString()
                 : null;
 
-        log.info("🔌 WebSocket DISCONNECTED - WsSession: {}, User: {} (ID: {}), LiveSession: {}",
-                wsSessionId, userEmail, userId, liveSessionId);
+        log.info("🔌 WebSocket DISCONNECTED - WsSession: {}, User ID: {}, LiveSession: {}",
+                wsSessionId, userId, liveSessionId);
 
         if (userId != null && liveSessionId != null) {
             try {
