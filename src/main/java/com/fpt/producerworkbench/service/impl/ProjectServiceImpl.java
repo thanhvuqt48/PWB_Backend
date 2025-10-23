@@ -48,6 +48,7 @@ public class ProjectServiceImpl implements ProjectService {
                 .type(request.getType())
                 .creator(currentUser)
                 .status(ProjectStatus.PENDING)
+                .isFunded(false)
                 .build();
 
         Project savedProject = projectRepository.save(newProject);
