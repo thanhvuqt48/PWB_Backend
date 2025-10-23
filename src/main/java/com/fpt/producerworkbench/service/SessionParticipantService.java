@@ -99,5 +99,7 @@ public interface SessionParticipantService {
      */
     ParticipantRole determineParticipantRole(Long projectId, Long userId);
 
+    void handleParticipantDisconnect(String sessionId, Long userId);
+
     void removeParticipant(String sessionId, Long userId, Long removedBy);
 }

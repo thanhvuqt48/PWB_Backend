@@ -446,6 +446,68 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
         log.info("User {} removed from session {}", userId, sessionId);
     }
 
+    @Override
+    @Transactional
+    public void handleParticipantDisconnect(String sessionId, Long userId) {
+        log.info("🔌 Handling WebSocket disconnect for user {} in session {}", userId, sessionId);
+
+        try {
+            SessionParticipant participant = participantRepository
+                    .findBySessionIdAndUserId(sessionId, userId)
+                    .orElse(null);
+
+            if (participant == null) {
+                log.debug("⚠️ No participant record found for userId {} in session {}", userId, sessionId);
+                return;
+            }
+
+            if (!participant.getIsOnline()) {
+                log.debug("ℹ️ Participant {} already offline in session {}", userId, sessionId);
+                return;
+            }
+
+            // Mark participant as offline
+            participant.markAsOffline();
+            participantRepository.save(participant);
+
+            // Update session participant count
+            LiveSession session = sessionRepository.findById(sessionId).orElse(null);
+            if (session != null) {
+                session.decrementParticipants();
+                sessionRepository.save(session);
+
+                // Broadcast participant left event
+                webSocketService.broadcastParticipantEvent(sessionId,
+                        ParticipantEvent.builder()
+                                .action("LEFT")
+                                .userId(userId)
+                                .userName(getFullName(participant.getUser()))
+                                .userAvatarUrl(participant.getUser().getAvatarUrl())
+                                .role(participant.getParticipantRole())
+                                .isOnline(false)
+                                .currentParticipants(session.getCurrentParticipants())
+                                .build()
+                );
+
+                // Broadcast system notification
+                webSocketService.broadcastSystemNotification(sessionId,
+                        SystemNotification.builder()
+                                .type("INFO")
+                                .title("Participant Disconnected")
+                                .message(getFullName(participant.getUser()) + " disconnected from the session")
+                                .requiresAction(false)
+                                .build()
+                );
+            }
+
+            log.info("✅ Successfully handled disconnect for user {} from session {}", userId, sessionId);
+
+        } catch (Exception e) {
+            log.error("❌ Error handling disconnect for user {} in session {}: {}",
+                    userId, sessionId, e.getMessage(), e);
+        }
+    }
+
     // ========== Private Helper Methods ==========
 
     private LiveSession validateSession(String sessionId) {

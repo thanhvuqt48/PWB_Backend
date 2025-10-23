@@ -1,5 +1,7 @@
+// java
 package com.fpt.producerworkbench.configuration;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -11,64 +13,58 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 
 @Configuration
 @EnableWebSocketMessageBroker
+@RequiredArgsConstructor
 @Slf4j
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final WebSocketAuthChannelInterceptor webSocketAuthChannelInterceptor;
+
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // Enable simple broker for pub-sub pattern
         config.enableSimpleBroker("/topic", "/queue");
-
-        // Set application destination prefix
         config.setApplicationDestinationPrefixes("/app");
-
-        // Set user destination prefix for private messages
         config.setUserDestinationPrefix("/user");
-
         log.info("✅ Message broker configured: /topic, /queue, /app, /user");
     }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*") // For development, use specific origins in production
+                .setAllowedOriginPatterns("*")
                 .withSockJS()
-                .setStreamBytesLimit(512 * 1024) // 512KB
+                .setStreamBytesLimit(512 * 1024)
                 .setHttpMessageCacheSize(1000)
-                .setDisconnectDelay(30 * 1000); // 30 seconds
-
+                .setDisconnectDelay(30 * 1000);
         log.info("✅ WebSocket endpoint registered: /ws");
     }
 
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
-        // Set message size limits
         registration
-                .setMessageSizeLimit(128 * 1024)    // 128KB max message size
-                .setSendBufferSizeLimit(512 * 1024) // 512KB send buffer
-                .setSendTimeLimit(20 * 1000);       // 20 seconds timeout
+                .setMessageSizeLimit(128 * 1024)
+                .setSendBufferSizeLimit(512 * 1024)
+                .setSendTimeLimit(20 * 1000);
         log.info("✅ WebSocket transport configured");
     }
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        // Configure thread pool for handling incoming messages
-        registration.taskExecutor()
+        // register interceptor so CONNECT frames populate session attributes
+        registration.interceptors(webSocketAuthChannelInterceptor)
+                .taskExecutor()
                 .corePoolSize(4)
                 .maxPoolSize(8)
                 .keepAliveSeconds(60);
 
-        log.info("✅ Client inbound channel configured");
+        log.info("✅ Client inbound channel configured with auth interceptor");
     }
 
     @Override
     public void configureClientOutboundChannel(ChannelRegistration registration) {
-        // Configure thread pool for sending messages to clients
         registration.taskExecutor()
                 .corePoolSize(4)
                 .maxPoolSize(8)
                 .keepAliveSeconds(60);
-
         log.info("✅ Client outbound channel configured");
     }
 }

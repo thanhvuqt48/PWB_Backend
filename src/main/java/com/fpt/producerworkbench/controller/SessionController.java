@@ -10,6 +10,7 @@ import com.fpt.producerworkbench.service.LiveSessionService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/sessions")
 @RequiredArgsConstructor
+@Slf4j
 public class SessionController {
 
     private final LiveSessionService sessionService;
@@ -51,18 +53,47 @@ public class SessionController {
     @GetMapping("/projects/{projectId}")
     public ApiResponse<PageResponse<LiveSessionResponse>> getSessionsByProject(
             @PathVariable Long projectId,
-            @RequestParam(required = false) SessionStatus status,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(required = false) String status,  // ← Đổi sang String để tránh enum parse error
+            @RequestParam(required = false, defaultValue = "0") Integer page,
+            @RequestParam(required = false, defaultValue = "20") Integer size) {
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<LiveSessionResponse> sessions = sessionService.getSessionsByProject(projectId, status, pageable);
+        try {
+            // Validate page & size
+            if (page < 0) page = 0;
+            if (size < 1 || size > 100) size = 20;
 
-        return ApiResponse.<PageResponse<LiveSessionResponse>>builder()
-                .message("Sessions retrieved successfully")
-                .result(PageResponse.fromPage(sessions))
-                .build();
+            // Parse status safely
+            SessionStatus sessionStatus = null;
+            if (status != null && !status.trim().isEmpty()) {
+                try {
+                    sessionStatus = SessionStatus.valueOf(status.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    // Invalid status → ignore it (treat as null)
+                    log.warn("Invalid session status: {}", status);
+                }
+            }
+
+            Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            Page<LiveSessionResponse> sessions = sessionService.getSessionsByProject(
+                    projectId,
+                    sessionStatus,
+                    pageable
+            );
+
+            return ApiResponse.<PageResponse<LiveSessionResponse>>builder()
+                    .message("Sessions retrieved successfully")
+                    .result(PageResponse.fromPage(sessions))
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Error getting sessions for project {}: {}", projectId, e.getMessage(), e);
+            return ApiResponse.<PageResponse<LiveSessionResponse>>builder()
+                    .code(1001)
+                    .message("Failed to retrieve sessions: " + e.getMessage())
+                    .build();
+        }
     }
+
 
     @PostMapping("/{sessionId}/start")
     public ApiResponse<LiveSessionResponse> startSession(@PathVariable String sessionId) {

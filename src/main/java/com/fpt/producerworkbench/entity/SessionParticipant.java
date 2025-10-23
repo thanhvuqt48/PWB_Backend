@@ -5,6 +5,8 @@ import com.fpt.producerworkbench.common.ParticipantRole;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -57,10 +59,10 @@ public class SessionParticipant extends AbstractEntity<Long> {
     private LocalDateTime invitedAt;
 
     @Column(name = "joined_at")
-    private LocalDateTime joinedAt;
+    private Instant joinedAt;  // ✅ Changed to Instant
 
     @Column(name = "left_at")
-    private LocalDateTime leftAt;
+    private Instant leftAt;    // ✅ Changed to Instant
 
     @Column(name = "total_session_time")
     private Long totalSessionTime = 0L; // seconds
@@ -116,21 +118,28 @@ public class SessionParticipant extends AbstractEntity<Long> {
         this.invitationStatus = InvitationStatus.DECLINED;
     }
 
+    // ✅ FIXED: Use Instant.now() directly
     public void markAsOnline() {
         this.isOnline = true;
         if (this.joinedAt == null) {
-            this.joinedAt = LocalDateTime.now();
+            this.joinedAt = Instant.now();  // ✅ Fixed
         }
     }
 
+    // ✅ FIXED: Use Instant.now() directly + null-safe calculation
     public void markAsOffline() {
         this.isOnline = false;
-        this.leftAt = LocalDateTime.now();
+        this.leftAt = Instant.now();  // ✅ Fixed - no conversion needed
 
-        // Calculate total session time
+        // ✅ Null-safe calculation
         if (this.joinedAt != null && this.leftAt != null) {
-            long seconds = java.time.Duration.between(this.joinedAt, this.leftAt).getSeconds();
-            this.totalSessionTime += seconds;
+            long sessionDuration = Duration.between(this.joinedAt, this.leftAt).toSeconds();
+
+            if (this.totalSessionTime == null) {
+                this.totalSessionTime = 0L;
+            }
+
+            this.totalSessionTime += sessionDuration;
         }
     }
 }
