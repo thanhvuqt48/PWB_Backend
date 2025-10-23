@@ -4,9 +4,11 @@ import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.entity.Genre;
 import com.fpt.producerworkbench.entity.Portfolio;
+import com.fpt.producerworkbench.entity.ProPackage;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.repository.GenreRepository;
 import com.fpt.producerworkbench.repository.PortfolioRepository;
+    import com.fpt.producerworkbench.repository.ProPackageRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
@@ -65,7 +68,7 @@ public class ApplicationInitConfiguration {
             prefix = "spring",
             value = "datasource.driver-class-name",
             havingValue = "com.mysql.cj.jdbc.Driver")
-    ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, PortfolioRepository portfolioRepository) {
+    ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, PortfolioRepository portfolioRepository, ProPackageRepository proPackageRepository) {
         log.info("Initializing application.....");
 
         return args -> {
@@ -145,6 +148,32 @@ public class ApplicationInitConfiguration {
                 );
                 genreRepository.saveAll(defaultGenres);
                 log.info("Created {} default genres.", defaultGenres.size());
+            }
+
+            if (proPackageRepository.count() == 0) {
+                log.info("No Pro packages found in DB, creating default packages...");
+                
+                ProPackage monthlyPackage = ProPackage.builder()
+                        .name("Gói PRO Tháng")
+                        .description("Gói PRO hàng tháng với đầy đủ tính năng cho producer")
+                        .price(new BigDecimal("1000"))
+                        .packageType(ProPackage.ProPackageType.MONTHLY)
+                        .durationMonths(1)
+                        .isActive(true)
+                        .build();
+                
+                ProPackage yearlyPackage = ProPackage.builder()
+                        .name("Gói PRO Năm")
+                        .description("Gói PRO hàng năm với ưu đãi đặc biệt")
+                        .price(new BigDecimal("2000"))
+                        .packageType(ProPackage.ProPackageType.YEARLY)
+                        .durationMonths(12)
+                        .isActive(true)
+                        .build();
+                
+                proPackageRepository.save(monthlyPackage);
+                proPackageRepository.save(yearlyPackage);
+                log.info("Created 2 default Pro packages: Monthly and Yearly");
             }
 
             log.info("Application initialization completed .....");

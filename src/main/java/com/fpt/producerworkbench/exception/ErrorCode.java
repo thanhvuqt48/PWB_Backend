@@ -15,6 +15,8 @@ public enum ErrorCode {
     EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
     TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
     URL_GENERATION_FAILED(1012, "Không thể tạo URL. Vui lòng thử lại.", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_SIGNATURE(1402, "Thiếu hoặc sai chữ ký webhook.", HttpStatus.BAD_REQUEST),
+
 
     // ===== Lỗi Xác thực & Phân quyền (2xxx) =====
     UNAUTHENTICATED(2001, "Yêu cầu xác thực. Vui lòng đăng nhập.", HttpStatus.UNAUTHORIZED),
@@ -88,7 +90,19 @@ public enum ErrorCode {
     INVALID_DOB(400, "Ngày sinh phải lớn hơn 1950 và nhỏ hơn ngày hiện tại", HttpStatus.BAD_REQUEST),
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
     PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
-    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST)
+    CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
+    
+    // ===== Lỗi thanh toán (8xxx) =====
+    PAYMENT_ERROR(8001, "Lỗi thanh toán.", HttpStatus.INTERNAL_SERVER_ERROR),
+    TRANSACTION_NOT_FOUND(8002, "Không tìm thấy giao dịch.", HttpStatus.NOT_FOUND),
+    NO_ACCESS(8003, "Không có quyền truy cập.", HttpStatus.FORBIDDEN),
+    INVALID_REQUEST(8004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
+    PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+    CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
+    PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
+    MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
+    PROJECT_MEMBER_NOT_FOUND(8010, "Không tìm thấy thành viên dự án.", HttpStatus.NOT_FOUND)
     ;
 
     private final int code;
