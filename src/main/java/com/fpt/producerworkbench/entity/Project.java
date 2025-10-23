@@ -46,4 +46,8 @@ public class Project  extends AbstractEntity<Long>{
     @Enumerated(EnumType.STRING)
     @Column(name = "project_type", nullable = false)
     private ProjectType type;
+
+    @Column(name = "is_funded", nullable = false)
+    @Builder.Default
+    private Boolean isFunded = false;
 }
