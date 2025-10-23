@@ -26,4 +26,6 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
     Page<ProjectMember> findVisibleForAnonymousCollaborator(@Param("projectId") Long projectId, Pageable pageable);
 
     Optional<ProjectMember> findByProjectIdAndUserEmail(Long projectId, String email);
+    
+    Optional<ProjectMember> findByProjectIdAndUserId(Long projectId, Long userId);
 }

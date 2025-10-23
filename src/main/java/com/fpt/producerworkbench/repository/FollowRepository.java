@@ -15,14 +15,12 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
 boolean existsByFollower_IdAndFollowee_Id(Long followerId, Long followeeId);
 
 
-long countByFollower_Id(Long followerId); // số người mình đang follow
-long countByFollowee_Id(Long followeeId); // số follower của mình
+long countByFollower_Id(Long followerId);
+long countByFollowee_Id(Long followeeId);
 
 
 void deleteByFollower_IdAndFollowee_Id(Long followerId, Long followeeId);
 
-
-// Danh sách mình đang follow → trả về User (followee)
 @Query("select new com.fpt.producerworkbench.dto.response.FollowResponse(" +
        "u.id, u.firstName, u.lastName, " +
        "concat(coalesce(u.firstName,''),' ',coalesce(u.lastName,'')), " +
@@ -32,7 +30,6 @@ void deleteByFollower_IdAndFollowee_Id(Long followerId, Long followeeId);
 Page<FollowResponse> findFollowing(@Param("followerId") Long followerId, Pageable pageable);
 
 
-// Danh sách follower của mình → trả về User (follower)
 @Query("select new com.fpt.producerworkbench.dto.response.FollowResponse(" +
        "u.id, u.firstName, u.lastName, " +
        "concat(coalesce(u.firstName,''),' ',coalesce(u.lastName,'')), " +

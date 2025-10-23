@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.dto.response.FollowListResponse;
 import com.fpt.producerworkbench.dto.response.FollowResponse;
 import com.fpt.producerworkbench.entity.Follow;
 import com.fpt.producerworkbench.entity.User;
@@ -8,114 +9,156 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.FollowRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.FollowService;
-import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @Slf4j
 public class FollowServiceImpl implements FollowService {
 
-    FollowRepository followRepository;
-    UserRepository userRepository;
+    private final FollowRepository followRepository;
+    private final UserRepository userRepository;
+
+    private Long resolveCurrentUserId(Authentication auth) {
+        if (auth == null) throw new AppException(ErrorCode.UNAUTHORIZED);
+
+        Object principal = auth.getPrincipal();
+        if (principal instanceof User u) {
+            if (u.getId() != null) return u.getId();
+            if (StringUtils.hasText(u.getEmail())) {
+                return userRepository.findByEmail(u.getEmail())
+                        .map(User::getId)
+                        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            }
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
+
+        String email = auth.getName();
+        if (!StringUtils.hasText(email)) throw new AppException(ErrorCode.UNAUTHORIZED);
+
+        return userRepository.findByEmail(email)
+                .map(User::getId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+    }
 
     @Override
     @Transactional
-    public void follow(Long followerId, Long followeeId) {
-        if (followerId == null || followeeId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
+    public void follow(Authentication auth, Long followeeId) {
+        if (followeeId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+
+        Long followerId = resolveCurrentUserId(auth);
         if (followerId.equals(followeeId)) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
 
-        
-        User follower = userRepository.findById(followerId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        User followee = userRepository.findById(followeeId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        if (followRepository.existsByFollower_IdAndFollowee_Id(follower.getId(), followee.getId())) {
-            return;
+        if (!userRepository.existsById(followeeId)) {
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
         }
 
         try {
             Follow follow = Follow.builder()
-                    .follower(follower)
-                    .followee(followee)
+                    .follower(userRepository.getReferenceById(followerId))
+                    .followee(userRepository.getReferenceById(followeeId))
                     .build();
-            followRepository.save(follow);
+            followRepository.saveAndFlush(follow);
         } catch (DataIntegrityViolationException ex) {
-            log.info("Follow constraint violated ({} -> {}): {}", followerId, followeeId, ex.getMessage());
-
+            log.debug("Follow already exists ({} -> {}): {}", followerId, followeeId, ex.getMessage());
         }
     }
 
     @Override
     @Transactional
-    public void unfollow(Long followerId, Long followeeId) {
-        if (followerId == null || followeeId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
+    public void unfollow(Authentication auth, Long followeeId) {
+        if (followeeId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+
+        Long followerId = resolveCurrentUserId(auth);
         try {
             followRepository.deleteByFollower_IdAndFollowee_Id(followerId, followeeId);
-        } catch (Exception ex) {
+        } catch (DataAccessException ex) {
             log.warn("Unfollow failed ({} -> {}): {}", followerId, followeeId, ex.getMessage());
             throw new AppException(ErrorCode.DATABASE_ERROR);
         }
     }
 
     @Override
-    public boolean isFollowing(Long followerId, Long followeeId) {
-        if (followerId == null || followeeId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
+    @Transactional(readOnly = true)
+    public boolean isFollowing(Authentication auth, Long followeeId) {
+        if (followeeId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+        Long followerId = resolveCurrentUserId(auth);
         return followRepository.existsByFollower_IdAndFollowee_Id(followerId, followeeId);
     }
 
+
     @Override
+    @Transactional(readOnly = true)
+    public FollowListResponse getFollowingWithTotals(Long userId, Pageable pageable) {
+        if (userId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+        if (!userRepository.existsById(userId)) throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        Page<FollowResponse> page = followRepository.findFollowing(userId, pageable);
+        long totalFollowers  = followRepository.countByFollowee_Id(userId);
+        long totalFollowing  = followRepository.countByFollower_Id(userId);
+
+        return FollowListResponse.builder()
+                .page(page)
+                .totalFollowers(totalFollowers)
+                .totalFollowing(totalFollowing)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FollowListResponse getFollowersWithTotals(Long userId, Pageable pageable) {
+        if (userId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+        if (!userRepository.existsById(userId)) throw new AppException(ErrorCode.USER_NOT_FOUND);
+
+        Page<FollowResponse> page = followRepository.findFollowers(userId, pageable);
+        long totalFollowers  = followRepository.countByFollowee_Id(userId);
+        long totalFollowing  = followRepository.countByFollower_Id(userId);
+
+        return FollowListResponse.builder()
+                .page(page)
+                .totalFollowers(totalFollowers)
+                .totalFollowing(totalFollowing)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<FollowResponse> getFollowing(Long userId, Pageable pageable) {
-        if (userId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-        if (!userRepository.existsById(userId)) {
-            throw new AppException(ErrorCode.USER_NOT_FOUND);
-        }
+        if (userId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+        if (!userRepository.existsById(userId)) throw new AppException(ErrorCode.USER_NOT_FOUND);
         return followRepository.findFollowing(userId, pageable);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<FollowResponse> getFollowers(Long userId, Pageable pageable) {
-        if (userId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-        if (!userRepository.existsById(userId)) {
-            throw new AppException(ErrorCode.USER_NOT_FOUND);
-        }
+        if (userId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+        if (!userRepository.existsById(userId)) throw new AppException(ErrorCode.USER_NOT_FOUND);
         return followRepository.findFollowers(userId, pageable);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public long countFollowing(Long userId) {
-        if (userId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
+        if (userId == null) throw new AppException(ErrorCode.BAD_REQUEST);
         return followRepository.countByFollower_Id(userId);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public long countFollowers(Long userId) {
-        if (userId == null) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
+        if (userId == null) throw new AppException(ErrorCode.BAD_REQUEST);
         return followRepository.countByFollowee_Id(userId);
     }
 }

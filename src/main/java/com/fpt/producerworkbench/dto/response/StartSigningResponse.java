@@ -1,15 +1,13 @@
 package com.fpt.producerworkbench.dto.response;
 
+import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import lombok.*;
 
-@Getter
 @Setter
+@Getter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class StartSigningResponse {
-
     private String inviteId;
-
-    private String embeddedLink;
 }

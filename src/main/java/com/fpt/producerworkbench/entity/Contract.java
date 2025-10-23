@@ -47,6 +47,9 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "status", nullable = false)
     private ContractStatus status;
 
+    @Column(name = "fp_edit_amount")
+    private Integer fpEditAmount;
+
     // ====== Bổ sung cho SignNow / ký điện tử ======
     @Column(name = "signnow_template_id", length = 128)
     private String signnowTemplateId;
@@ -80,15 +83,10 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "last_error")
     private String lastError;
 
-    //Quan hệ phục vụ ký điện tử
-    @Builder.Default
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("signOrder ASC, id ASC")
-    private List<ContractParty> parties = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ContractField> fields = new ArrayList<>();
+    /** Lý do từ chối hợp đồng */
+    @Lob
+    @Column(name = "decline_reason")
+    private String declineReason;
 
     @Builder.Default
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)

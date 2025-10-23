@@ -63,6 +63,12 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     OutboundIdentityClient outboundIdentityClient;
     OutboundUserClient outboundUserClient;
 
+    private void ensureActive(User user) {
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new AppException(ErrorCode.USER_INACTIVE);
+        }
+    }
+
     @Transactional
     public AuthenticationResponse outboundAuthenticate(String code) {
         ExchangeTokenResponse response = outboundIdentityClient.exchangeToken(ExchangeTokenRequest.builder()
@@ -87,6 +93,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .status(UserStatus.ACTIVE)
                 .build()));
 
+        ensureActive(user);
+
         var token = jwtService.generateToken(user);
 
         return AuthenticationResponse.builder()
@@ -102,6 +110,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                     new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 
             var user = (User) authentication.getPrincipal();
+
+            ensureActive(user);
+
             var token = jwtService.generateToken(user);
 
             log.info("User {} logged in successfully", user.getEmail());
@@ -155,6 +166,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             var user = userRepository
                     .findByEmail(email)
                     .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+            ensureActive(user);
 
             var token = jwtService.generateToken(user);
 
