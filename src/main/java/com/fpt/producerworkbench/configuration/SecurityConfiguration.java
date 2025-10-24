@@ -29,20 +29,17 @@ public class SecurityConfiguration {
     private final UserDetailServiceImpl userDetailsService;
 
     private static final String[] PUBLIC_ENDPOINT = new String[]{
-            "/api/v1/auth/login",
+            "/api/v1/auth/**",
             "/api/v1/users/register",
-            "/api/v1/auth/introspect",
-            "/api/v1/auth/refresh-token",
             "/api/v1/producers",
             "/api/v1/producers/recommend-by-spotify",
             "/api/v1/users/send-otp-register",
             "/api/v1/users/verify-otp",
             "/api/v1/users/send-otp",
-            "/api/v1/producers/recommend-by-spotify",
-            "/api/v1/users/send-otp-register",
-            "/api/v1/users/verify-otp",
             "/api/v1/users/send-otp-forgot-password",
             "/api/v1/users/reset-password",
+            "/ws/**",
+            "/ws",
             "/api/v1/auth/**",
             "/api/v1/pro-packages",
             "/api/v1/pro-packages/active",

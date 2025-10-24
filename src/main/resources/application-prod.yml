@@ -24,7 +24,7 @@ spring:
             enable: true
 
   kafka:
-    bootstrap-servers: localhost:9094
+    bootstrap-servers: kafka:9092
     consumer:
       group-id: my-consumer-group
       auto-offset-reset: earliest
@@ -41,7 +41,7 @@ spring:
 
   data:
     redis:
-      host: localhost
+      host: redis
       port: 6379
       password: "" 
 
@@ -114,7 +114,7 @@ outbound:
     redirect-uri: ${OUTBOUND_REDIRECT_URI}
 
 cors:
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
+  allowed-origins: ${ALLOWED_ORIGINS:https://www.producerworkbench.io.vn}
 
 payos:
   client-id: ${PAYOS_CLIENT_ID}

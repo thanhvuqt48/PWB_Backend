@@ -6,6 +6,7 @@ import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
+import com.fpt.producerworkbench.dto.response.ParticipantInfoDetailResponse;
 import com.fpt.producerworkbench.dto.response.UserResponse;
 import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
 import com.fpt.producerworkbench.entity.User;
@@ -203,5 +204,16 @@ public class UserServiceImpl implements UserService {
                 .message("Change password successful")
                 .success(true)
                 .build();
+    }
+
+    public List<ParticipantInfoDetailResponse> searchUser(String email) {
+        return userRepository.findByEmailContaining(email)
+                .stream()
+                .map(user -> ParticipantInfoDetailResponse.builder()
+                        .userId(user.getId())
+                        .username(user.getUsername())
+                        .avatar(user.getAvatarUrl())
+                        .build())
+                .toList();
     }
 }
