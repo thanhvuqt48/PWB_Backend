@@ -1,10 +1,7 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.*;
-import com.fpt.producerworkbench.dto.response.ApiResponse;
-import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
-import com.fpt.producerworkbench.dto.response.UserResponse;
-import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.service.UserService;
 import jakarta.mail.MessagingException;
 import jakarta.validation.Valid;
@@ -15,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.UnsupportedEncodingException;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -83,6 +81,14 @@ public class UserController {
         return ApiResponse.<ChangePasswordResponse>builder()
                 .code(HttpStatus.OK.value())
                 .result(userService.changePassword(request))
+                .build();
+    }
+
+    @GetMapping
+    ApiResponse<List<ParticipantInfoDetailResponse>> searchUser(@RequestParam String username) {
+        return ApiResponse.<List<ParticipantInfoDetailResponse>>builder()
+                .code(HttpStatus.OK.value())
+                .result(userService.searchUser(username))
                 .build();
     }
 }

@@ -114,7 +114,7 @@ outbound:
     redirect-uri: ${OUTBOUND_REDIRECT_URI}
 
 cors:
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
 
 payos:
   client-id: ${PAYOS_CLIENT_ID}

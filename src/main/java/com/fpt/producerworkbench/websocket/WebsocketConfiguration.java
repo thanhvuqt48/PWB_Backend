@@ -16,11 +16,13 @@ public class WebsocketConfiguration implements WebSocketMessageBrokerConfigurer 
 
     private final ChannelInterceptorConfiguration channelInterceptor;
 
+
     @Override
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
                 .addInterceptors(new WebSocketHandshakeInterceptor())
-                .setAllowedOrigins("http://localhost:3000")
+                .setAllowedOrigins("http://localhost:5173", "https://www.producerworkbench.io.vn",
+                        "https://dvxjgmt1bjle3.cloudfront.net")
                 .setAllowedOriginPatterns("http://localhost:*")
                 .withSockJS();
     }
