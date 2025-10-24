@@ -53,8 +53,8 @@ spring:
 
 jwt:
   secret-key: ${SECRET_KEY}
-  valid-duration: 24
-  refreshable-duration: 14
+  valid-duration: 240
+  refreshable-duration: 140
 
 admin:
   username: ${ADMIN_USERNAME}
@@ -114,7 +114,7 @@ outbound:
     redirect-uri: ${OUTBOUND_REDIRECT_URI}
 
 cors:
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
 
 payos:
   client-id: ${PAYOS_CLIENT_ID}
