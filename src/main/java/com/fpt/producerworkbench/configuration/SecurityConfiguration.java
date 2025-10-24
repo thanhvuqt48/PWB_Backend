@@ -39,7 +39,14 @@ public class SecurityConfiguration {
             "/api/v1/users/send-otp-forgot-password",
             "/api/v1/users/reset-password",
             "/ws/**",
-            "/ws"
+            "/ws",
+            "/api/v1/auth/**",
+            "/api/v1/pro-packages",
+            "/api/v1/pro-packages/active",
+            "/api/v1/pro-packages/search",
+            "/api/v1/pro-packages/type/**",
+            "/api/v1/pro-packages/*/active",
+            "/api/v1/payments/webhook",
     };
 
     @Bean

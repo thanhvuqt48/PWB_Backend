@@ -30,6 +30,7 @@ public class AuthenticationController {
         var result = authenticationService.outboundAuthenticate(code);
         return ApiResponse.<AuthenticationResponse>builder()
                 .code(HttpStatus.OK.value())
+                .message("Đăng nhập thành công!")
                 .result(result)
                 .build();
     }
@@ -40,6 +41,7 @@ public class AuthenticationController {
 
         return ApiResponse.<AuthenticationResponse>builder()
                 .code(HttpStatus.OK.value())
+                .message("Đăng nhập thành công!")
                 .result(result)
                 .build();
     }
@@ -60,7 +62,7 @@ public class AuthenticationController {
         authenticationService.logout(request);
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
-                .message("Logout Successfully")
+                .message("Đăng xuất thành công!")
                 .build();
     }
 

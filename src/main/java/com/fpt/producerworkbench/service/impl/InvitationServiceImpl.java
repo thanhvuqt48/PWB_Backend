@@ -60,7 +60,6 @@ public class InvitationServiceImpl implements InvitationService {
             throw new AppException(ErrorCode.INVITATION_SELF_NOT_ALLOWED);
         }
 
-        // Chặn mời nếu email đã là thành viên dự án (owner/client/member bất kỳ)
         boolean alreadyMember = projectMemberRepository.findByProjectIdAndUserEmail(projectId, request.getEmail()).isPresent()
                 || (project.getClient() != null && project.getClient().getEmail().equalsIgnoreCase(request.getEmail()))
                 || project.getCreator().getEmail().equalsIgnoreCase(request.getEmail());

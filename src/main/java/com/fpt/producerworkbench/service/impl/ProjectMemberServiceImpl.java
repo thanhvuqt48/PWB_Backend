@@ -67,7 +67,6 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
                     .build();
         }
 
-        // Non-owner: hide anonymous collaborators and hide client info for anonymous collaborators viewing
         boolean viewerIsAnonymousCollaborator = allMembers.stream().anyMatch(m ->
                 m.getUser().getId().equals(viewer.getId()) && m.getProjectRole() == ProjectRole.COLLABORATOR && m.isAnonymous());
 

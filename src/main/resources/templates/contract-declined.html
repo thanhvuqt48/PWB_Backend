@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <title>Hợp đồng bị từ chối</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            color: #333; 
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 20px auto; 
+            padding: 30px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #e74c3c;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #e74c3c;
+            margin: 0;
+            font-size: 24px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .project-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .reason { 
+            background: #fff5f5; 
+            border-left: 4px solid #e74c3c; 
+            padding: 15px; 
+            white-space: pre-wrap;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-style: italic;
+        }
+        .action {
+            background-color: #e8f4fd;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        .footer { 
+            color: #666; 
+            font-size: 12px; 
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .highlight {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🚫 Hợp đồng bị từ chối</h1>
+    </div>
+    
+    <div class="content">
+        <p>Xin chào <strong th:text="${recipient}">Owner</strong>,</p>
+        
+        <p>Chúng tôi thông báo rằng khách hàng đã <span class="highlight">từ chối</span> hợp đồng của dự án:</p>
+        
+        <div class="project-info">
+            <p><strong>Dự án:</strong> <span th:text="${projectTitle}">Project Title</span></p>
+            <p><strong>Contract ID:</strong> <span th:text="${contractId}">0</span></p>
+            <p><strong>Project ID:</strong> <span th:text="${projectId}">0</span></p>
+        </div>
+
+        <p><strong>Lý do từ chối:</strong></p>
+        <div class="reason" th:text="${reason}">Lý do chi tiết...</div>
+
+        <div class="action">
+            <p><strong>📝 Hành động tiếp theo:</strong></p>
+            <p>Vui lòng xem xét lý do từ chối, chỉnh sửa hợp đồng và gửi lại để khách hàng duyệt tiếp.</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Producer Workbench - Hệ thống quản lý dự án âm nhạc</p>
+        <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+    </div>
+</div>
+</body>
+</html>
+
+

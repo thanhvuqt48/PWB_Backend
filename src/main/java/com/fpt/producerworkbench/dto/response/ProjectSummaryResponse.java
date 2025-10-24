@@ -17,6 +17,7 @@ import java.util.Date;
 public class ProjectSummaryResponse {
     private Long id;
     private String title;
+    private String description;
     private ProjectStatus status;
     private ProjectType type;
     private ProjectRole myRole;

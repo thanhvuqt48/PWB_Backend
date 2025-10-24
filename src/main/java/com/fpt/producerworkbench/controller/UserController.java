@@ -29,6 +29,7 @@ public class UserController {
 
         return ApiResponse.<UserResponse>builder()
                 .code(HttpStatus.CREATED.value())
+                .message("Đăng ký tài khoản thành công!")
                 .result(result)
                 .build();
     }
@@ -39,7 +40,7 @@ public class UserController {
         userService.sendOtpRegister(request);
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
-                .message("Send Otp Successfully")
+                .message("Mã OTP đã được gửi thành công tới email!")
                 .build();
     }
 
@@ -51,7 +52,7 @@ public class UserController {
 
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
-                .message("OTP sent successfully to the email.")
+                .message("Mã OTP đã được gửi thành công tới email!")
                 .build();
     }
 
@@ -61,7 +62,7 @@ public class UserController {
 
         return ApiResponse.<VerifyOtpResponse>builder()
                 .code(HttpStatus.OK.value())
-                .message("Verify Otp Successfully")
+                .message("Xác thực OTP thành công!")
                 .result(result)
                 .build();
     }
@@ -72,7 +73,7 @@ public class UserController {
 
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
-                .message("Reset Password Successfully")
+                .message("Đặt lại mật khẩu thành công")
                 .build();
     }
 

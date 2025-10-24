@@ -83,15 +83,10 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "last_error")
     private String lastError;
 
-    //Quan hệ phục vụ ký điện tử
-    @Builder.Default
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("signOrder ASC, id ASC")
-    private List<ContractParty> parties = new ArrayList<>();
-
-    @Builder.Default
-    @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ContractField> fields = new ArrayList<>();
+    /** Lý do từ chối hợp đồng */
+    @Lob
+    @Column(name = "decline_reason")
+    private String declineReason;
 
     @Builder.Default
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)

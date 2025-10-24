@@ -11,10 +11,12 @@ public enum ErrorCode {
     INVALID_PARAMETER_FORMAT(1002, "Định dạng tham số không hợp lệ.", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED(1003, "Lỗi xác thực dữ liệu.", HttpStatus.BAD_REQUEST),
     BAD_REQUEST(1004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
-    INVALID_KEY(1001, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_KEY(1005, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
     EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
     TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
     URL_GENERATION_FAILED(1012, "Không thể tạo URL. Vui lòng thử lại.", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_SIGNATURE(1402, "Thiếu hoặc sai chữ ký webhook.", HttpStatus.BAD_REQUEST),
+
 
     // ===== Lỗi Xác thực & Phân quyền (2xxx) =====
     UNAUTHENTICATED(2001, "Yêu cầu xác thực. Vui lòng đăng nhập.", HttpStatus.UNAUTHORIZED),
@@ -25,6 +27,7 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(2006, "Tài khoản đã bị khóa.", HttpStatus.FORBIDDEN),
     ACCOUNT_DISABLED(2007, "Tài khoản đã bị vô hiệu hóa.", HttpStatus.FORBIDDEN),
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
+    FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
 
@@ -35,6 +38,8 @@ public enum ErrorCode {
     OTP_INVALID(3004, "Mã OTP không hợp lệ.", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(3005, "Mã OTP đã hết hạn.", HttpStatus.BAD_REQUEST),
     ACCOUNT_ALREADY_VERIFIED(3006, "Tài khoản này đã được xác thực trước đó.", HttpStatus.BAD_REQUEST),
+    USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),
+
 
     // ===== Lỗi liên quan đến Tài nguyên chung (4xxx) =====
     RESOURCE_NOT_FOUND(4001, "Không tìm thấy tài nguyên được yêu cầu.", HttpStatus.NOT_FOUND),
@@ -57,11 +62,12 @@ public enum ErrorCode {
 
     // ===== 5xxx: Hợp đồng / Ký số (MỚI) =====
     CONTRACT_NOT_FOUND(5001, "Không tìm thấy hợp đồng.", HttpStatus.NOT_FOUND),
-    CONTRACT_FILLED_PDF_NOT_FOUND(5002, "Chưa có file hợp đồng đã soạn (FILLED) để mời ký.", HttpStatus.BAD_REQUEST),
-    SIGNERS_REQUIRED(5003, "Thiếu danh sách người ký.", HttpStatus.BAD_REQUEST),
-    SIGNER_EMAIL_REQUIRED(5004, "Thiếu email người ký.", HttpStatus.BAD_REQUEST),
-    ROLE_ID_REQUIRED(5005, "Thiếu roleId cho người ký (Field Invite yêu cầu roleId).", HttpStatus.BAD_REQUEST),
-    PDF_BASE64_INVALID(5006, "pdfBase64 không hợp lệ.", HttpStatus.BAD_REQUEST),
+    CONTRACT_ALREADY_EXISTS(5002, "Dự án này đã có hợp đồng. Mỗi dự án chỉ được phép có một hợp đồng.", HttpStatus.CONFLICT),
+    CONTRACT_FILLED_PDF_NOT_FOUND(5003, "Chưa có file hợp đồng đã soạn (FILLED) để mời ký.", HttpStatus.BAD_REQUEST),
+    SIGNERS_REQUIRED(5004, "Thiếu danh sách người ký.", HttpStatus.BAD_REQUEST),
+    SIGNER_EMAIL_REQUIRED(5005, "Thiếu email người ký.", HttpStatus.BAD_REQUEST),
+    ROLE_ID_REQUIRED(5006, "Thiếu roleId cho người ký (Field Invite yêu cầu roleId).", HttpStatus.BAD_REQUEST),
+    PDF_BASE64_INVALID(5007, "pdfBase64 không hợp lệ.", HttpStatus.BAD_REQUEST),
 
     // ===== 6xxx: Storage (MỚI) =====
     STORAGE_READ_FAILED(6001, "Không đọc được file từ storage.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -74,6 +80,14 @@ public enum ErrorCode {
     SIGNNOW_DOWNLOAD_FAILED(7005, "Tải thất bại.", HttpStatus.BAD_REQUEST),
     SIGNNOW_DOC_NOT_COMPLETED(7006, "Hợp đồng chưa hoàn tất ký.", HttpStatus.BAD_REQUEST),
     CONTRACT_DOC_NOT_FOUND(7007, "Không tìm thấy hợp đồng.", HttpStatus.BAD_REQUEST),
+    ALREADY_SIGNED_FINAL(7008, "Hợp đồng đã có bản ký cuối. Không thể lưu thêm.", HttpStatus.CONFLICT),
+    INVITE_NOT_ALLOWED_ALREADY_COMPLETED(7009, "Hợp đồng đã hoàn tất ký. Không thể mời ký lại.", HttpStatus.CONFLICT),
+    CLIENT_NOT_FOUND(7010, "Dự án chưa có khách hàng. Vui lòng mời khách hàng tham gia dự án trước.", HttpStatus.BAD_REQUEST),
+    CONTRACT_ALREADY_DECLINED(7011, "Hợp đồng đã bị từ chối trước đó. Không thể từ chối lại.", HttpStatus.CONFLICT),
+    CONTRACT_ALREADY_COMPLETED(7012, "Hợp đồng đã hoàn tất ký. Không thể từ chối.", HttpStatus.CONFLICT),
+    CONTRACT_NOT_DECLINED(7013, "Hợp đồng chưa bị từ chối.", HttpStatus.BAD_REQUEST),
+    MILESTONES_TOTAL_NOT_ENOUGH(7014, "Tổng số tiền các cột mốc nhỏ hơn tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
+    MILESTONES_TOTAL_EXCEEDS(7015, "Tổng số tiền các cột mốc vượt quá tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -86,8 +100,18 @@ public enum ErrorCode {
     MESSAGE_NOT_PART_OF_STORY(400, "Tin nhắn không thuộc đoạn trò chuyện này", HttpStatus.BAD_REQUEST),
     MESSAGE_NOT_FOUND(404, "Tin nhắn không tồn tại", HttpStatus.NOT_FOUND),
     MEDIA_URL_NOT_BLANK(400, "URL của file đính kèm không được để trống", HttpStatus.BAD_REQUEST),
-
-    PARTICIPANT_INVALID(400, "Một hoặc nhiều người dùng không tồn tại", HttpStatus.BAD_REQUEST)
+    PARTICIPANT_INVALID(400, "Một hoặc nhiều người dùng không tồn tại", HttpStatus.BAD_REQUEST),
+    // ===== Lỗi thanh toán (8xxx) =====
+    PAYMENT_ERROR(8001, "Lỗi thanh toán.", HttpStatus.INTERNAL_SERVER_ERROR),
+    TRANSACTION_NOT_FOUND(8002, "Không tìm thấy giao dịch.", HttpStatus.NOT_FOUND),
+    NO_ACCESS(8003, "Không có quyền truy cập.", HttpStatus.FORBIDDEN),
+    INVALID_REQUEST(8004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
+    PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+    CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
+    PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
+    MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
+    PROJECT_MEMBER_NOT_FOUND(8010, "Không tìm thấy thành viên dự án.", HttpStatus.NOT_FOUND)
     ;
 
     private final int code;

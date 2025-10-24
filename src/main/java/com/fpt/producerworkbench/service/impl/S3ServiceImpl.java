@@ -68,6 +68,32 @@ public class S3ServiceImpl implements FileStorageService {
     }
 
     @Override
+    public String uploadBytes(byte[] bytes, String objectKey, String contentType) {
+        try {
+            java.nio.file.Path tempPath = java.nio.file.Files.createTempFile("pwb-upload-", ".tmp");
+            java.nio.file.Files.write(tempPath, bytes);
+
+            UploadFileRequest uploadRequest = UploadFileRequest.builder()
+                    .putObjectRequest(req -> req
+                            .bucket(awsProperties.getS3().getBucketName())
+                            .key(objectKey)
+                            .contentType(contentType))
+                    .source(tempPath)
+                    .build();
+
+            FileUpload fileUpload = s3TransferManager.uploadFile(uploadRequest);
+            CompletedFileUpload completedUpload = fileUpload.completionFuture().join();
+            log.info("Upload bytes thành công '{}' ETag: {}", objectKey, completedUpload.response().eTag());
+
+            java.nio.file.Files.deleteIfExists(tempPath);
+            return objectKey;
+        } catch (Exception e) {
+            log.error("Lỗi upload bytes '{}' : {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    @Override
     public void deleteFile(String objectKey) {
         try {
             DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
@@ -85,18 +111,14 @@ public class S3ServiceImpl implements FileStorageService {
     @Override
     public String generatePresignedUrl(String objectKey, boolean forDownload, String fileName) {
         try {
-            // Xây dựng GetObjectRequest builder
             GetObjectRequest.Builder requestBuilder = GetObjectRequest.builder()
                     .bucket(awsProperties.getS3().getBucketName())
                     .key(objectKey);
 
-            // Thêm Content-Disposition dựa trên yêu cầu
             if (forDownload) {
-                // Buộc trình duyệt tải xuống file với tên gốc
                 String disposition = "attachment; filename=\"" + fileName + "\"";
                 requestBuilder.responseContentDisposition(disposition);
             } else {
-                // Yêu cầu trình duyệt hiển thị file (nếu có thể)
                 requestBuilder.responseContentDisposition("inline");
             }
 
@@ -108,7 +130,6 @@ public class S3ServiceImpl implements FileStorageService {
             String presignedUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
             log.info("Đã tạo presigned URL cho key '{}' với chế độ: {}", objectKey, forDownload ? "Download" : "View");
 
-            // Tối ưu: Thay thế domain S3 bằng domain CloudFront
             String s3Host = String.format("%s.s3.%s.amazonaws.com",
                     awsProperties.getS3().getBucketName(),
                     awsProperties.getRegion());
@@ -122,6 +143,19 @@ public class S3ServiceImpl implements FileStorageService {
         } catch (Exception e) {
             log.error("Lỗi khi tạo presigned URL cho file '{}': {}", objectKey, e.getMessage());
             throw new AppException(ErrorCode.URL_GENERATION_FAILED);
+        }
+    }
+
+    @Override
+    public byte[] downloadBytes(String objectKey) {
+        try {
+            var resp = s3Client.getObjectAsBytes(b -> b
+                    .bucket(awsProperties.getS3().getBucketName())
+                    .key(objectKey));
+            return resp.asByteArray();
+        } catch (Exception e) {
+            log.error("Lỗi download '{}' từ S3: {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.STORAGE_READ_FAILED);
         }
     }
 

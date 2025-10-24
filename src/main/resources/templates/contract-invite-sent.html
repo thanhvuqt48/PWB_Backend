@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <title>Yêu cầu ký hợp đồng</title>
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; color: #222; }
+        .container { max-width: 640px; margin: 0 auto; padding: 16px; }
+        .btn { display: inline-block; padding: 10px 16px; background: #1f7aec; color: #fff; text-decoration: none; border-radius: 6px; }
+        .muted { color: #666; font-size: 12px; }
+    </style>
+    </head>
+<body>
+<div class="container">
+    <h2>Yêu cầu ký hợp đồng</h2>
+    <p>Xin chào <b th:text="${recipient}">Bạn</b>,</p>
+    <p>Bạn vừa nhận được yêu cầu ký hợp đồng cho dự án
+        <b th:text="${projectTitle}">Project</b> (ID: <span th:text="${projectId}">0</span>).</p>
+
+    <p>Vui lòng kiểm tra email mời ký được gửi từ SignNow để tiến hành ký hợp đồng.
+        <span th:if="${previewUrl}">Bạn có thể xem trước bản hợp đồng tại đây:
+            <a class="btn" th:href="${previewUrl}" target="_blank">Xem trước hợp đồng</a>
+        </span>
+    </p>
+
+    <p class="muted">Nếu bạn không mong đợi email này, vui lòng bỏ qua.</p>
+    <p class="muted">Producer Workbench</p>
+</div>
+</body>
+</html>
+
+
