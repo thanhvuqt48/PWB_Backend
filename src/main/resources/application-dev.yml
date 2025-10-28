@@ -79,6 +79,10 @@ signnow:
   auth:
     username: ${SN_USERNAME}
     password: ${SN_PASSWORD}
+  webhook:
+    callback-url: ${SN_WEBHOOK_CALLBACK_URL}
+    secret-key: ${SN_WEBHOOK_SECRET}
+    with-history: false
   http:
     connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
