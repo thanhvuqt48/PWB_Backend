@@ -1,6 +1,8 @@
 package com.fpt.producerworkbench.websocket;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -9,21 +11,27 @@ import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBr
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
+import java.util.List;
+
 @Configuration
 @RequiredArgsConstructor
 @EnableWebSocketMessageBroker
+@Slf4j
 public class WebsocketConfiguration implements WebSocketMessageBrokerConfigurer {
 
     private final ChannelInterceptorConfiguration channelInterceptor;
 
+    @Value("#{T(java.util.Arrays).asList('${cors.allowed-origins}'.split(','))}")
+    private List<String> allowedOrigins;
 
     @Override
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
+        log.info("🔌 WebSocket CORS Allowed Origins: {}", allowedOrigins);
+
         registry.addEndpoint("/ws")
                 .addInterceptors(new WebSocketHandshakeInterceptor())
-                .setAllowedOrigins("http://localhost:5173", "https://www.producerworkbench.io.vn",
-                        "https://dvxjgmt1bjle3.cloudfront.net")
-                .setAllowedOriginPatterns("http://localhost:*")
+                .setAllowedOrigins("http://localhost:5173")
+                .setAllowedOriginPatterns("*") // Allow all origins with credentials
                 .withSockJS();
     }
 
