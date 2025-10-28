@@ -17,8 +17,8 @@ import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.service.ContractPdfService;
-import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
+import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.ContractPermissionService;
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
@@ -78,6 +78,33 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             {"Text Box 32,6","Text Box 33,6","Text Box 34,6","Text Box 35,6","Text Box 36,6"},
             {"Text Box 32,7","Text Box 33,7","Text Box 34,7","Text Box 35,7","Text Box 36,7"}
     };
+
+    static Rectangle inchRect(float left, float bottom, float width, float height) {
+        return new Rectangle(left * INCH, bottom * INCH, width * INCH, height * INCH);
+    }
+
+    static final Rectangle MS_FIRST_FALLBACK_RECT    = inchRect(0.9732f, 0.4268f, 6.4629f, 3.7365f);
+    static final Rectangle TERMS_FIRST_FALLBACK_RECT = inchRect(0.9732f, 0.4268f, 6.4629f, 2.0000f);
+    static final Rectangle MS_CONT_RECT              = inchRect(0.9732f, 2.4000f, 6.4629f, 7.8000f);
+    static final Rectangle TERMS_CONT_RECT           = inchRect(0.9732f, 2.4000f, 6.4629f, 7.8000f);
+    private record PageAndRect(PdfPage page, Rectangle rect) {}
+    private void ensureHasAtLeastPages(PdfDocument pdf, int desiredPage) {
+        int numPages = pdf.getNumberOfPages();
+        if (numPages < desiredPage) {
+            PageSize baseSize = (numPages >= 1) ? new PageSize(pdf.getPage(1).getPageSize()) : PageSize.A4;
+            for (int i = numPages; i < desiredPage; i++) pdf.addNewPage(baseSize);
+        }
+    }
+    private PageAndRect resolveMilestoneFirstArea(PdfDocument pdf, PdfAcroForm acro) {
+        PdfFormField frame = (acro != null) ? acro.getField("MilestonesFrame") : null;
+        if (frame != null && !frame.getWidgets().isEmpty() && frame.getWidgets().get(0).getPage() != null) {
+            PdfWidgetAnnotation w = frame.getWidgets().get(0);
+            return new PageAndRect(w.getPage(), w.getRectangle().toRectangle());
+        }
+        int desiredPage = 3;
+        ensureHasAtLeastPages(pdf, desiredPage);
+        return new PageAndRect(pdf.getPage(desiredPage), MS_FIRST_FALLBACK_RECT);
+    }
 
     ProjectRepository projectRepository;
     ContractRepository contractRepository;
@@ -215,7 +242,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 }
                 fields.put("additional terms", "");
             } else {
-                addRect = new Rectangle(0.9732f * INCH, 0.4268f * INCH, 6.4629f * INCH, 2.0f * INCH);
+                addRect = TERMS_FIRST_FALLBACK_RECT;
                 int pageIndex = Math.min(3, Math.max(1, pdf.getNumberOfPages()));
                 addPage = pdf.getPage(pageIndex);
                 fields.put("additional terms", "");
@@ -284,42 +311,15 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                                 List<BigDecimal> milestoneGrossList) {
         if (milestones == null || milestones.isEmpty()) return;
 
-        Rectangle rect;
-        PdfPage page;
-        PdfFormField frame = acro != null ? acro.getField("MilestonesFrame") : null;
+        PageAndRect first = resolveMilestoneFirstArea(pdf, acro);
+        PdfPage page = first.page();
+        Rectangle rect = first.rect();
 
-        if (frame != null && !frame.getWidgets().isEmpty() && frame.getWidgets().get(0).getPage() != null) {
-            PdfWidgetAnnotation w = frame.getWidgets().get(0);
-            rect = w.getRectangle().toRectangle();
-            page = w.getPage();
-        } else {
-            final float LEFT   = 0.9732f;
-            final float RIGHT  = 7.4362f;
-            final float BOTTOM = 0.4268f;
-            final float TOP    = 4.1633f;
-
-            rect = new Rectangle(
-                    LEFT * INCH,
-                    BOTTOM * INCH,
-                    (RIGHT - LEFT) * INCH,
-                    (TOP - BOTTOM) * INCH
-            );
-
-            int desiredPage = 3;
-            int numPages = pdf.getNumberOfPages();
-            if (numPages < desiredPage) {
-                PageSize baseSize = (numPages >= 1) ? new PageSize(pdf.getPage(1).getPageSize()) : PageSize.A4;
-                for (int i = numPages; i < desiredPage; i++) {
-                    pdf.addNewPage(baseSize);
-                }
-            }
-            page = pdf.getPage(desiredPage);
-        }
-
-        DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         int pageNum = pdf.getPageNumber(page);
         Canvas canvas = new Canvas(page, rect);
         float remaining = rect.getHeight();
+
+        DateTimeFormatter df = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
         for (int i = 0; i < milestones.size(); i++) {
             MilestoneRequest m = milestones.get(i);
@@ -345,6 +345,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
                 pageNum += 1;
                 page = newPage;
+                rect = MS_CONT_RECT;
                 canvas = new Canvas(page, rect);
                 remaining = rect.getHeight();
             }
@@ -619,99 +620,101 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         f.setValue(checked ? on : "Off");
     }
 
+    private void drawAdditionalTermsBlock(PdfPage startPage, Rectangle rectFirst, PdfFont font, String raw) {
+        PdfDocument pdf = startPage.getDocument();
 
-private void drawAdditionalTermsBlock(PdfPage startPage, Rectangle rect, PdfFont font, String raw) {
-    PdfDocument pdf = startPage.getDocument();
+        PdfPage page = startPage;
+        Rectangle rect = rectFirst;
+        int pageNum = pdf.getPageNumber(page);
+        Canvas canvas = new Canvas(page, rect);
 
-    PdfPage page = startPage;
-    int pageNum = pdf.getPageNumber(page);
-    Canvas canvas = new Canvas(page, rect);
+        float remaining = rect.getHeight();
 
-    float remaining = rect.getHeight();
+        Paragraph heading = new Paragraph(new Text("Bổ sung điều khoản").setBold())
+                .setFont(font).setFontSize(11.5f)
+                .setMargin(0).setPadding(0)
+                .setMultipliedLeading(1.25f);
 
-    Paragraph heading = new Paragraph(new Text("Bổ sung điều khoản").setBold())
-            .setFont(font).setFontSize(11.5f)
-            .setMargin(0).setPadding(0)
-            .setMultipliedLeading(1.25f);
-
-    com.itextpdf.layout.element.Div headDiv = new com.itextpdf.layout.element.Div()
-            .setWidth(rect.getWidth()).setMargin(0).setPadding(0)
-            .add(heading);
-    float need = measureHeight(headDiv, rect);
-
-    if (need > remaining) {
-        canvas.close();
-        PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
-        pageNum += 1;
-        page = newPage;
-        canvas = new Canvas(page, rect);
-        remaining = rect.getHeight();
-    }
-    canvas.add(heading);
-    remaining -= need;
-
-    java.util.List<String> clauses = splitClauses(raw);
-
-    if (clauses.isEmpty()) {
-        Paragraph p = new Paragraph()
-                .setFont(font).setFontSize(11f)
-                .setMultipliedLeading(1.2f)
-                .setMarginTop(2).setMarginBottom(0)
-                .setMarginLeft(0).setMarginRight(0);
-        p.add(new Text("Điều 10. ").setBold());
-
-        com.itextpdf.layout.element.Div div = new com.itextpdf.layout.element.Div()
+        com.itextpdf.layout.element.Div headDiv = new com.itextpdf.layout.element.Div()
                 .setWidth(rect.getWidth()).setMargin(0).setPadding(0)
-                .add(p);
-        need = measureHeight(div, rect);
+                .add(heading);
+        float need = measureHeight(headDiv, rect);
 
         if (need > remaining) {
             canvas.close();
             PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
             pageNum += 1;
             page = newPage;
+            rect = TERMS_CONT_RECT;
             canvas = new Canvas(page, rect);
             remaining = rect.getHeight();
         }
-        canvas.add(p);
-        canvas.close();
-        return;
-    }
-
-    int base = 10;
-    for (int i = 0; i < clauses.size(); i++) {
-        String body = clauses.get(i);
-        int no = base + i;
-
-        Paragraph p = new Paragraph()
-                .setFont(font).setFontSize(11f)
-                .setMultipliedLeading(1.2f)
-                .setMarginTop(i == 0 ? 2 : 0).setMarginBottom(0)
-                .setMarginLeft(0).setMarginRight(0);
-        p.add(new Text("Điều " + no + ". ").setBold());
-        p.add(new Text(body));
-
-        com.itextpdf.layout.element.Div div = new com.itextpdf.layout.element.Div()
-                .setWidth(rect.getWidth()).setMargin(0).setPadding(0)
-                .add(p);
-        need = measureHeight(div, rect);
-
-        if (need > remaining) {
-            canvas.close();
-            PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
-            pageNum += 1;
-            page = newPage;
-            canvas = new Canvas(page, rect);
-            remaining = rect.getHeight();
-        }
-
-        canvas.add(p);
+        canvas.add(heading);
         remaining -= need;
+
+        java.util.List<String> clauses = splitClauses(raw);
+
+        if (clauses.isEmpty()) {
+            Paragraph p = new Paragraph()
+                    .setFont(font).setFontSize(11f)
+                    .setMultipliedLeading(1.2f)
+                    .setMarginTop(2).setMarginBottom(0)
+                    .setMarginLeft(0).setMarginRight(0);
+            p.add(new Text("Điều 10. ").setBold());
+
+            com.itextpdf.layout.element.Div div = new com.itextpdf.layout.element.Div()
+                    .setWidth(rect.getWidth()).setMargin(0).setPadding(0)
+                    .add(p);
+            need = measureHeight(div, rect);
+
+            if (need > remaining) {
+                canvas.close();
+                PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                pageNum += 1;
+                page = newPage;
+                rect = TERMS_CONT_RECT;
+                canvas = new Canvas(page, rect);
+                remaining = rect.getHeight();
+            }
+            canvas.add(p);
+            canvas.close();
+            return;
+        }
+
+        int base = 10;
+        for (int i = 0; i < clauses.size(); i++) {
+            String body = clauses.get(i);
+            int no = base + i;
+
+            Paragraph p = new Paragraph()
+                    .setFont(font).setFontSize(11f)
+                    .setMultipliedLeading(1.2f)
+                    .setMarginTop(i == 0 ? 2 : 0).setMarginBottom(0)
+                    .setMarginLeft(0).setMarginRight(0);
+            p.add(new Text("Điều " + no + ". ").setBold());
+            p.add(new Text(body));
+
+            com.itextpdf.layout.element.Div div = new com.itextpdf.layout.element.Div()
+                    .setWidth(rect.getWidth()).setMargin(0).setPadding(0)
+                    .add(p);
+            need = measureHeight(div, rect);
+
+            if (need > remaining) {
+                canvas.close();
+                PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                pageNum += 1;
+                page = newPage;
+                rect = TERMS_CONT_RECT;
+                canvas = new Canvas(page, rect);
+                remaining = rect.getHeight();
+            }
+
+            canvas.add(p);
+            remaining -= need;
+        }
+
+        canvas.close();
     }
-
-    canvas.close();
-}
-
 
     private List<String> splitClauses(String raw) {
         List<String> out = new ArrayList<>();
