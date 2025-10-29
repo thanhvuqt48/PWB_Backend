@@ -1,7 +1,6 @@
 package com.fpt.producerworkbench.dto.request;
 
 import com.fpt.producerworkbench.common.SigningMode;
-import com.fpt.producerworkbench.common.SigningOrderType;
 import lombok.*;
 
 import java.util.List;
@@ -13,7 +12,6 @@ import java.util.List;
 public class ContractInviteRequest {
     private String pdfBase64;
     private SigningMode signingMode;
-    private SigningOrderType signingOrder;
     private Boolean useFieldInvite;
 
     @Setter

@@ -6,9 +6,16 @@ import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.configuration.SignNowProperties;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.exception.AppException;
+import com.fpt.producerworkbench.common.ContractDocumentType;
+import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
-import com.fpt.producerworkbench.service.ContractSigningService;
+import com.fpt.producerworkbench.service.FileKeyGenerator;
+import com.fpt.producerworkbench.service.FileStorageService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -32,8 +39,10 @@ public class SignNowWebhookController {
 
     private final SignNowProperties props;
     private final ContractRepository contractRepository;
-    private final ContractSigningService contractSigningService;
+    private final ContractDocumentRepository contractDocumentRepository;
     private final SignNowClient signNowClient;
+    private final FileStorageService fileStorageService;
+    private final FileKeyGenerator fileKeyGenerator;
     private final ObjectMapper om = new ObjectMapper();
 
     @PostMapping(produces = MediaType.TEXT_PLAIN_VALUE)
@@ -109,7 +118,7 @@ public class SignNowWebhookController {
         }
 
         try {
-            contractSigningService.saveSignedAndComplete(c.getId(), withHistory);
+            saveSignedAndComplete(c, withHistory);
             return ResponseEntity.ok("ok");
         } catch (AppException ex) {
             return ResponseEntity.accepted().body("not ready");
@@ -179,5 +188,58 @@ public class SignNowWebhookController {
             }
         } catch (Exception ignore) { }
         return null;
+    }
+
+    @Transactional
+    private void saveSignedAndComplete(Contract c, boolean withHistory) {
+        if (c.getSignnowDocumentId() == null || c.getSignnowDocumentId().isBlank()) {
+            throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+        }
+
+        byte[] pdf;
+        try {
+            pdf = signNowClient.downloadFinalPdf(c.getSignnowDocumentId(), withHistory);
+            log.info("[Webhook] Downloaded signed PDF bytes={}", (pdf == null ? 0 : pdf.length));
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException ex) {
+            int sc = ex.getStatusCode().value();
+            if (sc == 400 || sc == 409 || sc == 422) {
+                log.warn("[Webhook] Collapsed not ready: status={} body={}", sc, ex.getResponseBodyAsString());
+                throw new AppException(ErrorCode.SIGNNOW_DOC_NOT_COMPLETED);
+            }
+            log.error("[Webhook] Download failed: status={} body={}", sc, ex.getResponseBodyAsString());
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        } catch (IllegalStateException ex) {
+            log.error("[Webhook] Download failed: empty body (200 OK)", ex);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        } catch (Exception ex) {
+            log.error("[Webhook] Download failed (unexpected)", ex);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        }
+
+        ContractDocument latest = contractDocumentRepository
+                .findTopByContract_IdAndTypeOrderByVersionDesc(c.getId(), ContractDocumentType.SIGNED)
+                .orElse(null);
+        if (latest != null) {
+            log.warn("[Webhook] Contract {} already has signed document, skipping", c.getId());
+            return;
+        }
+        int nextVer = 1;
+
+        String fileName = "signed_v" + nextVer + ".pdf";
+        String storageUrl = fileKeyGenerator.generateContractDocumentKey(c.getId(), fileName);
+        fileStorageService.uploadBytes(pdf, storageUrl, "application/pdf");
+
+        ContractDocument doc = new ContractDocument();
+        doc.setContract(c);
+        doc.setType(ContractDocumentType.SIGNED);
+        doc.setVersion(nextVer);
+        doc.setStorageUrl(storageUrl);
+        contractDocumentRepository.save(doc);
+
+        c.setSignnowStatus(ContractStatus.COMPLETED);
+        c.setStatus(ContractStatus.COMPLETED);
+        contractRepository.save(c);
+
+        log.info("[Webhook] Successfully saved signed contract {} version {}", c.getId(), nextVer);
     }
 }

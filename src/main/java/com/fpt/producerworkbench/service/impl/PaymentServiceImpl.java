@@ -8,6 +8,8 @@ import com.fpt.producerworkbench.common.TransactionType;
 import com.fpt.producerworkbench.configuration.PayosProperties;
 import com.fpt.producerworkbench.dto.request.PaymentRequest;
 import com.fpt.producerworkbench.dto.response.PaymentResponse;
+import com.fpt.producerworkbench.dto.response.PaymentStatusResponse;
+import com.fpt.producerworkbench.dto.response.PaymentLatestResponse;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
@@ -185,6 +187,63 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentStatusResponse getPaymentStatus(String orderCode) {
+        if (orderCode == null || orderCode.trim().isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        Transaction tx = transactionRepository.findByTransactionCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        Project project = null;
+        Contract contract = tx.getRelatedContract();
+        if (contract != null) {
+            project = contract.getProject();
+        }
+
+        return PaymentStatusResponse.builder()
+                .orderCode(orderCode)
+                .status(tx.getStatus().name())
+                .amount(tx.getAmount())
+                .projectId(project != null ? project.getId() : null)
+                .contractId(contract != null ? contract.getId() : null)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentLatestResponse getLatestPaymentByContract(Long userId, Long projectId, Long contractId) {
+        // Authorize: user must be a project member
+        projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
+
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
+        if (!contract.getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        Transaction tx = transactionRepository.findTopByRelatedContract_IdOrderByCreatedAtDesc(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        Milestone ms = tx.getRelatedMilestone();
+
+        return PaymentLatestResponse.builder()
+                .orderCode(tx.getTransactionCode())
+                .status(tx.getStatus().name())
+                .amount(tx.getAmount())
+                .projectId(projectId)
+                .contractId(contractId)
+                .paymentType(contract.getPaymentType().name())
+                .milestoneId(ms != null ? ms.getId() : null)
+                .milestoneSequence(ms != null ? ms.getSequence() : null)
+                .createdAt(tx.getCreatedAt())
+                .updatedAt(tx.getUpdatedAt())
+                .build();
+    }
 
     private BigDecimal calculatePaymentAmount(Contract contract) {
         if (PaymentType.FULL.equals(contract.getPaymentType())) {
