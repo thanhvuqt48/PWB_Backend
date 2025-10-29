@@ -29,17 +29,16 @@ public class ChannelInterceptorConfiguration implements ChannelInterceptor {
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
         StompHeaderAccessor accessor = StompHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        if(accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
+        if (accessor != null && StompCommand.CONNECT.equals(accessor.getCommand())) {
             log.info("Connected to channel");
             String authorizationHeader = accessor.getFirstNativeHeader("Authorization");
-            if(StringUtils.isNotBlank(authorizationHeader)) {
+            if (StringUtils.isNotBlank(authorizationHeader)) {
                 String token = authorizationHeader.replace("Bearer ", "");
                 Jwt jwtDecoder = jwtDecoderCustomizer.decode(token);
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         jwtDecoder.getSubject(),
                         null,
-                        List.of()
-                );
+                        List.of());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
                 accessor.setUser(authentication);
             }

@@ -82,7 +82,7 @@ services:
 
   pwb-service:
     # Thay đổi từ build sang image
-    image: ${DOCKER_USERNAME}/pwb-backend:develop
+    image: ${DOCKER_USERNAME}/pwb-backend:1.0
     container_name: producerworkbench
     restart: unless-stopped
     ports:
