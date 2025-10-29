@@ -38,6 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final MilestoneRepository milestoneRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final com.fpt.producerworkbench.service.ProSubscriptionService proSubscriptionService;
 
     @Override
     @Transactional
@@ -74,7 +75,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         Transaction saved = transactionRepository.save(tx);
 
-        Long orderCode = saved.getId();
+        Long orderCode = com.fpt.producerworkbench.utils.OrderCodeGenerator.generate();
         saved.setTransactionCode(String.valueOf(orderCode));
         transactionRepository.save(saved);
 
@@ -146,6 +147,16 @@ public class PaymentServiceImpl implements PaymentService {
                         log.error("Không tìm thấy giao dịch. Mã đơn hàng: {}", orderCode);
                         return new AppException(ErrorCode.TRANSACTION_NOT_FOUND);
                     });
+
+            log.info("[Webhook/PayOS] orderCode={} resolved type={}, status={}", orderCode, tx.getType(), tx.getStatus());
+
+            // Delegate subscription webhooks to ProSubscriptionService to keep logic in one place
+            if (TransactionType.SUBSCRIPTION.equals(tx.getType())) {
+                log.info("[Webhook/PayOS] Routing to SUBSCRIPTION handler. orderCode={}", orderCode);
+                proSubscriptionService.handleWebhook(body);
+                return;
+            }
+            log.info("[Webhook/PayOS] Routing to CONTRACT PAYMENT handler. orderCode={}", orderCode);
 
             if (!TransactionStatus.PENDING.equals(tx.getStatus())) {
                 log.warn("Webhook đã được xử lý. Mã đơn hàng: {}", orderCode);

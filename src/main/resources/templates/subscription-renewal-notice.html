@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gia hạn gói PRO</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; color: #222; }
+    .container { max-width: 640px; margin: 0 auto; padding: 16px; border: 1px solid #eee; border-radius: 8px; }
+    .btn { display: inline-block; padding: 10px 16px; background: #2563eb; color: #fff !important; text-decoration: none; border-radius: 6px; }
+    .muted { color: #666; font-size: 13px; }
+  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="x-ua-compatible" content="ie=edge" />
+  <meta name="format-detection" content="telephone=no" />
+</head>
+<body>
+  <div class="container">
+    <p>Chào <b th:text="${recipient}">bạn</b>,</p>
+    <p>Gói <b>PRO</b> của bạn sắp hết hạn. Vui lòng gia hạn trong thời gian ân hạn <b th:text="${graceDays}">5</b> ngày để tránh gián đoạn dịch vụ.</p>
+    <p>
+      <a class="btn" th:href="${checkoutUrl}" target="_blank">Thanh toán gia hạn</a>
+    </p>
+    <p class="muted">Nếu bạn không thực hiện gia hạn trong thời gian ân hạn, tài khoản của bạn sẽ tự động chuyển về gói Miễn phí.</p>
+    <p>Trân trọng,<br/>Producer Workbench</p>
+  </div>
+</body>
+</html>
+
