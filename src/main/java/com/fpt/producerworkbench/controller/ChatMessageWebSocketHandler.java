@@ -59,8 +59,8 @@ public class ChatMessageWebSocketHandler {
     }
 
     @MessageMapping("/chat/{conversationId}/read/{messageId}")
-    public void markAsRead(@DestinationVariable String conversationId, @DestinationVariable String messageId) {
-        chatMessageService.markAsRead(conversationId, messageId);
+    public void markAsRead(@DestinationVariable String conversationId, @DestinationVariable String messageId, Principal principal) {
+        chatMessageService.markAsRead(conversationId, messageId, principal.getName());
     }
 
 }
