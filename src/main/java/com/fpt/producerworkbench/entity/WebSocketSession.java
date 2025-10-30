@@ -11,5 +11,5 @@ import java.io.Serializable;
 @Setter
 public class WebSocketSession implements Serializable {
     private String socketSessionId;
-    private Long userId;
+    private String userId;
 }

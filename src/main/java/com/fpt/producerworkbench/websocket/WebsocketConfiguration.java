@@ -21,17 +21,12 @@ public class WebsocketConfiguration implements WebSocketMessageBrokerConfigurer 
 
     private final ChannelInterceptorConfiguration channelInterceptor;
 
-    @Value("#{T(java.util.Arrays).asList('${cors.allowed-origins}'.split(','))}")
-    private List<String> allowedOrigins;
-
     @Override
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
-        log.info("🔌 WebSocket CORS Allowed Origins: {}", allowedOrigins);
-
         registry.addEndpoint("/ws")
                 .addInterceptors(new WebSocketHandshakeInterceptor())
-                .setAllowedOrigins("http://localhost:5173")
-                .setAllowedOriginPatterns("*") // Allow all origins with credentials
+                .setAllowedOrigins("http://localhost:5173", "https://www.producerworkbench.io.vn")
+                .setAllowedOriginPatterns("http://localhost:*")
                 .withSockJS();
     }
 
