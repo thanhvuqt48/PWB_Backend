@@ -1,114 +1,152 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dự án mới đã được khởi tạo!</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Đổi tiêu đề -->
+    <title>Sứ mệnh âm nhạc đã khởi hành!</title>
+    <!-- Đổi font chữ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
-        body {
+        /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+        body { 
+            /* Đổi font */
+            font-family: 'Space Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
+        }
+        .container { 
+            max-width: 480px; /* Tăng kích thước một chút so với OTP mail */
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
+        }
+        
+        /* --- Header đồng bộ với OTP mail --- */
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
+        }
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        /* --- Nội dung chính --- */
+        .content { padding: 8px 24px 24px; }
+        .greeting { margin: 0 0 10px; font-size: 16px; }
+        .greeting strong { color: #FFFFFF; } /* Tên phi hành gia màu trắng */
+        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; }
+
+        /* --- Thẻ thông tin dự án (Mission Card) --- */
+        .mission-card { 
+            background: rgba(0,0,0,0.25); 
+            border-radius: 10px; 
+            padding: 20px; 
+            text-align: center; 
+            border: 1px solid #3a2c5f; 
+            margin-top: 16px; 
+            margin-bottom: 24px;
+        }
+        .mission-label { 
+            display: block; 
+            font-size: 12px; 
+            color: #9B95AF; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            letter-spacing: 0.6px; 
+        }
+        .mission-name { 
+            font-size: 24px; 
+            font-weight: 700; 
+            color: #FFFFFF; 
+            letter-spacing: 1px;
             margin: 0;
-            padding: 0;
-            background-color: #0d0c1d;
-            font-family: 'Roboto', sans-serif;
-            color: #E0E0E0;
+            /* Thêm hiệu ứng glow cho tên dự án */
+            text-shadow: 0 0 8px rgba(192, 88, 245, 0.5);
         }
-        .email-container {
-            max-width: 600px;
-            margin: 40px auto;
-            background: #110f27 url('https://www.transparenttextures.com/patterns/stardust.png');
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid #4a3d7a;
-            box-shadow: 0 0 50px rgba(168, 85, 247, 0.2);
-        }
-        .header {
-            padding: 40px;
-            text-align: center;
-        }
-        .header h1 {
-            color: #FFFFFF;
-            font-size: 28px;
-            margin: 0;
-            font-weight: 700;
-            text-shadow: 0 0 10px rgba(192, 132, 252, 0.5), 0 0 20px rgba(56, 189, 248, 0.5);
-        }
-        .content {
-            padding: 0 40px 40px;
-            text-align: center;
-            line-height: 1.6;
-        }
-        .content p {
-            font-size: 16px;
-            color: #b3b0c5;
-        }
-        .project-card {
-            background-color: rgba(0, 0, 0, 0.2);
-            border: 1px solid #4a3d7a;
-            border-radius: 12px;
-            padding: 20px;
-            margin: 30px 0;
-            box-shadow: inset 0 0 15px rgba(168, 85, 247, 0.1);
-        }
-        .project-card h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: #FFFFFF;
-            margin: 0;
-        }
+
+        /* --- Nút CTA (Call to Action) --- */
         .cta-button {
             display: inline-block;
-            background: linear-gradient(90deg, #8A2BE2 0%, #4A00E0 100%);
+            /* Dùng màu tím accent của PWB */
+            background: #C058F5; 
             color: #FFFFFF;
-            padding: 15px 30px;
+            padding: 12px 28px;
             border-radius: 8px;
             text-decoration: none;
             font-weight: 700;
             font-size: 16px;
-            margin-top: 20px;
-            transition: transform 0.2s;
+            margin-top: 8px;
+            transition: all 0.3s ease;
+            /* Thêm shadow cho nút */
+            box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
         }
         .cta-button:hover {
             transform: scale(1.05);
-            box-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+            box-shadow: 0 0 25px rgba(192, 88, 245, 0.7);
         }
-        .footer {
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #7b798e;
-            border-top: 1px solid #4a3d7a;
-        }
-        .footer a {
-            color: #a855f7;
-            text-decoration: none;
-        }
+        
+        .divider { border: 0; height: 1px; margin: 24px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 24px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0 0 4px; }
     </style>
 </head>
 <body>
-<div class="email-container">
+<div class="container">
     <div class="header">
-        <!-- Icon thành công -->
-        <img src="https://img.icons8.com/fluency/96/000000/verified-account.png" alt="Success Icon" style="width: 80px; height: 80px; margin-bottom: 20px; filter: drop-shadow(0 0 10px #4ade80);"/>
-        <h1>DỰ ÁN ĐÃ ĐƯỢC KHỞI TẠO!</h1>
+        <!-- Sử dụng logo PWB thay vì icon check -->
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
     </div>
     <div class="content">
-        <p>Chào <b th:text="${ownerName}">[Tên Owner]</b>,</p>
-        <p>
-            Chúc mừng! Hành trình sáng tạo mới của bạn đã chính thức bắt đầu trên Producer Workbench.
-        </p>
-        <div class="project-card">
-            <p style="margin-top: 0; margin-bottom: 10px; color: #a3a0b5;">Dự án của bạn:</p>
-            <h2 th:text="${projectName}">[Tên Dự án]</h2>
+        <!-- Đổi lời chào -->
+        <p class="greeting">Xin chào Phi hành gia <strong th:text="${ownerName}">[Tên Owner]</strong>,</p>
+        
+        <!-- Đổi nội dung -->
+        <p>Chúc mừng! <strong>Sứ mệnh âm nhạc</strong> mới của bạn đã chính thức được khởi động trên Producer Workbench.</p>
+
+        <!-- Thẻ thông tin dự án -->
+        <div class="mission-card">
+            <span class="mission-label">Tên Sứ Mệnh (Dự án):</span>
+            <h2 class="mission-name" th:text="${projectName}">[Tên Dự án]</h2>
         </div>
-        <p>
-            Bây giờ bạn có thể truy cập không gian làm việc để bắt đầu quản lý, mời thành viên và biến ý tưởng thành hiện thực.
-        </p>
-        <a href="#" class="cta-button">Mở Bảng điều khiển</a>
+
+        <p>Bây giờ bạn có thể truy cập không gian làm việc để bắt đầu quản lý, mời phi hành đoàn và biến ý tưởng thành những giai điệu vũ trụ.</p>
     </div>
+
+    <hr class="divider">
+
     <div class="footer">
-        <p>Trân trọng,<br/><b>Đội ngũ Producer Workbench</b></p>
-        <p>&copy; 2025 Producer Workbench. All rights reserved.</p>
+        <p>Giữ vững hành trình,</p>
+        <!-- Đổi chữ ký -->
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
     </div>
 </div>
 </body>

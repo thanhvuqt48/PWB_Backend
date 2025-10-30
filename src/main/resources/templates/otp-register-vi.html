@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Xác nhận từ Trạm Chỉ Huy PWB</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.55; margin: 0; padding: 0; background-color: #0D0B14; }
+        .container { max-width: 420px; margin: 16px auto; background: radial-gradient(circle, #242446, #151526 70%); border-radius: 12px; overflow: hidden; box-shadow: 0 0 16px rgba(192,88,245,0.18); border: 1px solid #322a50; color: #E3E1FA; }
+        .header { padding: 16px 16px 8px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+
+        .brand-logo {
+            width: 55px;
+            height: 55px;
+            border-radius: 6px;
+            display: block;
+        }
+
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline {
+            text-align: center;
+            font-size: 11px;
+            color: #B891FF;
+            margin-top: 2px;
+        }
+
+        .content { padding: 8px 16px 16px; }
+        .greeting { margin: 0 0 10px; font-size: 14px; }
+
+        .greeting strong { color: #FFFFFF; }
+
+        .content p { margin: 0 0 12px; font-size: 13px; color: #D5D2F3; }
+
+        .otp-wrap { background: rgba(0,0,0,0.25); border-radius: 10px; padding: 14px; text-align: center; border: 1px solid #3a2c5f; margin-top: 12px; }
+        .otp-label { display: block; font-size: 11px; color: #9B95AF; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.6px; }
+        .otp { display: inline-block; font-size: 22px; font-weight: 700; color: #FFFFFF; letter-spacing: 4px; padding: 8px 14px; background: #171730; border: 2px dashed #C058F5; border-radius: 8px; }
+        .note { font-size: 12px; color: #9B95AF; margin-top: 12px; text-align: center; }
+
+        .divider { border: 0; height: 1px; margin: 16px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 16px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img
+                            src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG"
+                            alt="PWB Logo"
+                            class="brand-logo"
+                    />
+                </td>
+            </tr>
+        </table>
+    </div>
+    <div class="content">
+        <p class="greeting">Xin chào Phi hành gia <strong th:text="${recipient}">tên</strong>,</p>
+        <p>Chào mừng đến với cuộc thám hiểm vũ trụ âm nhạc. Hãy dùng mã xác thực dưới đây để kích hoạt cổng không gian và khởi động hành trình.</p>
+
+        <div class="otp-wrap">
+            <span class="otp-label">Tọa độ Kích hoạt của bạn:</span>
+            <span class="otp" th:text="${otp}">000000</span>
+        </div>
+
+        <p class="note">Lưu ý: Tọa độ này chỉ hiệu lực trong <em th:text="${validMinutes}">5</em> phút. Không chia sẻ tín hiệu này với bất kỳ ai.</p>
+    </div>
+
+    <hr class="divider">
+
+    <div class="footer">
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
+    </div>
+</div>
+</body>
+</html>
+
+

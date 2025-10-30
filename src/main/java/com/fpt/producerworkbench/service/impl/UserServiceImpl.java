@@ -116,30 +116,19 @@ public class UserServiceImpl implements UserService {
 
         otpService.saveOtp(request.getEmail(), otp);
 
-        String subject = "Your OTP Code for Account Registration";
+        NotificationEvent event = NotificationEvent.builder()
+                .channel("EMAIL")
+                .recipient(request.getEmail())
+                .templateCode("otp-register-vi")
+                .subject("Mã OTP xác thực đăng ký tài khoản")
+                .param(new java.util.HashMap<>())
+                .build();
 
-        StringBuilder content = new StringBuilder();
-        content.append("<html>")
-                .append("<body style='font-family: Arial, sans-serif; line-height: 1.6;'>")
-                .append("<h2 style='color: #4CAF50;'>Welcome to PWB!</h2>")
-                .append("<p>Dear <strong>")
-                .append(request.getEmail())
-                .append("</strong>,</p>")
-                .append("<p>Thank you for registering with <strong>Producer Workbench</strong>. We are excited to have you on board!</p>")
-                .append("<p style='font-size: 18px;'><strong>Your OTP Code is:</strong> ")
-                .append("<span style='font-size: 22px; color: #FF5733;'><strong>")
-                .append(otp)
-                .append("</strong></span></p>")
-                .append("<p><strong>Note:</strong> This OTP is valid for <em>5 minutes</em>. Please enter it as soon as possible to complete your registration.</p>")
-                .append("<p>If you did not request this code, please ignore this email. For your security, do not share this code with anyone.</p>")
-                .append("<br/>")
-                .append("<p>Best regards,</p>")
-                .append("<p><strong>PWB Team</strong></p>")
-                .append("</body>")
-                .append("</html>");
+        event.getParam().put("recipient", request.getEmail());
+        event.getParam().put("otp", otp);
+        event.getParam().put("validMinutes", "5");
 
-        String emailContent = content.toString();
-        emailService.sendEmail(subject, emailContent, List.of(request.getEmail()));
+        kafkaTemplate.send("notification-delivery", event);
     }
 
     public VerifyOtpResponse verifyOtp(VerifyOtpRequest request) {

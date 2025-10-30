@@ -19,8 +19,8 @@ public class SignNowProperties {
 
     @Data
     public static class Http {
-        private int connectTimeoutMs = 10000;
-        private int readTimeoutMs = 20000;
+        private int connectTimeoutMs = 100000;
+        private int readTimeoutMs = 200000;
     }
 
     @Data

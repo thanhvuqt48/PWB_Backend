@@ -1,32 +1,176 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
-    <meta charset="UTF-8" />
-    <title>Yêu cầu ký hợp đồng</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Đổi tiêu đề -->
+    <title>Yêu cầu Xác nhận Hiệp ước Sứ mệnh</title>
+    <!-- Đổi font chữ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, Helvetica, sans-serif; color: #222; }
-        .container { max-width: 640px; margin: 0 auto; padding: 16px; }
-        .btn { display: inline-block; padding: 10px 16px; background: #1f7aec; color: #fff; text-decoration: none; border-radius: 6px; }
-        .muted { color: #666; font-size: 12px; }
+        /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+        body { 
+            font-family: 'Space Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
+        }
+        .container { 
+            max-width: 480px; 
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
+        }
+        
+        /* --- Header đồng bộ --- */
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
+        }
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        /* --- Nội dung chính --- */
+        .content { padding: 8px 24px 24px; }
+        
+        .greeting { margin: 0 0 10px; font-size: 16px; }
+        .greeting strong { color: #FFFFFF; } /* Tên phi hành gia màu trắng */
+        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; }
+
+        /* --- Thẻ thông tin sứ mệnh --- */
+        .mission-card { 
+            background: rgba(0,0,0,0.25); 
+            border-radius: 10px; 
+            padding: 20px; 
+            border: 1px solid #3a2c5f; 
+            margin-top: 16px; 
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: #D5D2F3;
+        }
+        .mission-card p {
+            margin: 0 0 8px;
+        }
+        .mission-card p:last-child {
+            margin-bottom: 0;
+        }
+        .mission-card strong {
+            color: #9B95AF; /* Nhãn màu xám tím */
+            margin-right: 8px;
+        }
+        .mission-card span {
+            color: #FFFFFF; /* Giá trị màu trắng */
+            font-weight: 500;
+        }
+
+        /* --- Hộp thông tin (cho SignNow) --- */
+        .info-box {
+            background: rgba(0,0,0,0.25);
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db; /* Viền xanh thông tin */
+        }
+        .info-box p {
+            margin: 0;
+            font-size: 14px;
+        }
+        .info-box strong {
+            color: #58C4F5; /* Chữ màu xanh nhạt */
+            font-size: 16px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        /* --- Nút CTA (Call to Action) --- */
+        .cta-button {
+            display: inline-block;
+            background: #C058F5; 
+            color: #FFFFFF;
+            padding: 12px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(192, 88, 245, 0.7);
+        }
+
+        .divider { border: 0; height: 1px; margin: 24px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 24px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0 0 4px; }
     </style>
-    </head>
+</head>
 <body>
 <div class="container">
-    <h2>Yêu cầu ký hợp đồng</h2>
-    <p>Xin chào <b th:text="${recipient}">Bạn</b>,</p>
-    <p>Bạn vừa nhận được yêu cầu ký hợp đồng cho dự án
-        <b th:text="${projectTitle}">Project</b> (ID: <span th:text="${projectId}">0</span>).</p>
+    <div class="header">
+        <!-- Header PWB đồng bộ -->
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="content">
+        <!-- Đổi lời chào -->
+        <p class="greeting">Phi hành gia <strong th:text="${recipient}">Bạn</strong>,</p>
+        
+        <!-- Đổi nội dung -->
+        <p>Trạm mặt đất (Khách hàng) vừa gửi một 'Hiệp ước Sứ mệnh' (Hợp đồng) yêu cầu bạn xác thực cho dự án:</p>
+        
+        <!-- Thẻ thông tin sứ mệnh -->
+        <div class="mission-card">
+            <p><strong>Sứ mệnh:</strong> <span th:text="${projectTitle}">Project</span></p>
+            <p><strong>ID Sứ mệnh:</strong> <span th:text="${projectId}">0</span></p>
+        </div>
 
-    <p>Vui lòng kiểm tra email mời ký được gửi từ SignNow để tiến hành ký hợp đồng.
-        <span th:if="${previewUrl}">Bạn có thể xem trước bản hợp đồng tại đây:
-            <a class="btn" th:href="${previewUrl}" target="_blank">Xem trước hợp đồng</a>
-        </span>
-    </p>
+        <!-- Thông báo về SignNow -->
+        <div class="info-box">
+            <p><strong>📡 Kênh Liên lạc Bảo mật (SignNow):</strong></p>
+            <p>Vui lòng kiểm tra email được gửi từ dịch vụ SignNow để tiến hành xác thực và ký hiệp ước.</p>
+        </div>
 
-    <p class="muted">Nếu bạn không mong đợi email này, vui lòng bỏ qua.</p>
-    <p class="muted">Producer Workbench</p>
+        <!-- Nút xem trước (có điều kiện) -->
+        <div th:if="${previewUrl}" style="text-align:center; margin-top: 24px; margin-bottom: 16px;">
+            <p style="margin-bottom: 12px; font-size: 14px; color: #D5D2F3;">Bạn có thể xem trước bản thảo hiệp ước tại đây:</p>
+            <a class="cta-button" th:href="${previewUrl}" target="_blank">Xem trước Hiệp ước</a>
+        </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="footer">
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
+    </div>
 </div>
 </body>
 </html>
-
-
