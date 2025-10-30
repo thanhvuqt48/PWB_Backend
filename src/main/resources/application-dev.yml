@@ -102,6 +102,10 @@ storage:
   
 cloudfront:
   domain: ${CLOUDFRONT_DOMAIN}
+  # Enable public URLs for portfolio/avatar images (no expiration)
+  # Set to true for production to avoid URL expiration issues
+  # Set to false to use presigned URLs (24h expiration)
+  use-public-urls: ${CLOUDFRONT_USE_PUBLIC_URLS:true}
 
 aws:
   region: ${AWS_REGION}

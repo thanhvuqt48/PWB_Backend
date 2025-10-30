@@ -46,6 +46,7 @@ public enum ErrorCode {
     DUPLICATE_RESOURCE(4002, "Tài nguyên đã tồn tại.", HttpStatus.CONFLICT),
     UPLOAD_FAILED(4003, "Upload file thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
     DELETE_FAILED(4004, "Xóa tài nguyên thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+    PORTFOLIO_ALREADY_EXISTS(4005, "Bạn đã có portfolio. Mỗi người dùng chỉ được có một portfolio.", HttpStatus.CONFLICT),
 
     // ===== Lỗi liên quan đến Dự án (5xxx) =====
     CLIENT_ALREADY_EXISTS(5001, "Dự án này đã có khách hàng.", HttpStatus.BAD_REQUEST),

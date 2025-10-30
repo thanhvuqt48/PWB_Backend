@@ -26,7 +26,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 @RequiredArgsConstructor
@@ -103,28 +105,6 @@ public class ApplicationInitConfiguration {
                 log.info("Sample CUSTOMER created: {}", CUSTOMER_USER_NAME);
             }
 
-            if (userRepository.findByEmail(PRODUCER_USER_NAME).isEmpty()) {
-                User producer = User.builder()
-                        .email(PRODUCER_USER_NAME)
-                        .firstName("Bao")
-                        .lastName("Tran")
-                        .passwordHash(passwordEncoder.encode(PRODUCER_PASSWORD))
-                        .role(UserRole.PRODUCER)
-                        .status(UserStatus.ACTIVE)
-                        .location("Hanoi, Vietnam")
-                        .build();
-                User savedProducer = userRepository.save(producer);
-                log.info("Sample PRODUCER created: {}", PRODUCER_USER_NAME);
-
-                Portfolio portfolio = Portfolio.builder()
-                        .user(savedProducer)
-                        .headline("Music Producer & Sound Designer")
-                        .isPublic(true)
-                        .build();
-                portfolioRepository.save(portfolio);
-                log.info("Portfolio created for producer: {}", PRODUCER_USER_NAME);
-            }
-
             if (genreRepository.count() == 0) {
                 log.info("No genres found in DB, creating default genres...");
                 List<Genre> defaultGenres = Arrays.asList(
@@ -148,6 +128,29 @@ public class ApplicationInitConfiguration {
                 );
                 genreRepository.saveAll(defaultGenres);
                 log.info("Created {} default genres.", defaultGenres.size());
+            }
+
+            if (userRepository.findByEmail(PRODUCER_USER_NAME).isEmpty()) {
+                User producer = User.builder()
+                        .email(PRODUCER_USER_NAME)
+                        .firstName("Bao")
+                        .lastName("Tran")
+                        .passwordHash(passwordEncoder.encode(PRODUCER_PASSWORD))
+                        .role(UserRole.PRODUCER)
+                        .status(UserStatus.ACTIVE)
+                        .location("Hanoi, Vietnam")
+                        .build();
+                User savedProducer = userRepository.save(producer);
+                log.info("Sample PRODUCER created: {}", PRODUCER_USER_NAME);
+
+                Portfolio portfolio = Portfolio.builder()
+                        .user(savedProducer)
+                        .headline("Music Producer & Sound Designer")
+                        .isPublic(true)
+                        .genres(new HashSet<>(genreRepository.findAllById(List.of(1L, 2L, 3L))))
+                        .build();
+                portfolioRepository.save(portfolio);
+                log.info("Portfolio created for producer: {}", PRODUCER_USER_NAME);
             }
 
             if (proPackageRepository.count() == 0) {

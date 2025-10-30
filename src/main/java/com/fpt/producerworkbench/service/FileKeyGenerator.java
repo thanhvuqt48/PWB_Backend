@@ -9,4 +9,8 @@ public interface FileKeyGenerator {
     String generateMilestoneDeliveryKey(Long projectId, Long milestoneId, String originalFilename);
 
     String generateContractDocumentKey(Long contractId, String fileName);
+
+    String generatePortfolioCoverImageKey(Long userId, String originalFilename);
+
+    String generatePersonalProjectImageKey(Long userId, Long personalProjectId, String originalFilename);
 }
