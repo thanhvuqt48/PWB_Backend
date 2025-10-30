@@ -84,8 +84,8 @@ signnow:
     username: ${SN_USERNAME}
     password: ${SN_PASSWORD}
   http:
-    connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
-    read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
+    connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:100000}
+    read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:1200000}
 
 
 pwb:
@@ -126,3 +126,7 @@ payos:
   checksum-key: ${PAYOS_CHECKSUM_KEY}
   return-url: ${PAYOS_RETURN_URL}
   cancel-url: ${PAYOS_CANCEL_URL}
+
+subscription:
+  grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
+  renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}
