@@ -49,7 +49,7 @@ public class WebSocketEventListener {
         if (userId != null) {
             sessionRedisService.saveWebSocketSession(WebSocketSession.builder()
                     .socketSessionId(sessionId)
-                    .userId(userId)
+                    .userId(user.getName())
                     .build());
             log.info("✅ Saved WebSocket session to Redis: wsSession={}, userId={}", sessionId, userId);
         } else {
