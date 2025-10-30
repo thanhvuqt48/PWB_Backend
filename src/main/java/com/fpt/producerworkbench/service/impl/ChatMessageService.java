@@ -54,13 +54,13 @@ public class ChatMessageService {
         ChatMessage chatMessage = buildChatMessage(request, currentUser);
 
         List<ParticipantInfo> participantInfos = conversation.getParticipants();
-        Set<Long> userIds = participantInfos.stream()
-                .map(participantInfo -> participantInfo.getUser().getId())
+        Set<String> userIds = participantInfos.stream()
+                .map(participantInfo -> participantInfo.getUser().getEmail())
                 .collect(Collectors.toSet());
 
         Set<WebSocketSession> socketSessions = socketSessionRedisService.getSessionByUserIds(userIds);
 
-        Set<Long> onlineUserIds = socketSessions.stream()
+        Set<String> onlineUserIds = socketSessions.stream()
                 .map(WebSocketSession::getUserId)
                 .collect(Collectors.toSet());
 
@@ -90,8 +90,9 @@ public class ChatMessageService {
     }
 
     @Transactional
-    public void markAsRead(String conversationId, String messageId) {
-        String userId = SecurityContextHolder.getContext().getAuthentication().getName();
+    public void markAsRead(String conversationId, String messageId, String userEmail) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         ChatMessage chatMessage = chatMessageRepository.findById(messageId)
                 .orElseThrow(() -> new AppException(ErrorCode.MESSAGE_NOT_FOUND));
 
@@ -99,7 +100,7 @@ public class ChatMessageService {
             throw new AppException(ErrorCode.MESSAGE_NOT_PART_OF_STORY);
         }
 
-        if(Objects.equals(chatMessage.getSender().getId(), userId)) {
+        if(Objects.equals(chatMessage.getSender().getId(), user.getId())) {
             log.info("Message is marked as read");
             return;
         }

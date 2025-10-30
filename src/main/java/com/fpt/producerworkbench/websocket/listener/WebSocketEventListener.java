@@ -32,7 +32,7 @@ public class WebSocketEventListener {
 
         sessionRedisService.saveWebSocketSession(WebSocketSession.builder()
                         .socketSessionId(accessor.getSessionId())
-                        .userId(Long.parseLong(user.getName()))
+                        .userId(user.getName())
                 .build());
 
         log.info("Connected to websocket session {}", accessor.getSessionId());
