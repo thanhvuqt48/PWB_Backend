@@ -2,7 +2,6 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
-import com.fpt.producerworkbench.common.SigningOrderType;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
@@ -16,6 +15,7 @@ import com.fpt.producerworkbench.service.ContractInviteService;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.ContractPermissionService;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.service.SignNowWebhookService;
 import org.springframework.kafka.core.KafkaTemplate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +38,7 @@ public class ContractInviteServiceImpl implements ContractInviteService {
     private final SignNowClient signNowClient;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final ContractPermissionService contractPermissionService;
+    private final SignNowWebhookService signNowWebhookService;
 
 
     private static boolean eqIgnore(String a, String b) {
@@ -45,43 +46,35 @@ public class ContractInviteServiceImpl implements ContractInviteService {
     }
 
 
-    /**
-     * Tự động tạo danh sách signers từ project client và owner
-     */
-    private List<ContractInviteRequest.Signer> generateAutoSigners(com.fpt.producerworkbench.entity.Project project, SigningOrderType signingOrder) {
+
+    private List<ContractInviteRequest.Signer> generateAutoSigners(com.fpt.producerworkbench.entity.Project project) {
         List<ContractInviteRequest.Signer> signers = new ArrayList<>();
-        
-        // Kiểm tra project có client không
+
         if (project.getClient() == null) {
             throw new AppException(ErrorCode.CLIENT_NOT_FOUND);
         }
-        
-        boolean isSequential = signingOrder == SigningOrderType.SEQUENTIAL;
-        
-        // Client - ký trước (order = 1)
-        ContractInviteRequest.Signer clientSigner = ContractInviteRequest.Signer.builder()
-                .email(project.getClient().getEmail())
-                .fullName(project.getClient().getFullName())
-                .roleName("SignerA")
-                .order(1)
-                .build();
-        signers.add(clientSigner);
-        
-        // Owner - ký sau (order = 2 nếu sequential, order = 1 nếu parallel)
+
         ContractInviteRequest.Signer ownerSigner = ContractInviteRequest.Signer.builder()
                 .email(project.getCreator().getEmail())
                 .fullName(project.getCreator().getFullName())
                 .roleName("SignerB")
-                .order(isSequential ? 2 : 1)
+                .order(1)
                 .build();
         signers.add(ownerSigner);
-        
-        log.info("Auto-generated signers for project {}: Client={} (SignerA, order=1), Owner={} (SignerB, order={})", 
-                project.getId(), 
-                project.getClient().getEmail(), 
+
+        ContractInviteRequest.Signer clientSigner = ContractInviteRequest.Signer.builder()
+                .email(project.getClient().getEmail())
+                .fullName(project.getClient().getFullName())
+                .roleName("SignerA")
+                .order(2)
+                .build();
+        signers.add(clientSigner);
+
+        log.info("Auto-generated signers for project {}: Owner={} (SignerB, order=1), Client={} (SignerA, order=2)",
+                project.getId(),
                 project.getCreator().getEmail(),
-                isSequential ? 2 : 1);
-        
+                project.getClient().getEmail());
+
         return signers;
     }
 
@@ -102,16 +95,14 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
-        // Check permissions using service
         var permissions = contractPermissionService.checkContractPermissions(auth, c.getProject().getId());
         if (!permissions.isCanInviteToSign()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        // Auto-generate signers from project client and owner
-        List<ContractInviteRequest.Signer> autoSigners = generateAutoSigners(c.getProject(), req.getSigningOrder());
-        
-        boolean sequential = req.getSigningOrder() == SigningOrderType.SEQUENTIAL;
+        List<ContractInviteRequest.Signer> autoSigners = generateAutoSigners(c.getProject());
+
+        boolean sequential = true;
 
         if (c.getSignnowDocumentId() == null) {
             byte[] pdfBytes;
@@ -131,34 +122,40 @@ public class ContractInviteServiceImpl implements ContractInviteService {
                     throw new AppException(ErrorCode.STORAGE_READ_FAILED);
                 }
             }
+
+            String docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "contract-" + contractId + ".pdf");
+            c.setSignnowDocumentId(docId);
             try {
-                String docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "contract-" + contractId + ".pdf");
-                c.setSignnowDocumentId(docId);
-            } catch (WebClientResponseException wex) {
-                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+                signNowWebhookService.ensureCompletedEventForDocument(docId);
+            } catch (WebClientResponseException ex) {
+                int sc = ex.getStatusCode().value();
+                if (sc == 409 || sc == 422) {
+                    log.info("[Webhook] already exists or not applicable: status={}", sc);
+                } else {
+                    log.warn("[Webhook] register failed: status={} body={}", sc, ex.getResponseBodyAsString());
+                }
             } catch (Exception ex) {
-                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+                log.warn("[Webhook] register failed (unexpected): {}", ex.toString());
             }
+
         }
 
         String ownerEmail = signNowClient.getDocumentOwnerEmail(c.getSignnowDocumentId());
         List<ContractInviteRequest.Signer> filtered = new ArrayList<>();
-        
-        // Use auto-generated signers instead of request signers
+
         for (var s : autoSigners) {
             if (s.getEmail() == null || s.getEmail().isBlank())
                 throw new AppException(ErrorCode.SIGNER_EMAIL_REQUIRED);
             if (eqIgnore(s.getEmail(), ownerEmail)) continue;
             filtered.add(s);
         }
-        
+
         if (filtered.isEmpty()) {
             throw new AppException(ErrorCode.SIGNERS_REQUIRED);
         }
 
         StartSigningResponse resp = new StartSigningResponse();
         try {
-            // Mặc định luôn sử dụng field invite
             if (req.getUseFieldInvite() == null || Boolean.TRUE.equals(req.getUseFieldInvite())) {
                 Map<String, String> roleIdMap = signNowClient.getRoleIdMap(c.getSignnowDocumentId());
                 if (roleIdMap.isEmpty()) {
@@ -231,4 +228,3 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         return resp;
     }
 }
-

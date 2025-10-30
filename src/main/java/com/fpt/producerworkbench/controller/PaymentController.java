@@ -3,6 +3,8 @@ package com.fpt.producerworkbench.controller;
 import com.fpt.producerworkbench.dto.request.PaymentRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.PaymentResponse;
+import com.fpt.producerworkbench.dto.response.PaymentStatusResponse;
+import com.fpt.producerworkbench.dto.response.PaymentLatestResponse;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
@@ -67,6 +69,34 @@ public class PaymentController {
         
         paymentService.handlePaymentWebhook(body);
         return ResponseEntity.ok("OK");
+    }
+
+    @GetMapping("/status/{orderCode}")
+    public ResponseEntity<ApiResponse<PaymentStatusResponse>> getPaymentStatus(@PathVariable String orderCode) {
+        var result = paymentService.getPaymentStatus(orderCode);
+        return ResponseEntity.ok(
+                ApiResponse.<PaymentStatusResponse>builder()
+                        .code(200)
+                        .result(result)
+                        .build()
+        );
+    }
+
+    @GetMapping("/projects/{projectId}/contracts/{contractId}/latest")
+    public ResponseEntity<ApiResponse<PaymentLatestResponse>> getLatestPayment(
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication,
+            @PathVariable Long projectId,
+            @PathVariable Long contractId
+    ) {
+        Long userId = resolveUserId(authentication);
+        var result = paymentService.getLatestPaymentByContract(userId, projectId, contractId);
+        return ResponseEntity.ok(
+                ApiResponse.<PaymentLatestResponse>builder()
+                        .code(200)
+                        .result(result)
+                        .build()
+        );
     }
 
     private Long resolveUserId(Authentication authentication) {

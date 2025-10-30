@@ -28,12 +28,16 @@ spring:
     consumer:
       group-id: my-consumer-group
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       enable-auto-commit: false
+    listener:
+      ack-mode: manual
 
     properties:
-      spring.json.trusted.packages: "com.fpt.producerworkbench.dto.event"
+      spring.json.trusted.packages: "com.fpt.producerworkbench.dto.event,com.fpt.producerworkbench.dto.request"
+      spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+      spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -71,6 +75,10 @@ producer:
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}
   client-secret: ${SPOTIFY_CLIENT_SECRET}
+agora:
+  app:
+    id: ${AGORA_APP_ID}
+    certificate: ${AGORA_APP_CERTIFICATE}
 
 signnow:
   base-url: ${SN_BASE_URL:https://api.signnow.com}
@@ -79,6 +87,10 @@ signnow:
   auth:
     username: ${SN_USERNAME}
     password: ${SN_PASSWORD}
+  webhook:
+    callback-url: ${SN_WEBHOOK_CALLBACK_URL}
+    secret-key: ${SN_WEBHOOK_SECRET}
+    with-history: false
   http:
     connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
@@ -122,3 +134,7 @@ payos:
   checksum-key: ${PAYOS_CHECKSUM_KEY}
   return-url: ${PAYOS_RETURN_URL}
   cancel-url: ${PAYOS_CANCEL_URL}
+
+subscription:
+  grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
+  renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}

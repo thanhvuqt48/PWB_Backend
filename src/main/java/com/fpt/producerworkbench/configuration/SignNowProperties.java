@@ -19,10 +19,18 @@ public class SignNowProperties {
 
     @Data
     public static class Http {
-        private int connectTimeoutMs = 10000;
-        private int readTimeoutMs = 20000;
+        private int connectTimeoutMs = 100000;
+        private int readTimeoutMs = 200000;
+    }
+
+    @Data
+    public static class Webhook {
+        private String callbackUrl;
+        private String secretKey;
+        private boolean withHistory = false;
     }
 
     private Auth auth = new Auth();
     private Http http = new Http();
+    private Webhook webhook = new Webhook();
 }

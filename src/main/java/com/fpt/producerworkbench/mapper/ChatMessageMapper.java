@@ -35,14 +35,14 @@ public class ChatMessageMapper {
 
     public static ChatResponse toChatResponse(ChatMessage chatMessage, String principalName) {
         ChatResponse chatResponse = toBaseChatResponse(chatMessage);
-        chatResponse.setMe(Objects.equals(principalName, chatMessage.getSender().getId()));
+        chatResponse.setMe(Objects.equals(principalName, chatMessage.getSender().getEmail()));
         chatResponse.setRead(chatMessage.isRead());
 
         return chatResponse;
     }
 
-    public static ChatResponse toWebSocketResponse(ChatMessage chatMessage, Long userId, String tempId) {
-        boolean isMe = Objects.equals(userId, chatMessage.getSender().getId());
+    public static ChatResponse toWebSocketResponse(ChatMessage chatMessage, String userId, String tempId) {
+        boolean isMe = Objects.equals(userId, chatMessage.getSender().getEmail());
 
         ChatResponse response = toBaseChatResponse(chatMessage);
         response.setTempId(isMe ? tempId : null);

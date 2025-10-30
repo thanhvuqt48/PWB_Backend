@@ -1,106 +1,185 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
-    <meta charset="UTF-8" />
-    <title>Hợp đồng bị từ chối</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Đổi tiêu đề -->
+    <title>Cảnh báo Sứ mệnh: Hợp đồng bị Từ chối</title>
+    <!-- Đổi font chữ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            color: #333; 
-            line-height: 1.6;
-            margin: 0;
-            padding: 0;
-            background-color: #f5f5f5;
+            font-family: 'Space Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
         }
         .container { 
-            max-width: 600px; 
-            margin: 20px auto; 
-            padding: 30px;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 480px; 
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
         }
-        .header {
+        
+        /* --- Header đồng bộ --- */
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
+        }
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        /* --- Nội dung chính --- */
+        .content { padding: 8px 24px 24px; }
+        
+        /* Tiêu đề cảnh báo */
+        .warning-title {
+            color: #FF5555; /* Màu đỏ cảnh báo */
+            font-size: 20px;
+            font-weight: 700;
             text-align: center;
-            border-bottom: 2px solid #e74c3c;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(255, 85, 85, 0.5);
         }
-        .header h1 {
-            color: #e74c3c;
-            margin: 0;
-            font-size: 24px;
-        }
-        .content {
-            margin-bottom: 30px;
-        }
-        .project-info {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-        .reason { 
-            background: #fff5f5; 
-            border-left: 4px solid #e74c3c; 
-            padding: 15px; 
-            white-space: pre-wrap;
-            border-radius: 4px;
-            margin: 15px 0;
-            font-style: italic;
-        }
-        .action {
-            background-color: #e8f4fd;
-            padding: 15px;
-            border-radius: 5px;
-            border-left: 4px solid #3498db;
-        }
-        .footer { 
-            color: #666; 
-            font-size: 12px; 
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-        }
+
+        .greeting { margin: 0 0 10px; font-size: 16px; }
+        .greeting strong { color: #FFFFFF; } /* Tên phi hành gia màu trắng */
+        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; }
         .highlight {
-            color: #e74c3c;
+            color: #FF7070; /* Màu đỏ nhạt nổi bật */
             font-weight: bold;
         }
+
+        /* --- Thẻ thông tin sứ mệnh --- */
+        .mission-card { 
+            background: rgba(0,0,0,0.25); 
+            border-radius: 10px; 
+            padding: 20px; 
+            border: 1px solid #3a2c5f; 
+            margin-top: 16px; 
+            margin-bottom: 24px;
+            font-size: 13px;
+            color: #D5D2F3;
+        }
+        .mission-card p {
+            margin: 0 0 8px;
+        }
+        .mission-card p:last-child {
+            margin-bottom: 0;
+        }
+        .mission-card strong {
+            color: #9B95AF; /* Nhãn màu xám tím */
+            margin-right: 8px;
+        }
+        .mission-card span {
+            color: #FFFFFF; /* Giá trị màu trắng */
+            font-weight: 500;
+        }
+
+        /* --- Hộp lý do (Quan trọng) --- */
+        .reason-box {
+            background: rgba(255, 85, 85, 0.1); /* Nền đỏ trong suốt */
+            border: 1px solid #e74c3c;
+            border-left-width: 4px; /* Giữ lại viền đỏ bên trái */
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0 20px;
+            color: #FFCDCD; /* Chữ màu đỏ nhạt */
+            white-space: pre-wrap; /* Giữ nguyên định dạng (xuống dòng) */
+            font-style: italic;
+        }
+
+        /* --- Hộp hành động --- */
+        .action-box {
+            background: rgba(0,0,0,0.25);
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #B891FF; /* Viền tím PWB */
+        }
+        .action-box p {
+            margin: 0;
+            font-size: 14px;
+        }
+        .action-box strong {
+            color: #B891FF; /* Chữ màu tím PWB */
+            font-size: 16px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        .divider { border: 0; height: 1px; margin: 24px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 24px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0 0 4px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>🚫 Hợp đồng bị từ chối</h1>
+        <!-- Header PWB đồng bộ -->
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
     </div>
     
     <div class="content">
-        <p>Xin chào <strong th:text="${recipient}">Owner</strong>,</p>
+        <!-- Tiêu đề Cảnh báo -->
+        <h1 class="warning-title">⚠️ CẢNH BÁO SỨ MỆNH</h1>
         
-        <p>Chúng tôi thông báo rằng khách hàng đã <span class="highlight">từ chối</span> hợp đồng của dự án:</p>
+        <p class="greeting">Phi hành gia <strong th:text="${recipient}">Owner</strong>,</p>
         
-        <div class="project-info">
-            <p><strong>Dự án:</strong> <span th:text="${projectTitle}">Project Title</span></p>
-            <p><strong>Contract ID:</strong> <span th:text="${contractId}">0</span></p>
-            <p><strong>Project ID:</strong> <span th:text="${projectId}">0</span></p>
+        <p>Trạm Chỉ Huy PWB rất tiếc phải thông báo rằng tín hiệu hợp đồng cho sứ mệnh của bạn đã bị <span class="highlight">từ chối</span> từ trạm mặt đất (Khách hàng).</p>
+        
+        <!-- Đổi tên class project-info -> mission-card -->
+        <div class="mission-card">
+            <p><strong>Sứ mệnh:</strong> <span th:text="${projectTitle}">Project Title</span></p>
+            <p><strong>ID Hợp đồng:</strong> <span th:text="${contractId}">0</span></p>
+            <p><strong>ID Sứ mệnh:</strong> <span th:text="${projectId}">0</span></p>
         </div>
 
-        <p><strong>Lý do từ chối:</strong></p>
-        <div class="reason" th:text="${reason}">Lý do chi tiết...</div>
+        <p><strong>Nội dung tín hiệu lỗi (Lý do từ chối):</strong></p>
+        <!-- Đổi tên class reason -> reason-box -->
+        <div class="reason-box" th:text="${reason}">Lý do chi tiết...</div>
 
-        <div class="action">
-            <p><strong>📝 Hành động tiếp theo:</strong></p>
-            <p>Vui lòng xem xét lý do từ chối, chỉnh sửa hợp đồng và gửi lại để khách hàng duyệt tiếp.</p>
+        <!-- Đổi tên class action -> action-box -->
+        <div class="action-box">
+            <p><strong>📝 Chỉ thị từ Trung tâm Điều khiển:</strong></p>
+            <p>Vui lòng xem xét tín hiệu lỗi, hiệu chỉnh lại các điều khoản hợp đồng và gửi lại để trạm mặt đất phê duyệt.</p>
         </div>
     </div>
 
+    <hr class="divider">
+
     <div class="footer">
-        <p>Producer Workbench - Hệ thống quản lý dự án âm nhạc</p>
-        <p>Email này được gửi tự động, vui lòng không trả lời.</p>
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
     </div>
 </div>
 </body>
 </html>
-
-

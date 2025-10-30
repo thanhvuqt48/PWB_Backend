@@ -8,6 +8,8 @@ import com.fpt.producerworkbench.common.TransactionType;
 import com.fpt.producerworkbench.configuration.PayosProperties;
 import com.fpt.producerworkbench.dto.request.PaymentRequest;
 import com.fpt.producerworkbench.dto.response.PaymentResponse;
+import com.fpt.producerworkbench.dto.response.PaymentStatusResponse;
+import com.fpt.producerworkbench.dto.response.PaymentLatestResponse;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
@@ -38,6 +40,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final MilestoneRepository milestoneRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final com.fpt.producerworkbench.service.ProSubscriptionService proSubscriptionService;
 
     @Override
     @Transactional
@@ -74,7 +77,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
         Transaction saved = transactionRepository.save(tx);
 
-        Long orderCode = saved.getId();
+        Long orderCode = com.fpt.producerworkbench.utils.OrderCodeGenerator.generate();
         saved.setTransactionCode(String.valueOf(orderCode));
         transactionRepository.save(saved);
 
@@ -147,6 +150,16 @@ public class PaymentServiceImpl implements PaymentService {
                         return new AppException(ErrorCode.TRANSACTION_NOT_FOUND);
                     });
 
+            log.info("[Webhook/PayOS] orderCode={} resolved type={}, status={}", orderCode, tx.getType(), tx.getStatus());
+
+            // Delegate subscription webhooks to ProSubscriptionService to keep logic in one place
+            if (TransactionType.SUBSCRIPTION.equals(tx.getType())) {
+                log.info("[Webhook/PayOS] Routing to SUBSCRIPTION handler. orderCode={}", orderCode);
+                proSubscriptionService.handleWebhook(body);
+                return;
+            }
+            log.info("[Webhook/PayOS] Routing to CONTRACT PAYMENT handler. orderCode={}", orderCode);
+
             if (!TransactionStatus.PENDING.equals(tx.getStatus())) {
                 log.warn("Webhook đã được xử lý. Mã đơn hàng: {}", orderCode);
                 return;
@@ -174,6 +187,63 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentStatusResponse getPaymentStatus(String orderCode) {
+        if (orderCode == null || orderCode.trim().isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        Transaction tx = transactionRepository.findByTransactionCode(orderCode)
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        Project project = null;
+        Contract contract = tx.getRelatedContract();
+        if (contract != null) {
+            project = contract.getProject();
+        }
+
+        return PaymentStatusResponse.builder()
+                .orderCode(orderCode)
+                .status(tx.getStatus().name())
+                .amount(tx.getAmount())
+                .projectId(project != null ? project.getId() : null)
+                .contractId(contract != null ? contract.getId() : null)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentLatestResponse getLatestPaymentByContract(Long userId, Long projectId, Long contractId) {
+        // Authorize: user must be a project member
+        projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
+
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
+        if (!contract.getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        Transaction tx = transactionRepository.findTopByRelatedContract_IdOrderByCreatedAtDesc(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        Milestone ms = tx.getRelatedMilestone();
+
+        return PaymentLatestResponse.builder()
+                .orderCode(tx.getTransactionCode())
+                .status(tx.getStatus().name())
+                .amount(tx.getAmount())
+                .projectId(projectId)
+                .contractId(contractId)
+                .paymentType(contract.getPaymentType().name())
+                .milestoneId(ms != null ? ms.getId() : null)
+                .milestoneSequence(ms != null ? ms.getSequence() : null)
+                .createdAt(tx.getCreatedAt())
+                .updatedAt(tx.getUpdatedAt())
+                .build();
+    }
 
     private BigDecimal calculatePaymentAmount(Contract contract) {
         if (PaymentType.FULL.equals(contract.getPaymentType())) {

@@ -1,208 +1,197 @@
 <!DOCTYPE html>
-<html lang="en">
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Producer Workbench</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Đổi tiêu đề -->
+    <title>Chào mừng Phi hành gia đến với Producer Workbench!</title>
+    <!-- Đổi font chữ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0a0a0a;
-            color: #ffffff;
+        /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+        body { 
+            font-family: 'Space+Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
+            color: #E3E1FA;
         }
-        .container {
-            width: 100%;
-            max-width: 700px;
-            margin: 20px auto;
-            background-color: #1a1a1a;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-            border: 1px solid #333;
+        .container { 
+            max-width: 600px; /* Email này rộng hơn một chút */
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
         }
-        .header {
-            background: linear-gradient(135deg, #ff6b35, #f7931e, #ffcd3c);
-            color: #000000;
-            padding: 30px;
-            text-align: center;
-            position: relative;
+        
+        /* --- Header đồng bộ --- */
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
         }
-        .header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="20" cy="20" r="2" fill="rgba(0,0,0,0.1)"/><circle cx="80" cy="30" r="1.5" fill="rgba(0,0,0,0.1)"/><circle cx="60" cy="70" r="1" fill="rgba(0,0,0,0.1)"/></svg>');
-            opacity: 0.3;
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        /* --- Nội dung chính --- */
+        .content { 
+            padding: 8px 30px 30px; /* Padding lớn hơn */
         }
-        .header h1 {
-            font-size: 32px;
-            margin: 0;
+        .greeting { 
+            margin: 16px 0 10px; 
+            font-size: 24px; 
             font-weight: 700;
-            position: relative;
-            z-index: 1;
+            color: #FFFFFF;
+            text-align: center;
         }
-        .header p {
-            position: relative;
-            z-index: 1;
-            margin: 10px 0 0 0;
-            font-weight: 500;
-        }
-        .body {
-            padding: 40px;
-            background-color: #1a1a1a;
+        .content p { 
+            margin: 0 0 16px; 
+            font-size: 15px; 
+            color: #D5D2F3; 
+            text-align: center;
         }
 
-        .body p {
-            line-height: 1.6;
-            margin: 15px 0;
-            color: #e0e0e0;
-        }
-        .body h3 {
-            color: #ff6b35;
-            margin-bottom: 20px;
-        }
-        .features {
-            display: flex;
-            justify-content: space-between;
+        /* --- Vùng Feature (Dùng table để tương thích email) --- */
+        .features-table {
+            width: 100%;
+            border-collapse: collapse;
             margin: 30px 0;
-            gap: 15px;
         }
         .feature-box {
-            width: 30%;
-            text-align: center;
+            /* Nền mờ */
+            background: rgba(0,0,0,0.25);
+            border: 1px solid #3a2c5f;
+            border-radius: 10px;
             padding: 20px 15px;
-            background: linear-gradient(145deg, #242424, #1e1e1e);
-            border-radius: 15px;
-            border: 1px solid #333;
-            transition: transform 0.3s ease;
-        }
-        .feature-box:hover {
-            transform: translateY(-5px);
+            text-align: center;
+            width: 30%; /* ~30% cho 3 cột */
         }
         .feature-icon {
             width: 60px;
             height: 60px;
             margin: 0 auto 15px;
-            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            /* Nền icon màu tím PWB */
+            background: #C058F5;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
+            font-size: 28px;
+            color: #FFFFFF;
+            box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
         }
         .feature-box h4 {
-            color: #ffcd3c;
+            color: #FFFFFF;
             margin: 15px 0 10px;
             font-size: 16px;
+            font-weight: 700;
         }
         .feature-box p {
-            font-size: 14px;
-            color: #b0b0b0;
+            font-size: 13px;
+            color: #9B95AF; /* Chữ phụ */
+            text-align: center;
+            line-height: 1.4;
         }
 
-        .cta-section {
-            text-align: center;
-            margin: 30px 0;
-            padding: 25px;
-            background: linear-gradient(145deg, #2a2a2a, #1f1f1f);
-            border-radius: 12px;
-            border: 1px solid #444;
-        }
-        .cta-button {
-            display: inline-block;
-            padding: 12px 30px;
-            background: linear-gradient(135deg, #ff6b35, #f7931e);
-            color: #000;
-            text-decoration: none;
-            border-radius: 25px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .cta-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
-        }
-
-        .footer {
-            background-color: #111;
-            color: #888;
-            padding: 20px;
-            text-align: center;
-            font-size: 14px;
-            border-top: 1px solid #333;
-        }
+        /* --- Vùng CTA (Đã bị xóa theo yêu cầu) --- */
+        
+        /* --- Footer --- */
+        .divider { border: 0; height: 1px; margin: 24px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+        .footer { padding: 0 16px 24px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0 0 4px; text-align: center; }
         .footer a {
-            color: #ff6b35;
+            color: #B891FF; /* Màu link tím nhạt */
             text-decoration: none;
         }
-        .footer a:hover {
-            text-decoration: underline;
-        }
 
+        /* --- Responsive cho mobile --- */
         @media (max-width: 600px) {
-            .features {
-                flex-direction: column;
-            }
-            .feature-box {
-                width: 100%;
+            .features-table, .feature-box {
+                width: 100% !important;
+                display: block;
                 margin-bottom: 15px;
             }
+            .greeting { font-size: 22px; }
+            .content { padding: 8px 20px 20px; }
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <!-- Header -->
+    <!-- Header PWB đồng bộ -->
     <div class="header">
-        <h1>🎵 Producer Workbench</h1>
-        <p>Your ultimate music production hub is ready!</p>
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
     </div>
 
     <!-- Body -->
-    <div class="body">
-        <h3>Welcome, [[${recipientName}]]! 🎧</h3>
-        <p>Chào mừng bạn đến với <strong>Producer Workbench</strong> - nền tảng quản lý nhạc và hỗ trợ producer chuyên nghiệp. Chúng tôi đã tạo ra một không gian làm việc hoàn hảo để bạn có thể quản lý các dự án âm nhạc và tương tác hiệu quả với khách hàng.</p>
-        <p>Những tính năng mạnh mẽ đang chờ bạn khám phá:</p>
+    <div class="content">
+        <!-- Giữ nguyên logic [[...]] -->
+        <h3 class="greeting">Chào mừng Phi hành gia [[${recipientName}]]!</h3>
+        <p>Bạn đã chính thức cập bến <strong>Producer Workbench</strong> - Trạm Chỉ Huy tối thượng dành cho các nhà du hành âm thanh. Chúng tôi đã chuẩn bị sẵn sàng bệ phóng để bạn bắt đầu các sứ mệnh và kết nối với phi hành đoàn của mình.</p>
+        <p>Các module mạnh mẽ nhất đang chờ bạn khám phá:</p>
 
-        <!-- Features Section -->
-        <div class="features">
-            <div class="feature-box">
-                <div class="feature-icon">🎹</div>
-                <h4>Quản Lý Dự Án</h4>
-                <p>Tổ chức track, beat, và sample một cách chuyên nghiệp. Theo dõi tiến độ từng dự án âm nhạc.</p>
-            </div>
-            <div class="feature-box">
-                <div class="feature-icon">🤝</div>
-                <h4>Kết Nối Khách Hàng</h4>
-                <p>Giao tiếp trực tiếp với khách hàng, chia sẻ demo, và nhận feedback real-time.</p>
-            </div>
-            <div class="feature-box">
-                <div class="feature-icon">📊</div>
-                <h4>Phân Tích & Báo Cáo</h4>
-                <p>Thống kê doanh thu, theo dõi xu hướng, và tối ưu hóa workflow sản xuất của bạn.</p>
-            </div>
-        </div>
+        <!-- Features Section (dùng table) -->
+        <table class="features-table" role="presentation">
+            <tr>
+                <td class="feature-box" style="width: 30%;">
+                    <div class="feature-icon">🚀</div>
+                    <h4>Quản Lý Sứ Mệnh</h4>
+                    <p>Tổ chức các tín hiệu (tracks, beats, samples). Theo dõi tiến độ của từng hành trình âm nhạc.</p>
+                </td>
+                <td style="width: 5%;"></td> <!-- Khoảng đệm -->
+                <td class="feature-box" style="width: 30%;">
+                    <div class="feature-icon">🛰️</div>
+                    <h4>Kết Nối Phi Đội</h4>
+                    <p>Giao tiếp trực tiếp với trạm mặt đất (khách hàng), chia sẻ bản demo, và nhận phản hồi thời gian thực.</p>
+                </td>
+                <td style="width: 5%;"></td> <!-- Khoảng đệm -->
+                <td class="feature-box" style="width: 30%;">
+                    <div class="feature-icon">📊</div>
+                    <h4>Bảng Điều Khiển</h4>
+                    <p>Thống kê dữ liệu hành trình (doanh thu), theo dõi các hố đen (xu hướng), và tối ưu hóa quy trình của bạn.</p>
+                </td>
+            </tr>
+        </table>
 
-        <div class="cta-section">
-            <h4 style="color: #ffcd3c; margin-bottom: 15px;">Sẵn sàng bắt đầu chưa?</h4>
-            <p style="margin-bottom: 20px;">Khám phá workspace cá nhân của bạn và tạo ra những tác phẩm âm nhạc đỉnh cao!</p>
-            <a href="#" class="cta-button">Truy Cập Workspace 🚀</a>
-        </div>
+        <!-- CTA Section đã bị xóa -->
 
-        <p>Nếu bạn có bất kỳ câu hỏi nào hoặc cần hỗ trợ, đừng ngần ngại reply email này hoặc liên hệ team support 24/7. Chúng tôi luôn sẵn sàng đồng hành cùng hành trình sáng tạo âm nhạc của bạn!</p>
-
+        <p style="text-align: center; font-size: 14px; color: #D5D2F3;">Nếu bạn có bất kỳ câu hỏi nào, đừng ngần ngại phản hồi email này. Chúng tôi luôn sẵn sàng hỗ trợ hành trình của bạn!</p>
     </div>
 
     <!-- Footer -->
+    <hr class="divider">
     <div class="footer">
-        <p>Producer Workbench Team &copy; 2024 | Making Music Production Easier</p>
-        <p><a href="[[${unsubscribeLink}]]">Unsubscribe</a> | <a href="#">Privacy Policy</a> | <a href="#">Support Center</a></p>
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB &copy; 2025</strong></p>
+        <!-- Bỏ link động [[${unsubscribeLink}]] và thay bằng link tĩnh -->
+        <p><a href="#">Ngừng nhận tín hiệu</a> | <a href="#">Chính sách Bảo mật</a></p>
     </div>
 </div>
 </body>
 </html>
+
