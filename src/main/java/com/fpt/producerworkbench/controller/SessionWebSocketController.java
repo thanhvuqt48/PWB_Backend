@@ -188,6 +188,7 @@ public class SessionWebSocketController {
         }
 
     }
+
     private void sendAnonymousMessage(String sessionId, ChatMessage message) {
         ChatMessage anonymousMessage = ChatMessage.builder()
                 .messageId(UUID.randomUUID().toString())

@@ -6,20 +6,23 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.service.ContractSigningService;
-import com.fpt.producerworkbench.service.StorageService;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.Resource;
+import com.fpt.producerworkbench.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.common.ContractDocumentType;
 
-import java.nio.file.Path;
 
 
+/**
+ * Controller xử lý việc lưu bản ký cuối của hợp đồng
+ * 
+ * CHÚ Ý: Chức năng webhook tự động đã bị vô hiệu hóa.
+ * Chỉ sử dụng API thủ công này để lưu bản ký cuối.
+ * 
+ * Endpoint: POST /api/v1/contracts/{id}/signed
+ */
 @RestController
 @RequestMapping("/api/v1/contracts")
 @RequiredArgsConstructor
@@ -27,7 +30,7 @@ public class ContractSigningController {
 
     private final ContractSigningService contractSigningService;
     private final ContractDocumentRepository contractDocumentRepository;
-    private final StorageService  storageService;
+    private final FileStorageService fileStorageService;
 
     @PostMapping("/{id}/signed")
     public ApiResponse<SignedContractResponse> saveSignedAndComplete(
@@ -39,17 +42,12 @@ public class ContractSigningController {
     }
 
     @GetMapping("/{id}/signed/file")
-    public ResponseEntity<Resource> viewSignedPdf(@PathVariable Long id) {
+    public ResponseEntity<Void> viewSignedPdf(@PathVariable Long id) {
         var doc = contractDocumentRepository
                 .findTopByContract_IdAndTypeOrderByVersionDesc(id, ContractDocumentType.SIGNED)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_DOC_NOT_FOUND));
 
-        byte[] bytes = storageService.read(doc.getStorageUrl());
-        String filename = Path.of(doc.getStorageUrl()).getFileName().toString();
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
-                .body(new ByteArrayResource(bytes));
+        String url = fileStorageService.generatePresignedUrl(doc.getStorageUrl(), false, null);
+        return ResponseEntity.status(302).header(HttpHeaders.LOCATION, url).build();
     }
 }

@@ -32,6 +32,21 @@ services:
       retries: 5
       start_period: 60s
 
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "7777:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=
+      - DYNAMIC_CONFIG_ENABLED=true
+    depends_on:
+      - kafka
+    networks:
+      - app-network
+
   redis:
     image: redis:latest
     container_name: redis
@@ -67,7 +82,7 @@ services:
 
   pwb-service:
     # Thay đổi từ build sang image
-    image: ${DOCKER_USERNAME}/pwb-backend:develop
+    image: ${DOCKER_USERNAME}/pwb-backend:1.0
     container_name: producerworkbench
     restart: unless-stopped
     ports:

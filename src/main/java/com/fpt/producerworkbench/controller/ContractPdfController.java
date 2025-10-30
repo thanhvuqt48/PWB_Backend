@@ -21,14 +21,14 @@ public class ContractPdfController {
 
     ContractPdfService contractPdfService;
 
-    @PostMapping(value = "fill", produces = "application/pdf")
-//    @PreAuthorize("hasRole('OWNER')")
+    @PostMapping(value = "{projectId}/fill", produces = "application/pdf")
     public ResponseEntity<byte[]> fill(
             Authentication auth,
+            @PathVariable Long projectId,
             @Valid @RequestBody ContractPdfFillRequest req,
             HttpServletRequest request
     ) {
-        byte[] pdf = contractPdfService.fillTemplate(auth, req);
+        byte[] pdf = contractPdfService.fillTemplate(auth, projectId, req);
         return ResponseEntity.ok()
                 .header("Content-Disposition", "inline; filename=contract.pdf")
                 .body(pdf);

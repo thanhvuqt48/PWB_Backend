@@ -27,6 +27,7 @@ public enum ErrorCode {
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
+    FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
 
     // ===== Lỗi liên quan đến Người dùng (User) (3xxx) =====
     USER_EXISTED(3001, "Người dùng với email này đã tồn tại.", HttpStatus.BAD_REQUEST),
@@ -37,6 +38,7 @@ public enum ErrorCode {
     ACCOUNT_ALREADY_VERIFIED(3006, "Tài khoản này đã được xác thực trước đó.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi liên quan đến Tài nguyên chung (4xxx) =====
+    USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),
     RESOURCE_NOT_FOUND(4001, "Không tìm thấy tài nguyên được yêu cầu.", HttpStatus.NOT_FOUND),
     DUPLICATE_RESOURCE(4002, "Tài nguyên đã tồn tại.", HttpStatus.CONFLICT),
     UPLOAD_FAILED(4003, "Upload file thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -74,6 +76,14 @@ public enum ErrorCode {
     SIGNNOW_DOWNLOAD_FAILED(7005, "Tải thất bại.", HttpStatus.BAD_REQUEST),
     SIGNNOW_DOC_NOT_COMPLETED(7006, "Hợp đồng chưa hoàn tất ký.", HttpStatus.BAD_REQUEST),
     CONTRACT_DOC_NOT_FOUND(7007, "Không tìm thấy hợp đồng.", HttpStatus.BAD_REQUEST),
+    ALREADY_SIGNED_FINAL(7008, "Hợp đồng đã có bản ký cuối. Không thể lưu thêm.", HttpStatus.CONFLICT),
+    INVITE_NOT_ALLOWED_ALREADY_COMPLETED(7009, "Hợp đồng đã hoàn tất ký. Không thể mời ký lại.", HttpStatus.CONFLICT),
+    CLIENT_NOT_FOUND(7010, "Dự án chưa có khách hàng. Vui lòng mời khách hàng tham gia dự án trước.", HttpStatus.BAD_REQUEST),
+    CONTRACT_ALREADY_DECLINED(7011, "Hợp đồng đã bị từ chối trước đó. Không thể từ chối lại.", HttpStatus.CONFLICT),
+    CONTRACT_ALREADY_COMPLETED(7012, "Hợp đồng đã hoàn tất ký. Không thể từ chối.", HttpStatus.CONFLICT),
+    CONTRACT_NOT_DECLINED(7013, "Hợp đồng chưa bị từ chối.", HttpStatus.BAD_REQUEST),
+    MILESTONES_TOTAL_NOT_ENOUGH(7014, "Tổng số tiền các cột mốc nhỏ hơn tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
+    MILESTONES_TOTAL_EXCEEDS(7015, "Tổng số tiền các cột mốc vượt quá tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -88,17 +98,34 @@ public enum ErrorCode {
     AGORA_CONFIG_MISSING(6002, "Cấu hình Agora bị thiếu", HttpStatus.INTERNAL_SERVER_ERROR),
     AGORA_CHANNEL_INVALID(6003, "Tên kênh Agora không hợp lệ", HttpStatus.BAD_REQUEST),
     AGORA_TOKEN_INVALID(6004, "Định dạng mã thông báo Agora không hợp lệ", HttpStatus.BAD_REQUEST),
+    MESSAGE_NOT_PART_OF_STORY(400, "Tin nhắn không thuộc đoạn trò chuyện này", HttpStatus.BAD_REQUEST),
+    CONVERSATION_NOT_FOUND(404, "Đoạn trò chuyện không tồn tại", HttpStatus.NOT_FOUND),
+    MEDIA_URL_NOT_BLANK(400, "URL của file đính kèm không được để trống", HttpStatus.BAD_REQUEST),
+    MESSAGE_NOT_FOUND(404, "Tin nhắn không tồn tại", HttpStatus.NOT_FOUND),
     AGORA_TOKEN_EXPIRED(6005, "Tên kênh Agora không hợp lệ", HttpStatus.UNAUTHORIZED),
     AGORA_UID_INVALID(6006, "Agora UID không hợp lệ", HttpStatus.BAD_REQUEST),
     // ========== File Related (7xxx) ==========
     FILE_NOT_FOUND(7001, "Không tìm thấy file", HttpStatus.NOT_FOUND),
+    PARTICIPANT_INVALID(400, "Một hoặc nhiều người dùng không tồn tại", HttpStatus.BAD_REQUEST),
+
+    TRANSACTION_NOT_FOUND(8002, "Không tìm thấy giao dịch.", HttpStatus.NOT_FOUND),
+    NO_ACCESS(8003, "Không có quyền truy cập.", HttpStatus.FORBIDDEN),
     FILE_NOT_IN_PROJECT(7002, "File không thuộc về dự án này", HttpStatus.FORBIDDEN),
     INVALID_FILE_FORMAT(7003, "Định dạng file không hợp lệ", HttpStatus.BAD_REQUEST),
 
     // ========== Playback Related (8xxx) ==========
+    CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
+    INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
+    PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+
+    MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
     PLAYBACK_CONTROL_DENIED(8001, "Bạn không có quyền điều khiển phát lại", HttpStatus.FORBIDDEN),
     NO_FILE_PLAYING(8002, "Hiện tại không có file nào đang phát", HttpStatus.BAD_REQUEST),
     INVALID_PLAYBACK_POSITION(8003, "Vị trí phát lại không hợp lệ", HttpStatus.BAD_REQUEST),
+    PROJECT_MEMBER_NOT_FOUND(8010, "Không tìm thấy thành viên dự án.", HttpStatus.NOT_FOUND),
+
     // ========== Chat Related (9xxx) ==========
     CHAT_MESSAGE_NOT_FOUND(9001, "Không tìm thấy tin nhắn chat", HttpStatus.NOT_FOUND),
     CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),

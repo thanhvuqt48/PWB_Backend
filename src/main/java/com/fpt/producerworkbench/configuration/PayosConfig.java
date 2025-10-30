@@ -12,7 +12,7 @@ public class PayosConfig {
     private final PayosProperties payosProperties;
 
     @Bean
-    public vn.payos.PayOS payOS() {
+    public PayOS payOS() {
         return new PayOS(
                 payosProperties.getClientId(),
                 payosProperties.getApiKey(),

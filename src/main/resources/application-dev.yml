@@ -28,13 +28,20 @@ spring:
     consumer:
       group-id: my-consumer-group
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual
+
     properties:
-      spring.json.trusted.packages: "com.fpt.producerworkbench.dto.event"
+      spring.json.trusted.packages: "com.fpt.producerworkbench.dto.event,com.fpt.producerworkbench.dto.request"
+      spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+      spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
 
   data:
     redis:
@@ -46,10 +53,12 @@ spring:
     time-zone: Asia/Ho_Chi_Minh
     date-format: yyyy-MM-dd
 
+
+
 jwt:
   secret-key: ${SECRET_KEY}
-  valid-duration: 240
-  refreshable-duration: 140
+  valid-duration: 24
+  refreshable-duration: 14
 
 admin:
   username: ${ADMIN_USERNAME}
@@ -113,7 +122,7 @@ outbound:
     redirect-uri: ${OUTBOUND_REDIRECT_URI}
 
 cors:
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
 
 payos:
   client-id: ${PAYOS_CLIENT_ID}
