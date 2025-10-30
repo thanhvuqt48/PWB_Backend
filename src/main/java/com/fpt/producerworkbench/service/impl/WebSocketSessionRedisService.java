@@ -27,7 +27,7 @@ public class WebSocketSessionRedisService {
         Assert.hasText(session.getUserId().toString(), "UserId must not be empty");
         Assert.hasText(session.getSocketSessionId(), "SocketSessionId must not be empty");
 
-        Long userId = session.getUserId();
+        String userId = session.getUserId();
         String socketSessionId = session.getSocketSessionId();
         String sessionKey = SESSION_KEY_PREFIX + socketSessionId;
         String userSessionsKey = USER_SESSIONS_KEY_PREFIX + userId;
@@ -73,7 +73,7 @@ public class WebSocketSessionRedisService {
         }
     }
 
-    public Set<WebSocketSession> getSessionByUserIds(Set<Long> userIds) {
+    public Set<WebSocketSession> getSessionByUserIds(Set<String> userIds) {
         if(userIds == null || userIds.isEmpty()) {
             return new HashSet<>();
         }

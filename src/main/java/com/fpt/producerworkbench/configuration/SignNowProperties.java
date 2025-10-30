@@ -23,6 +23,14 @@ public class SignNowProperties {
         private int readTimeoutMs = 20000;
     }
 
+    @Data
+    public static class Webhook {
+        private String callbackUrl;
+        private String secretKey;
+        private boolean withHistory = false;
+    }
+
     private Auth auth = new Auth();
     private Http http = new Http();
+    private Webhook webhook = new Webhook();
 }

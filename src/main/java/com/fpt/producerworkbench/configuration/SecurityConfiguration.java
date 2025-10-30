@@ -50,6 +50,7 @@ public class SecurityConfiguration {
             "/api/v1/pro-packages/type/**",
             "/api/v1/pro-packages/*/active",
             "/api/v1/payments/webhook",
+            "/api/v1/integrations/signnow/webhook/**",
             "/ws-raw/**",
             "/ws-raw",
             // WebSocket endpoints
