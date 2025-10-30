@@ -17,8 +17,11 @@ public class ContractInviteController {
 
     @PostMapping("/{id}/invites")
     public ApiResponse<StartSigningResponse> invite(@PathVariable Long id,
-                                                    @RequestBody ContractInviteRequest req,
+                                                    @RequestBody(required = false) ContractInviteRequest req,
                                                     Authentication auth) {
+        if (req == null) {
+            req = new ContractInviteRequest();
+        }
         var result = contractInviteService.invite(auth, id, req);
         return ApiResponse.<StartSigningResponse>builder().code(200).result(result).build();
     }

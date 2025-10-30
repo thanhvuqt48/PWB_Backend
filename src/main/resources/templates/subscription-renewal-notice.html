@@ -4,7 +4,7 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <!-- Đổi tiêu đề -->
-    <title>Tín hiệu mời tham gia Sứ mệnh!</title>
+    <title>Cảnh báo: Tín hiệu PRO sắp gián đoạn!</title>
     <!-- Đổi font chữ -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -44,29 +44,23 @@
 
         /* --- Nội dung chính --- */
         .content { padding: 8px 24px 24px; }
-        .greeting { margin: 0 0 10px; font-size: 16px; text-align: center;}
-        /* Chào người dùng bằng email nếu chưa có tên */
-        .greeting strong { color: #FFFFFF; font-size: 18px; }
-        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; text-align: center; }
-
-        /* --- Thẻ thông tin (Mission Card) --- */
-        .mission-card { 
+        .greeting { margin: 0 0 10px; font-size: 16px; }
+        .greeting strong { color: #FFFFFF; } /* Tên phi hành gia màu trắng */
+        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; text-align: left; }
+        
+        /* --- Thẻ trạng thái (Status Card) --- */
+        .status-card { 
             background: rgba(0,0,0,0.25); 
             border-radius: 10px; 
             padding: 20px; 
-            border: 1px solid #3a2c5f; 
+            /* Thêm viền VÀNG để báo hiệu "cảnh báo" */
+            border: 1px solid #f0ad4e; 
             margin: 20px 0 24px;
             font-size: 13px;
             color: #D5D2F3;
-        }
-        .mission-detail {
             text-align: center;
-            margin-bottom: 16px;
         }
-        .mission-detail:last-child {
-            margin-bottom: 0;
-        }
-        .mission-label {
+        .status-label {
             display: block; 
             font-size: 12px; 
             color: #9B95AF; 
@@ -74,12 +68,22 @@
             font-weight: 600; 
             letter-spacing: 0.6px; 
         }
-        .mission-value {
-            font-size: 18px; 
+        .status-value {
+            font-size: 20px; 
             font-weight: 700; 
             color: #FFFFFF; 
             letter-spacing: 1px;
             margin: 0;
+        }
+        /* Tô vàng chữ PRO Sắp hết hạn */
+        .status-value.warning {
+            color: #f0ad4e;
+            font-size: 22px;
+        }
+        /* Tô vàng số ngày */
+        .grace-days {
+             color: #f0ad4e;
+             font-weight: 700;
         }
 
         /* --- Nút CTA (Call to Action) --- */
@@ -130,33 +134,28 @@
     
     <div class="content">
         <!-- Đổi lời chào -->
-        <p class="greeting">Chào Phi hành gia,</p>
+        <p class="greeting">Phi hành gia <strong th:text="${recipient}">bạn</strong>,</p>
         
         <!-- Đổi nội dung -->
-        <p>Một tín hiệu mời tham gia sứ mệnh âm nhạc mới đang chờ bạn. Bạn đã được mời tham gia một dự án trên Producer Workbench.</p>
+        <p>Trung tâm Điều khiển PWB thông báo: Tín hiệu <strong>PRO</strong> của bạn sắp hết hạn. Vui lòng gia hạn để tránh gián đoạn kết nối đến các sứ mệnh của bạn.</p>
 
-        <!-- Thẻ thông tin sứ mệnh -->
-        <div class="mission-card">
-            <div class="mission-detail">
-                <span class="mission-label">Từ Chỉ huy Sứ mệnh (Người mời):</span>
-                <b class="mission-value" th:text="${inviterName}">[Tên người mời]</b>
-            </div>
-            <div class="mission-detail">
-                <span class="mission-label">Tên Sứ mệnh (Dự án):</span>
-                <b class="mission-value" th:text="${projectName}">[Tên dự án]</b>
-            </div>
-            <div class="mission-detail">
-                <span class="mission-label">Vị trí của bạn (Vai trò):</span>
-                <b class="mission-value" th:text="${role}">[Vai trò]</b>
-            </div>
+        <!-- Thẻ trạng thái -->
+        <div class="status-card">
+            <span class="status-label">Trạng thái Tín hiệu:</span>
+            <b class="status-value warning">PRO (SẮP HẾT HẠN)</b>
+            <p style="margin-top: 12px; margin-bottom: 0; font-size: 13px; color: #D5D2F3;">
+                Thời gian duy trì tín hiệu còn: <strong class="grace-days" th:text="${graceDays}">5</strong> ngày.
+            </p>
         </div>
-
-        <p>Vui lòng nhấn vào nút dưới đây để tiếp nhận. Tín hiệu này có hiệu lực trong 2 ngày.</p>
         
-        <!-- Đổi nút CTA -->
-        <div style="text-align: center; margin-top: 8px;">
-            <a th:href="${invitationLink}" class="cta-button">TIẾP NHẬN SỨ MỆNH</a>
+        <!-- Nút CTA -->
+        <div style="text-align: center; margin-top: 8px; margin-bottom: 24px;">
+            <a th:href="${checkoutUrl}" class="cta-button">DUY TRÌ TÍN HIỆU PRO</a>
         </div>
+
+        <p style="font-size: 12px; color: #9B95AF; text-align: center;">
+            Nếu bạn không gia hạn trong thời gian ân hạn, tài khoản sẽ tự động được hạ cấp về Gói 'Du hành Tự do' (Miễn phí).
+        </p>
     </div>
 
     <hr class="divider">

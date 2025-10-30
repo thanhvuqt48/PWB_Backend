@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
     Optional<Transaction> findByTransactionCode(String transactionCode);
+
+    Optional<Transaction> findTopByRelatedContract_IdOrderByCreatedAtDesc(Long contractId);
 }

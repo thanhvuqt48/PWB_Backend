@@ -1,138 +1,180 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Một thành viên mới đã tham gia dự án của bạn!</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Đổi tiêu đề -->
+    <title>Thông báo: Phi hành đoàn có thành viên mới!</title>
+    <!-- Đổi font chữ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #0d0c1d;
-            font-family: 'Roboto', sans-serif;
-            color: #E0E0E0;
+        /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+        body { 
+            font-family: 'Space Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
         }
-        .email-container {
-            max-width: 600px;
-            margin: 40px auto;
-            background: #110f27 url('https://www.transparenttextures.com/patterns/stardust.png');
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid #4a3d7a;
-            box-shadow: 0 0 50px rgba(168, 85, 247, 0.2);
+        .container { 
+            max-width: 480px;
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
         }
-        .header {
-            padding: 40px;
-            text-align: center;
+        
+        /* --- Header đồng bộ --- */
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
         }
-        .header h1 {
-            color: #FFFFFF;
-            font-size: 28px;
-            margin: 0;
-            font-weight: 700;
-            text-shadow: 0 0 5px rgba(255, 255, 255, 0.6), 0 0 15px rgba(192, 132, 252, 0.5), 0 0 30px rgba(56, 189, 248, 0.4);
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        /* --- Nội dung chính --- */
+        .content { padding: 8px 24px 24px; }
+        .greeting { margin: 0 0 10px; font-size: 16px; }
+        .greeting strong { color: #FFFFFF; } /* Tên phi hành gia màu trắng */
+        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; text-align: left; }
+        .highlight {
+            color: #C058F5; /* Màu tím PWB */
+            font-weight: bold;
         }
-        .content {
-            padding: 0 40px 40px;
-            text-align: center;
-            line-height: 1.6;
+
+        /* --- Thẻ thông tin (Mission Card) --- */
+        .mission-card { 
+            background: rgba(0,0,0,0.25); 
+            border-radius: 10px; 
+            padding: 20px; 
+            /* Thêm viền xanh lá để báo hiệu "thành công/tham gia" */
+            border: 1px solid #28a745; 
+            margin: 20px 0 24px;
+            font-size: 13px;
+            color: #D5D2F3;
         }
-        .content p {
-            font-size: 16px;
-            color: #b3b0c5;
-            margin: 20px 0;
+        .mission-detail {
+            text-align: left;
+            margin-bottom: 16px;
         }
-        .member-card {
-            background-color: rgba(0, 0, 0, 0.2);
-            border: 1px solid #4a3d7a;
-            border-radius: 12px;
-            padding: 25px;
-            margin: 30px auto;
-            box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.15);
-            text-align: center; /* Changed from left to center */
-        }
-        .member-card .detail {
-            margin: 15px 0;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #4a3d7a;
-        }
-        .member-card .detail:last-child {
-            border-bottom: none;
-            padding-bottom: 0;
+        .mission-detail:last-child {
             margin-bottom: 0;
         }
-        .member-card b {
-            color: #FFFFFF;
-            font-weight: 700;
-            font-size: 16px;
+        .mission-label {
+            display: block; 
+            font-size: 12px; 
+            color: #9B95AF; 
+            margin-bottom: 4px; 
+            font-weight: 600; 
+            letter-spacing: 0.6px; 
         }
-        .label {
-            color: #a3a0b5;
-            display: block;
-            font-size: 14px;
-            margin-bottom: 4px;
+        .mission-value {
+            font-size: 16px; 
+            font-weight: 700; 
+            color: #FFFFFF; 
+            letter-spacing: 1px;
+            margin: 0;
         }
+        /* Tô xanh lá tên thành viên mới */
+        .new-member {
+            color: #4ade80;
+            font-size: 18px;
+        }
+
+        /* --- Nút CTA (Call to Action) --- */
         .cta-button {
             display: inline-block;
-            background: linear-gradient(90deg, #8A2BE2 0%, #4A00E0 100%);
+            background: #C058F5; 
             color: #FFFFFF;
-            padding: 15px 30px;
+            padding: 12px 28px;
             border-radius: 8px;
             text-decoration: none;
             font-weight: 700;
             font-size: 16px;
-            margin-top: 20px;
             transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
         }
         .cta-button:hover {
             transform: scale(1.05);
-            box-shadow: 0 0 25px rgba(138, 43, 226, 0.6);
+            box-shadow: 0 0 25px rgba(192, 88, 245, 0.7);
         }
-        .footer {
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #7b798e;
-            border-top: 1px solid #4a3d7a;
-        }
-        .footer p {
-            margin: 5px 0;
-        }
+        
+        .divider { border: 0; height: 1px; margin: 24px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 24px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0 0 4px; }
     </style>
 </head>
 <body>
-<div class="email-container">
+<div class="container">
     <div class="header">
-        <img src="https://img.icons8.com/fluency/96/add-user-male.png" alt="New Member Icon" style="width: 80px; height: 80px; margin-bottom: 20px; filter: drop-shadow(0 0 15px #38bdf8);"/>
-        <h1>THÀNH VIÊN MỚI THAM GIA</h1>
+        <!-- Header PWB đồng bộ -->
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
     </div>
+    
     <div class="content">
-        <p style="font-size: 18px;">Chào <b th:text="${ownerName}">[Tên chủ dự án]</b>,</p>
-        <p>
-            Phi hành đoàn sáng tạo của bạn vừa có thêm một thành viên mới trong dự án <b th:text="${projectName}" style="color: #c084fc;">[Tên dự án]</b>.
-        </p>
-        <div class="member-card">
-            <div class="detail">
-                <span class="label">Tên:</span>
-                <b th:text="${newMemberName}">[Tên thành viên mới]</b>
+        <!-- Đổi lời chào -->
+        <p class="greeting">Chỉ huy <strong th:text="${ownerName}">[Tên chủ dự án]</strong>,</p>
+        
+        <!-- Đổi nội dung -->
+        <p>Phi hành đoàn của bạn cho sứ mệnh <strong class="highlight" th:text="${projectName}">[Tên dự án]</strong> vừa tiếp nhận một thành viên mới.</p>
+
+        <!-- Thẻ thông tin sứ mệnh -->
+        <div class="mission-card">
+            <div class="mission-detail">
+                <span class="mission-label">Tên Phi hành gia:</span>
+                <b class="mission-value new-member" th:text="${newMemberName}">[Tên thành viên mới]</b>
             </div>
-            <div class="detail">
-                <span class="label">Email:</span>
-                <b th:text="${newMemberEmail}">[Email thành viên mới]</b>
+            <div class="mission-detail">
+                <span class="mission-label">Tọa độ (Email):</span>
+                <b class="mission-value" th:text="${newMemberEmail}">[Email thành viên mới]</b>
             </div>
-            <div class="detail">
-                <span class="label">Vai trò:</span>
-                <b th:text="${role}">[Vai trò]</b>
+            <div class="mission-detail">
+                <span class="mission-label">Vị trí (Vai trò):</span>
+                <b class="mission-value" th:text="${role}">[Vai trò]</b>
             </div>
         </div>
-        <p>Bạn có thể quản lý vai trò và phân chia công việc tại bảng điều khiển Team của dự án.</p>
-        <a href="#" class="cta-button">Quản lý Team</a>
+
+        <p>Bạn có thể quản lý vai trò và phân công nhiệm vụ tại bảng điều khiển Phi hành đoàn của sứ mệnh.</p>
+        
+        <!-- Đổi nút CTA -->
+        <!-- *** LƯU Ý: Hãy thay thế th:href bằng URL quản lý thành viên của bạn *** -->
+        <div style="text-align: center; margin-top: 8px;">
+            <a th:href="${projectUrl}" class="cta-button">QUẢN LÝ PHI HÀNH ĐOÀN</a>
+        </div>
     </div>
+
+    <hr class="divider">
+
     <div class="footer">
-        <p>Trân trọng,<br/><b>Đội ngũ Producer Workbench</b></p>
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
     </div>
 </div>
 </body>
 </html>
-

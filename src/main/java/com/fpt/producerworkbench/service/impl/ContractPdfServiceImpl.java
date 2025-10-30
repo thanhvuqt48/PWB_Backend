@@ -660,7 +660,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                     .setMultipliedLeading(1.2f)
                     .setMarginTop(2).setMarginBottom(0)
                     .setMarginLeft(0).setMarginRight(0);
-            p.add(new Text("Điều 10. ").setBold());
+            p.add(new Text("Điều 9. ").setBold());
 
             com.itextpdf.layout.element.Div div = new com.itextpdf.layout.element.Div()
                     .setWidth(rect.getWidth()).setMargin(0).setPadding(0)

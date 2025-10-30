@@ -134,3 +134,7 @@ payos:
   checksum-key: ${PAYOS_CHECKSUM_KEY}
   return-url: ${PAYOS_RETURN_URL}
   cancel-url: ${PAYOS_CANCEL_URL}
+
+subscription:
+  grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
+  renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}
