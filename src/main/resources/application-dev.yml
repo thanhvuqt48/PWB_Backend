@@ -75,6 +75,10 @@ producer:
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}
   client-secret: ${SPOTIFY_CLIENT_SECRET}
+agora:
+  app:
+    id: ${AGORA_APP_ID}
+    certificate: ${AGORA_APP_CERTIFICATE}
 
 signnow:
   base-url: ${SN_BASE_URL:https://api.signnow.com}
