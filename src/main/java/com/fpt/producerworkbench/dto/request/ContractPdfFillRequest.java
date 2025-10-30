@@ -124,6 +124,8 @@ public class ContractPdfFillRequest {
     @JsonProperty("percent")
     String percent;
 
+    @JsonProperty("additionalTerms") String additionalTerms;
+
     @JsonProperty("fpEditAmount")
     Integer fpEditAmount;
 }

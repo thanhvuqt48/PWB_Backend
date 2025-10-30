@@ -24,15 +24,23 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SignNowClient {
 
-    private final WebClient apiClient;
     private final SignNowAuthService authService;
+    private final SignNowProperties props;
+    @Qualifier("signNowApiWebClient")
+    private final WebClient apiClient;
+    @Qualifier("signNowEventsWebClient")
+    private final WebClient eventsClient;
 
     public SignNowClient(
             @Qualifier("signNowApiWebClient") WebClient apiClient,
-            SignNowAuthService authService
+            SignNowAuthService authService,
+            SignNowProperties props,
+            @Qualifier("signNowEventsWebClient") WebClient eventsClient
     ) {
         this.apiClient = apiClient;
         this.authService = authService;
+        this.props = props;
+        this.eventsClient = eventsClient;
     }
 
     private static String cut(String s) {
@@ -41,7 +49,7 @@ public class SignNowClient {
         return s.length() <= max ? s : s.substring(0, max) + "...(truncated)";
     }
 
-    private Mono<? extends Throwable> toError(String tag, int raw, HttpStatusCode code, String body) {
+    private <T> Mono<T> toError(String tag, int raw, HttpStatusCode code, String body) {
         String safe = cut(body);
         return Mono.error(new WebClientResponseException(
                 "SignNow " + tag + " failed: " + code,
@@ -58,6 +66,7 @@ public class SignNowClient {
         if (from == null || from.isBlank()) throw new IllegalStateException("signnow.auth.username is empty");
         return from;
     }
+
 
     public String uploadDocumentWithFieldExtract(byte[] pdf, String filename) {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
@@ -186,8 +195,6 @@ public class SignNowClient {
         }
     }
 
-
-
     public boolean canDownloadCollapsed(String documentId, boolean withHistory) {
         try {
             apiClient.get()
@@ -208,7 +215,6 @@ public class SignNowClient {
             throw ex;
         }
     }
-
 
     public byte[] downloadFinalPdf(String documentId, boolean withHistory) {
         return apiClient.get()
@@ -248,4 +254,114 @@ public class SignNowClient {
                 })
                 .block();
     }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listEventSubscriptions() {
+        return eventsClient.get()
+                .uri("/api/v2/events")
+                .accept(MediaType.ALL)
+                .exchangeToMono(resp -> {
+                    if (!resp.statusCode().is2xxSuccessful()) {
+                        return resp.bodyToMono(String.class).defaultIfEmpty("<empty>")
+                                .flatMap(b -> toError("listEvents", resp.statusCode().value(), resp.statusCode(), b));
+                    }
+                    return resp.bodyToMono(Object.class).map(obj -> {
+                        if (obj instanceof List<?> lst) return (List<Map<String, Object>>) (List<?>) lst;
+                        if (obj instanceof Map<?, ?> map && map.get("data") instanceof List<?> lst2)
+                            return (List<Map<String, Object>>) (List<?>) lst2;
+                        log.warn("[Webhook] Unknown list-events response shape: {}", obj);
+                        return Collections.<Map<String, Object>>emptyList();
+                    });
+                })
+                .block();
+    }
+
+
+    public Map<String, Object> createDocumentEventSubscriptionBearer(
+            String documentId, String callbackUrl, String secretKey, boolean docIdQueryParam
+    ) {
+        Map<String, Object> attrs = new LinkedHashMap<>();
+        attrs.put("callback", callbackUrl);
+        if (docIdQueryParam) attrs.put("docid_queryparam", true);
+        if (secretKey != null && !secretKey.isBlank()) attrs.put("secret_key", secretKey);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("event", "document.complete");
+        payload.put("entity_id", documentId);   // BẮT BUỘC: document_id
+        payload.put("action", "callback");
+        payload.put("attributes", attrs);
+
+        return apiClient.post()
+                .uri("/api/v2/events")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.ALL)
+                .bodyValue(payload)
+                .exchangeToMono(resp -> {
+                    if (resp.statusCode().is2xxSuccessful()) {
+                        var ct = resp.headers().contentType().orElse(MediaType.APPLICATION_JSON);
+                        if (ct.isCompatibleWith(MediaType.APPLICATION_JSON)) {
+                            return resp.bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                                    .defaultIfEmpty(new LinkedHashMap<>());
+                        }
+                        return resp.bodyToMono(String.class).defaultIfEmpty("")
+                                .map(s -> {
+                                    Map<String, Object> ok = new LinkedHashMap<>();
+                                    ok.put("status", resp.statusCode().value()); // thường 201
+                                    ok.put("body", s); // thường rỗng
+                                    return ok;
+                                });
+                    }
+                    return resp.bodyToMono(String.class).defaultIfEmpty("<empty>")
+                            .flatMap(b -> toError("createDocumentEvent(Bearer)", resp.statusCode().value(), resp.statusCode(), b));
+                })
+                .block();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> listEventSubscriptionsBearer() {
+        return apiClient.get()
+                .uri("/api/v2/events")
+                .accept(MediaType.ALL)
+                .exchangeToMono(resp -> {
+                    if (!resp.statusCode().is2xxSuccessful()) {
+                        return resp.bodyToMono(String.class).defaultIfEmpty("")
+                                .map(body -> {
+                                    log.warn("[Webhook] listEvents(Bearer) non-2xx: {} body={}",
+                                            resp.statusCode().value(), cut(body));
+                                    return Collections.<Map<String, Object>>emptyList();
+                                });
+                    }
+                    return resp.bodyToMono(Object.class).map(obj -> {
+                        if (obj instanceof List<?> lst) return (List<Map<String, Object>>) (List<?>) lst;
+                        if (obj instanceof Map<?, ?> map && map.get("data") instanceof List<?> lst2)
+                            return (List<Map<String, Object>>) (List<?>) lst2;
+                        log.warn("[Webhook] Unknown list-events(Bearer) shape: {}", obj);
+                        return Collections.<Map<String, Object>>emptyList();
+                    });
+                })
+                .block();
+    }
+
+    public Optional<String> findDocumentCompleteSubscriptionIdBasic(String documentId) {
+        List<Map<String, Object>> subs = listEventSubscriptions();
+        for (var s : subs) {
+            String ev  = String.valueOf(s.get("event"));
+            String eid = String.valueOf(s.get("entity_id"));
+            if ("document.complete".equalsIgnoreCase(ev) && documentId.equals(eid)) {
+                Object id = s.get("id");
+                return Optional.ofNullable(id == null ? null : String.valueOf(id));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public Map<String, Object> getCurrentUser() {
+        return apiClient.get()
+                .uri("/user")
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
+                .block();
+    }
 }
+
+
