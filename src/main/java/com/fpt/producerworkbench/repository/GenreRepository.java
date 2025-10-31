@@ -8,7 +8,6 @@ import java.util.Collection;
 import java.util.List;
 
 @Repository
-public interface GenreRepository extends JpaRepository<Genre, Integer> {
+public interface GenreRepository extends JpaRepository<Genre, Long> {
     List<Genre> findByNameIn(Collection<String> names);
-
 }

@@ -62,6 +62,20 @@ public class S3TestServiceImpl implements S3TestService {
     }
 
     @Override
+    public String uploadPortfolioCoverImage(Long userId, MultipartFile file) {
+        String key = fileKeyGenerator.generatePortfolioCoverImageKey(userId, file.getOriginalFilename());
+        fileStorageService.uploadFile(file, key);
+        return key;
+    }
+
+    @Override
+    public String uploadPersonalProjectImage(Long userId, Long personalProjectId, MultipartFile file) {
+        String key = fileKeyGenerator.generatePersonalProjectImageKey(userId, personalProjectId, file.getOriginalFilename());
+        fileStorageService.uploadFile(file, key);
+        return key;
+    }
+
+    @Override
     public String getViewableUrl(String objectKey) {
         return fileStorageService.generatePresignedUrl(objectKey, false, null);
     }

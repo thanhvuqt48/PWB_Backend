@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PortfolioRepository extends JpaRepository<Portfolio, Long>, JpaSpecificationExecutor<Portfolio>, PortfolioRepositoryCustom {
+
+    boolean existsByUserId(Long userId);
 }

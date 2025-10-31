@@ -44,9 +44,21 @@ public class Portfolio extends AbstractEntity<Long> {
     @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<SocialLink> socialLinks;
 
-    @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<PortfolioGenre> portfolioGenres;
+    @ManyToMany
+    @JoinTable(
+            name = "portfolio_genres",
+            joinColumns = @JoinColumn(name = "portfolio_id"),
+            inverseJoinColumns = @JoinColumn(name = "genre_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"portfolio_id", "genre_id"})
+    )
+    private Set<Genre> genres;
 
-    @OneToMany(mappedBy = "portfolio", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<PortfolioTag> portfolioTags;
+    @ManyToMany
+    @JoinTable(
+            name = "portfolio_tags",
+            joinColumns = @JoinColumn(name = "portfolio_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"portfolio_id", "tag_id"})
+    )
+    private Set<Tag> tags;
 }

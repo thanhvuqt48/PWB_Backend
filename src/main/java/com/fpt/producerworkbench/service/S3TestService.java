@@ -15,6 +15,8 @@ public interface S3TestService {
     String uploadProjectImage(Long projectId, MultipartFile file);
     String uploadMilestoneZip(Long projectId, Long milestoneId, MultipartFile file);
     String uploadContractPdf(Long contractId, String fileName, MultipartFile file);
+    String uploadPortfolioCoverImage(Long userId, MultipartFile file);
+    String uploadPersonalProjectImage(Long userId, Long personalProjectId, MultipartFile file);
 
     List<String> uploadProjectFiles(Long projectId, List<MultipartFile> files);
 
