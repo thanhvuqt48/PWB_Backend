@@ -32,6 +32,10 @@ public class WebSocketEventListener {
         String sessionId = accessor.getSessionId();
         Principal user = connectEvent.getUser();
 
+        if(user == null) {
+            throw new RuntimeException("Unauthenticated");
+        }
+
         Long userId = sessionAttributes != null && sessionAttributes.get("userId") != null
                 ? ((Number) sessionAttributes.get("userId")).longValue()
                 : null;
@@ -45,21 +49,16 @@ public class WebSocketEventListener {
                 userId,
                 liveSessionId);
 
-        // ✅ Save to Redis with userId from session attributes
-        if (userId != null) {
-            sessionRedisService.saveWebSocketSession(WebSocketSession.builder()
-                    .socketSessionId(sessionId)
-                    .userId(user.getName())
-                    .build());
-            log.info("✅ Saved WebSocket session to Redis: wsSession={}, userId={}", sessionId, userId);
-        } else {
-            log.warn("⚠️ Cannot save to Redis - userId is null");
-        }
+        sessionRedisService.saveWebSocketSession(WebSocketSession.builder()
+                .socketSessionId(sessionId)
+                .userId(user.getName())
+                .build());
+        log.info("✅ Saved WebSocket session to Redis: wsSession={}, userId={}", sessionId, userId);
     }
 
     @Async
     @EventListener
-    public void handleSessionDisConnect(SessionDisconnectEvent disconnectEvent){
+    public void handleSessionDisConnect(SessionDisconnectEvent disconnectEvent) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(disconnectEvent.getMessage());
         String wsSessionId = accessor.getSessionId();
         sessionRedisService.deleteWebsocketSession(wsSessionId);
@@ -76,7 +75,8 @@ public class WebSocketEventListener {
         } else if (userIdObj instanceof String) {
             try {
                 userId = Long.parseLong((String) userIdObj);
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
 
         String liveSessionId = sessionAttributes.get("liveSessionId") != null
