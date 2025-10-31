@@ -24,12 +24,10 @@ import java.util.List;
 public class ChannelInterceptorConfiguration implements ChannelInterceptor {
 
     private final JwtDecoderCustomizer jwtDecoderCustomizer;
-    private final UserRepository userRepository;
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
 
-        // ✅ ALWAYS log every message that comes through
         log.info("🚨 ChannelInterceptor: Message received");
         log.info("🚨 Message type: {}", message.getClass().getSimpleName());
         log.info("🚨 Message payload: {}", message.getPayload());
@@ -52,12 +50,23 @@ public class ChannelInterceptorConfiguration implements ChannelInterceptor {
                 String userIdHeader = accessor.getFirstNativeHeader("userId");
                 String liveSessionIdHeader = accessor.getFirstNativeHeader("liveSessionId");
 
-                log.info("📋 Headers - Auth: {}, UserId: {}, SessionId: {}",
-                        authorizationHeader != null ? "Present" : "Missing",
-                        userIdHeader,
-                        liveSessionIdHeader);
+                if (StringUtils.isNotBlank(authorizationHeader)) {
+                    try {
+                        String token = authorizationHeader.replace("Bearer ", "");
+                        log.info("🔍 Attempting JWT validation...");
+                        Jwt jwtDecoder = jwtDecoderCustomizer.decode(token);
+                        log.info("✅ JWT validation successful for: {}", jwtDecoder.getSubject());
 
-                // ✅ ALWAYS store session attributes first
+                        UsernamePasswordAuthenticationToken jwtAuth = new UsernamePasswordAuthenticationToken(
+                                jwtDecoder.getSubject(), null, List.of());
+                        accessor.setUser(jwtAuth);
+
+                    } catch (Exception e) {
+                        log.warn("⚠️ JWT validation failed, using basic auth: {}", e.getMessage());
+                        log.warn("⚠️ JWT error details: {}", e.getClass().getSimpleName());
+                    }
+                }
+
                 if (userIdHeader != null && liveSessionIdHeader != null) {
                     try {
                         Long userId = Long.parseLong(userIdHeader);
@@ -67,7 +76,6 @@ public class ChannelInterceptorConfiguration implements ChannelInterceptor {
                         log.info("✅ Stored session attributes - userId: {}, liveSessionId: {}",
                                 userId, liveSessionIdHeader);
 
-                        // ✅ Create authentication for WebSocket
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                                 userIdHeader, null, List.of());
                         accessor.setUser(authentication);
@@ -75,37 +83,15 @@ public class ChannelInterceptorConfiguration implements ChannelInterceptor {
 
                     } catch (NumberFormatException e) {
                         log.error("❌ Invalid userId format: {}", userIdHeader);
-                        // ✅ DON'T THROW - continue processing
                     }
                 } else {
                     log.warn("⚠️ Missing userId or sessionId headers");
-                }
-
-                // ✅ Try JWT validation but don't fail
-                if (StringUtils.isNotBlank(authorizationHeader)) {
-                    try {
-                        String token = authorizationHeader.replace("Bearer ", "");
-                        log.info("🔍 Attempting JWT validation...");
-                        Jwt jwtDecoder = jwtDecoderCustomizer.decode(token);
-                        log.info("✅ JWT validation successful for: {}", jwtDecoder.getSubject());
-
-                        // Upgrade to JWT auth
-                        UsernamePasswordAuthenticationToken jwtAuth = new UsernamePasswordAuthenticationToken(
-                                jwtDecoder.getSubject(), null, List.of());
-                        accessor.setUser(jwtAuth);
-
-                    } catch (Exception e) {
-                        log.warn("⚠️ JWT validation failed, using basic auth: {}", e.getMessage());
-                        log.warn("⚠️ JWT error details: {}", e.getClass().getSimpleName());
-                        // ✅ Don't throw - basic auth already set
-                    }
                 }
 
                 log.info("✅ STOMP CONNECT processing completed successfully");
 
             } catch (Exception e) {
                 log.error("❌ CRITICAL: Exception in ChannelInterceptor: {}", e.getMessage(), e);
-                // ✅ CRITICAL: Don't throw - return message anyway
             }
         }
 
