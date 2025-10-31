@@ -69,6 +69,29 @@ public class S3TestController {
     }
 
     /**
+     * Upload ảnh bìa cho portfolio.
+     * Dùng form-data với key "userId" và "file".
+     */
+    @PostMapping("/upload/portfolio-cover")
+    public ApiResponse<String> uploadPortfolioCover(@RequestParam Long userId, @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadPortfolioCoverImage(userId, file);
+        return ApiResponse.<String>builder().result(key).message("Upload ảnh bìa portfolio thành công. Key: " + key).build();
+    }
+
+    /**
+     * Upload ảnh cho personal project trong portfolio.
+     * Dùng form-data với key "userId", "personalProjectId" và "file".
+     */
+    @PostMapping("/upload/personal-project-image")
+    public ApiResponse<String> uploadPersonalProjectImage(
+            @RequestParam Long userId,
+            @RequestParam Long personalProjectId,
+            @RequestParam("file") MultipartFile file) {
+        String key = s3TestService.uploadPersonalProjectImage(userId, personalProjectId, file);
+        return ApiResponse.<String>builder().result(key).message("Upload ảnh personal project thành công. Key: " + key).build();
+    }
+
+    /**
      * Lấy URL để XEM TRỰC TIẾP file trên trình duyệt.
      * Truyền object key bạn nhận được từ API upload vào query param "key".
      */

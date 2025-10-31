@@ -29,8 +29,7 @@ public class ProducerSpecification {
                 return null;
             }
             query.distinct(true);
-            Join<Portfolio, PortfolioGenre> portfolioGenreJoin = root.join("portfolioGenres");
-            Join<PortfolioGenre, Genre> genreJoin = portfolioGenreJoin.join("genre");
+            Join<Portfolio, Genre> genreJoin = root.join("genres");
             return genreJoin.get("id").in(genreIds);
         };
     }
@@ -41,8 +40,7 @@ public class ProducerSpecification {
                 return null;
             }
             query.distinct(true);
-            Join<Portfolio, PortfolioTag> portfolioTagJoin = root.join("portfolioTags");
-            Join<PortfolioTag, Tag> tagJoin = portfolioTagJoin.join("tag");
+            Join<Portfolio, Tag> tagJoin = root.join("tags");
             return tagJoin.get("name").in(tagNames);
         };
     }
@@ -71,12 +69,10 @@ public class ProducerSpecification {
 
             query.distinct(true);
 
-            Join<Portfolio, PortfolioGenre> portfolioGenreJoin = root.join("portfolioGenres");
-            Join<PortfolioGenre, Genre> genreJoin = portfolioGenreJoin.join("genre");
+            Join<Portfolio, Genre> genreJoin = root.join("genres");
             Predicate genrePredicate = genreJoin.get("name").in(names);
 
-            Join<Portfolio, PortfolioTag> portfolioTagJoin = root.join("portfolioTags");
-            Join<PortfolioTag, Tag> tagJoin = portfolioTagJoin.join("tag");
+            Join<Portfolio, Tag> tagJoin = root.join("tags");
             Predicate tagPredicate = tagJoin.get("name").in(names);
 
             return criteriaBuilder.or(genrePredicate, tagPredicate);
