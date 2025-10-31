@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <!-- Đổi tiêu đề -->
+    <title>Cảnh báo: Tín hiệu PRO sắp gián đoạn!</title>
+    <!-- Đổi font chữ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+        body { 
+            font-family: 'Space Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
+        }
+        .container { 
+            max-width: 480px;
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
+        }
+        
+        /* --- Header đồng bộ --- */
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
+        }
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        /* --- Nội dung chính --- */
+        .content { padding: 8px 24px 24px; }
+        .greeting { margin: 0 0 10px; font-size: 16px; }
+        .greeting strong { color: #FFFFFF; } /* Tên phi hành gia màu trắng */
+        .content p { margin: 0 0 16px; font-size: 14px; color: #D5D2F3; text-align: left; }
+        
+        /* --- Thẻ trạng thái (Status Card) --- */
+        .status-card { 
+            background: rgba(0,0,0,0.25); 
+            border-radius: 10px; 
+            padding: 20px; 
+            /* Thêm viền VÀNG để báo hiệu "cảnh báo" */
+            border: 1px solid #f0ad4e; 
+            margin: 20px 0 24px;
+            font-size: 13px;
+            color: #D5D2F3;
+            text-align: center;
+        }
+        .status-label {
+            display: block; 
+            font-size: 12px; 
+            color: #9B95AF; 
+            margin-bottom: 4px; 
+            font-weight: 600; 
+            letter-spacing: 0.6px; 
+        }
+        .status-value {
+            font-size: 20px; 
+            font-weight: 700; 
+            color: #FFFFFF; 
+            letter-spacing: 1px;
+            margin: 0;
+        }
+        /* Tô vàng chữ PRO Sắp hết hạn */
+        .status-value.warning {
+            color: #f0ad4e;
+            font-size: 22px;
+        }
+        /* Tô vàng số ngày */
+        .grace-days {
+             color: #f0ad4e;
+             font-weight: 700;
+        }
+
+        /* --- Nút CTA (Call to Action) --- */
+        .cta-button {
+            display: inline-block;
+            background: #C058F5; 
+            color: #FFFFFF;
+            padding: 12px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(192, 88, 245, 0.7);
+        }
+        
+        .divider { border: 0; height: 1px; margin: 24px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 24px; color: #9B95AF; font-size: 12px; text-align: center; }
+        .footer p { margin: 0 0 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <!-- Header PWB đồng bộ -->
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="content">
+        <!-- Đổi lời chào -->
+        <p class="greeting">Phi hành gia <strong th:text="${recipient}">bạn</strong>,</p>
+        
+        <!-- Đổi nội dung -->
+        <p>Trung tâm Điều khiển PWB thông báo: Tín hiệu <strong>PRO</strong> của bạn sắp hết hạn. Vui lòng gia hạn để tránh gián đoạn kết nối đến các sứ mệnh của bạn.</p>
+
+        <!-- Thẻ trạng thái -->
+        <div class="status-card">
+            <span class="status-label">Trạng thái Tín hiệu:</span>
+            <b class="status-value warning">PRO (SẮP HẾT HẠN)</b>
+            <p style="margin-top: 12px; margin-bottom: 0; font-size: 13px; color: #D5D2F3;">
+                Thời gian duy trì tín hiệu còn: <strong class="grace-days" th:text="${graceDays}">5</strong> ngày.
+            </p>
+        </div>
+        
+        <!-- Nút CTA -->
+        <div style="text-align: center; margin-top: 8px; margin-bottom: 24px;">
+            <a th:href="${checkoutUrl}" class="cta-button">DUY TRÌ TÍN HIỆU PRO</a>
+        </div>
+
+        <p style="font-size: 12px; color: #9B95AF; text-align: center;">
+            Nếu bạn không gia hạn trong thời gian ân hạn, tài khoản sẽ tự động được hạ cấp về Gói 'Du hành Tự do' (Miễn phí).
+        </p>
+    </div>
+
+    <hr class="divider">
+
+    <div class="footer">
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
+    </div>
+</div>
+</body>
+</html>

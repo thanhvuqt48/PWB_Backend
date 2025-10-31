@@ -11,12 +11,11 @@ public enum ErrorCode {
     INVALID_PARAMETER_FORMAT(1002, "Định dạng tham số không hợp lệ.", HttpStatus.BAD_REQUEST),
     VALIDATION_FAILED(1003, "Lỗi xác thực dữ liệu.", HttpStatus.BAD_REQUEST),
     BAD_REQUEST(1004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
-    INVALID_KEY(1005, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_SIGNATURE(1005, "Chữ ký không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_KEY(1001, "Key không hợp lệ.", HttpStatus.BAD_REQUEST),
     EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
     TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
     URL_GENERATION_FAILED(1012, "Không thể tạo URL. Vui lòng thử lại.", HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_SIGNATURE(1402, "Thiếu hoặc sai chữ ký webhook.", HttpStatus.BAD_REQUEST),
-
 
     // ===== Lỗi Xác thực & Phân quyền (2xxx) =====
     UNAUTHENTICATED(2001, "Yêu cầu xác thực. Vui lòng đăng nhập.", HttpStatus.UNAUTHORIZED),
@@ -27,9 +26,9 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(2006, "Tài khoản đã bị khóa.", HttpStatus.FORBIDDEN),
     ACCOUNT_DISABLED(2007, "Tài khoản đã bị vô hiệu hóa.", HttpStatus.FORBIDDEN),
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
-    FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
+    FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
 
     // ===== Lỗi liên quan đến Người dùng (User) (3xxx) =====
     USER_EXISTED(3001, "Người dùng với email này đã tồn tại.", HttpStatus.BAD_REQUEST),
@@ -38,10 +37,9 @@ public enum ErrorCode {
     OTP_INVALID(3004, "Mã OTP không hợp lệ.", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(3005, "Mã OTP đã hết hạn.", HttpStatus.BAD_REQUEST),
     ACCOUNT_ALREADY_VERIFIED(3006, "Tài khoản này đã được xác thực trước đó.", HttpStatus.BAD_REQUEST),
-    USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),
-
 
     // ===== Lỗi liên quan đến Tài nguyên chung (4xxx) =====
+    USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),
     RESOURCE_NOT_FOUND(4001, "Không tìm thấy tài nguyên được yêu cầu.", HttpStatus.NOT_FOUND),
     DUPLICATE_RESOURCE(4002, "Tài nguyên đã tồn tại.", HttpStatus.CONFLICT),
     UPLOAD_FAILED(4003, "Upload file thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -64,12 +62,11 @@ public enum ErrorCode {
 
     // ===== 5xxx: Hợp đồng / Ký số (MỚI) =====
     CONTRACT_NOT_FOUND(5001, "Không tìm thấy hợp đồng.", HttpStatus.NOT_FOUND),
-    CONTRACT_ALREADY_EXISTS(5002, "Dự án này đã có hợp đồng. Mỗi dự án chỉ được phép có một hợp đồng.", HttpStatus.CONFLICT),
-    CONTRACT_FILLED_PDF_NOT_FOUND(5003, "Chưa có file hợp đồng đã soạn (FILLED) để mời ký.", HttpStatus.BAD_REQUEST),
-    SIGNERS_REQUIRED(5004, "Thiếu danh sách người ký.", HttpStatus.BAD_REQUEST),
-    SIGNER_EMAIL_REQUIRED(5005, "Thiếu email người ký.", HttpStatus.BAD_REQUEST),
-    ROLE_ID_REQUIRED(5006, "Thiếu roleId cho người ký (Field Invite yêu cầu roleId).", HttpStatus.BAD_REQUEST),
-    PDF_BASE64_INVALID(5007, "pdfBase64 không hợp lệ.", HttpStatus.BAD_REQUEST),
+    CONTRACT_FILLED_PDF_NOT_FOUND(5002, "Chưa có file hợp đồng đã soạn (FILLED) để mời ký.", HttpStatus.BAD_REQUEST),
+    SIGNERS_REQUIRED(5003, "Thiếu danh sách người ký.", HttpStatus.BAD_REQUEST),
+    SIGNER_EMAIL_REQUIRED(5004, "Thiếu email người ký.", HttpStatus.BAD_REQUEST),
+    ROLE_ID_REQUIRED(5005, "Thiếu roleId cho người ký (Field Invite yêu cầu roleId).", HttpStatus.BAD_REQUEST),
+    PDF_BASE64_INVALID(5006, "pdfBase64 không hợp lệ.", HttpStatus.BAD_REQUEST),
 
     // ===== 6xxx: Storage (MỚI) =====
     STORAGE_READ_FAILED(6001, "Không đọc được file từ storage.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -98,22 +95,65 @@ public enum ErrorCode {
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
     PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
     CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
-    CONVERSATION_NOT_FOUND(404, "Đoạn trò chuyện không tồn tại", HttpStatus.NOT_FOUND),
+
+    // Agora RTC/RTM Token - 6xxx
+    AGORA_TOKEN_GENERATION_FAILED(6001, "Lỗi khi tạo Agora token", HttpStatus.INTERNAL_SERVER_ERROR),
+    AGORA_CONFIG_MISSING(6002, "Cấu hình Agora bị thiếu", HttpStatus.INTERNAL_SERVER_ERROR),
+    AGORA_CHANNEL_INVALID(6003, "Tên kênh Agora không hợp lệ", HttpStatus.BAD_REQUEST),
+    AGORA_TOKEN_INVALID(6004, "Định dạng mã thông báo Agora không hợp lệ", HttpStatus.BAD_REQUEST),
     MESSAGE_NOT_PART_OF_STORY(400, "Tin nhắn không thuộc đoạn trò chuyện này", HttpStatus.BAD_REQUEST),
-    MESSAGE_NOT_FOUND(404, "Tin nhắn không tồn tại", HttpStatus.NOT_FOUND),
+    CONVERSATION_NOT_FOUND(404, "Đoạn trò chuyện không tồn tại", HttpStatus.NOT_FOUND),
     MEDIA_URL_NOT_BLANK(400, "URL của file đính kèm không được để trống", HttpStatus.BAD_REQUEST),
+    MESSAGE_NOT_FOUND(404, "Tin nhắn không tồn tại", HttpStatus.NOT_FOUND),
+    AGORA_TOKEN_EXPIRED(6005, "Tên kênh Agora không hợp lệ", HttpStatus.UNAUTHORIZED),
+    AGORA_UID_INVALID(6006, "Agora UID không hợp lệ", HttpStatus.BAD_REQUEST),
+    // ========== File Related (7xxx) ==========
+    FILE_NOT_FOUND(7001, "Không tìm thấy file", HttpStatus.NOT_FOUND),
     PARTICIPANT_INVALID(400, "Một hoặc nhiều người dùng không tồn tại", HttpStatus.BAD_REQUEST),
-    // ===== Lỗi thanh toán (8xxx) =====
-    PAYMENT_ERROR(8001, "Lỗi thanh toán.", HttpStatus.INTERNAL_SERVER_ERROR),
+
     TRANSACTION_NOT_FOUND(8002, "Không tìm thấy giao dịch.", HttpStatus.NOT_FOUND),
     NO_ACCESS(8003, "Không có quyền truy cập.", HttpStatus.FORBIDDEN),
-    INVALID_REQUEST(8004, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
-    PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+    FILE_NOT_IN_PROJECT(7002, "File không thuộc về dự án này", HttpStatus.FORBIDDEN),
+    INVALID_FILE_FORMAT(7003, "Định dạng file không hợp lệ", HttpStatus.BAD_REQUEST),
+
+    // ========== Playback Related (8xxx) ==========
     CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
-    PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
+    PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
-    PROJECT_MEMBER_NOT_FOUND(8010, "Không tìm thấy thành viên dự án.", HttpStatus.NOT_FOUND)
+    PLAYBACK_CONTROL_DENIED(8001, "Bạn không có quyền điều khiển phát lại", HttpStatus.FORBIDDEN),
+    NO_FILE_PLAYING(8002, "Hiện tại không có file nào đang phát", HttpStatus.BAD_REQUEST),
+    INVALID_PLAYBACK_POSITION(8003, "Vị trí phát lại không hợp lệ", HttpStatus.BAD_REQUEST),
+    PROJECT_MEMBER_NOT_FOUND(8010, "Không tìm thấy thành viên dự án.", HttpStatus.NOT_FOUND),
+
+    // ========== Chat Related (9xxx) ==========
+    CHAT_MESSAGE_NOT_FOUND(9001, "Không tìm thấy tin nhắn chat", HttpStatus.NOT_FOUND),
+    CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),
+    MESSAGE_TOO_LONG(9003, "Tin nhắn vượt quá độ dài tối đa", HttpStatus.BAD_REQUEST),
+
+    SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
+    SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
+    SESSION_FULL(5011, "Phiên đã đạt số lượng người tham gia tối đa", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_ACTIVE(5012, "Phiên đã hoạt động", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_ENDED(5013, "Phiên đã kết thúc", HttpStatus.BAD_REQUEST),
+    SESSION_ALREADY_STARTED(5014, "Phiên đã bắt đầu", HttpStatus.BAD_REQUEST),
+    SESSION_NOT_PAUSED(5015, "Phiên không bị tạm dừng", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Chỉ có thể hủy phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CANNOT_REMOVE_HOST(5106, "Không thể xóa người chủ trì phiên", HttpStatus.BAD_REQUEST),
+
+
+    PARTICIPANT_NOT_FOUND(5101, "Không tìm thấy người tham gia trong phiên", HttpStatus.NOT_FOUND),
+    USER_ALREADY_INVITED(5102, "Người dùng đã được mời vào phiên này", HttpStatus.CONFLICT),
+    USER_NOT_IN_PROJECT(5103, "Người dùng không phải là thành viên của dự án này", HttpStatus.FORBIDDEN),
+    INVITATION_DECLINED(5104, "Lời mời đã bị từ chối", HttpStatus.BAD_REQUEST),
+    ONLY_HOST_CAN_PERFORM_ACTION(5105, "Chỉ người chủ trì phiên mới có thể thực hiện hành động này", HttpStatus.FORBIDDEN),
+
+    // Project errors (4xxx)
+    ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
+    PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

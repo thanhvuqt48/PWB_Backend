@@ -5,7 +5,6 @@ import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
-import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.FileStorageService;
@@ -37,18 +36,6 @@ public class ContractPreviewController {
         if (!permissions.isCanViewContract()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
-    }
-
-    @GetMapping("/{id}/filled/view-url")
-    public ApiResponse<String> getFilledViewUrl(@PathVariable("id") Long id, Authentication auth) {
-        ensureCanViewFilled(auth, id);
-
-        var doc = contractDocumentRepository
-                .findTopByContract_IdAndTypeOrderByVersionDesc(id, ContractDocumentType.FILLED)
-                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_DOC_NOT_FOUND));
-
-        String url = fileStorageService.generatePresignedUrl(doc.getStorageUrl(), false, null);
-        return ApiResponse.<String>builder().code(200).result(url).build();
     }
 
     @GetMapping("/{id}/filled/file")

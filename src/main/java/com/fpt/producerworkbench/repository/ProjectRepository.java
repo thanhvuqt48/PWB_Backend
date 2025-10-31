@@ -26,7 +26,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
             @Param("search") String search,
             @Param("status") ProjectStatus status,
             Pageable pageable);
-
     @Query("SELECT new com.fpt.producerworkbench.dto.response.ProjectSummaryResponse(" +
             "p.id, p.title, p.description, p.status, p.type, " +
             "com.fpt.producerworkbench.common.ProjectRole.OWNER, " +
