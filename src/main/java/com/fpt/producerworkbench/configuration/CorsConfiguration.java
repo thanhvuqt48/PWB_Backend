@@ -18,7 +18,6 @@ public class CorsConfiguration {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        log.info("🌐 CORS Allowed Origins: {}", allowedOrigins);
         org.springframework.web.cors.CorsConfiguration corsConfiguration = new org.springframework.web.cors.CorsConfiguration();
         corsConfiguration.setAllowedOrigins(allowedOrigins);
         corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
