@@ -11,7 +11,7 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
 
     @Override
     public String generateUserAvatarKey(Long userId, String originalFilename) {
-        return String.format("users/%d/avatar/profile%s", userId, getFileExtension(originalFilename));
+        return String.format("users/%d/public/avatar/profile%s", userId, getFileExtension(originalFilename));
     }
 
     @Override
@@ -35,6 +35,18 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
             throw new IllegalArgumentException("File hợp đồng phải là định dạng PDF.");
         }
         return String.format("contracts/%d/%s", contractId, fileName);
+    }
+
+    @Override
+    public String generatePortfolioCoverImageKey(Long userId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("users/%d/public/portfolio/cover/%s%s", userId, uuid, getFileExtension(originalFilename));
+    }
+
+    @Override
+    public String generatePersonalProjectImageKey(Long userId, Long personalProjectId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("users/%d/public/portfolio/projects/%d/%s%s", userId, personalProjectId, uuid, getFileExtension(originalFilename));
     }
 
     private String getFileExtension(String filename) {

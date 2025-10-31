@@ -122,8 +122,12 @@ public class S3ServiceImpl implements FileStorageService {
                 requestBuilder.responseContentDisposition("inline");
             }
 
+            // For view/display: 24 hours expiration (user can stay on page long time)
+            // For download: can use shorter duration if needed
+            Duration expiration = forDownload ? Duration.ofMinutes(15) : Duration.ofHours(24);
+
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                    .signatureDuration(Duration.ofMinutes(15))
+                    .signatureDuration(expiration)
                     .getObjectRequest(requestBuilder.build())
                     .build();
 

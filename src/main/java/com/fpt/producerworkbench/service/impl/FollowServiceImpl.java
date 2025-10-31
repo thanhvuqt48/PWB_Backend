@@ -105,8 +105,8 @@ public class FollowServiceImpl implements FollowService {
         if (!userRepository.existsById(userId)) throw new AppException(ErrorCode.USER_NOT_FOUND);
 
         Page<FollowResponse> page = followRepository.findFollowing(userId, pageable);
-        long totalFollowers  = followRepository.countByFollowee_Id(userId);
-        long totalFollowing  = followRepository.countByFollower_Id(userId);
+        long totalFollowers = followRepository.countByFollowee_Id(userId);
+        long totalFollowing = followRepository.countByFollower_Id(userId);
 
         return FollowListResponse.builder()
                 .page(page)
@@ -122,8 +122,8 @@ public class FollowServiceImpl implements FollowService {
         if (!userRepository.existsById(userId)) throw new AppException(ErrorCode.USER_NOT_FOUND);
 
         Page<FollowResponse> page = followRepository.findFollowers(userId, pageable);
-        long totalFollowers  = followRepository.countByFollowee_Id(userId);
-        long totalFollowing  = followRepository.countByFollower_Id(userId);
+        long totalFollowers = followRepository.countByFollowee_Id(userId);
+        long totalFollowing = followRepository.countByFollower_Id(userId);
 
         return FollowListResponse.builder()
                 .page(page)
