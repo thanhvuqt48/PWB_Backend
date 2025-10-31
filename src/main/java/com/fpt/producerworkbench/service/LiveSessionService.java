@@ -25,7 +25,7 @@ public interface LiveSessionService {
      //Get session by ID
     LiveSessionResponse getSessionById(String sessionId);
      //Get all sessions by project
-    Page<LiveSessionResponse> getSessionsByProject(Long projectId, SessionStatus status, Pageable pageable);
+    Page<LiveSessionResponse> getSessionsByProject(Long projectId, SessionStatus status, Pageable pageable,Long currentUserId);
      //Get sessions hosted by user
     Page<LiveSessionResponse> getSessionsByHost(Long hostId, Pageable pageable);
      //Check if project has active session
