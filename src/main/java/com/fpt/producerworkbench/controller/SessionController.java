@@ -58,6 +58,7 @@ public class SessionController {
             @RequestParam(required = false, defaultValue = "20") Integer size) {
 
         try {
+
             // Validate page & size
             if (page < 0) page = 0;
             if (size < 1 || size > 100) size = 20;
@@ -72,12 +73,13 @@ public class SessionController {
                     log.warn("Invalid session status: {}", status);
                 }
             }
-
+            Long currentUserId = securityUtils.getCurrentUserId();
             Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
             Page<LiveSessionResponse> sessions = sessionService.getSessionsByProject(
                     projectId,
                     sessionStatus,
-                    pageable
+                    pageable,
+                    currentUserId
             );
 
             return ApiResponse.<PageResponse<LiveSessionResponse>>builder()

@@ -1,18 +1,12 @@
 package com.fpt.producerworkbench.service.impl;
 
-import com.fpt.producerworkbench.dto.request.PortfolioRequest;
-import com.fpt.producerworkbench.dto.request.PortfolioSectionRequest;
-import com.fpt.producerworkbench.dto.request.PersonalProjectRequest;
-import com.fpt.producerworkbench.dto.request.SocialLinkRequest;
+import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.PortfolioResponse;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.mapper.PortfolioMapper;
-import com.fpt.producerworkbench.repository.GenreRepository;
-import com.fpt.producerworkbench.repository.PortfolioRepository;
-import com.fpt.producerworkbench.repository.TagRepository;
-import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.PortfolioService;
@@ -37,6 +31,9 @@ import java.util.Set;
 public class PortfolioServiceImpl implements PortfolioService {
 
     PortfolioRepository portfolioRepository;
+    PortfolioSectionRepository portfolioSectionRepository;
+    PersonalProjectRepository personalProjectRepository;
+    SocialLinkRepository socialLinkRepository;
     GenreRepository genreRepository;
     TagRepository tagRepository;
     UserRepository userRepository;
@@ -153,33 +150,18 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(savedPortfolio);
 
-        // Convert S3 keys to presigned URLs
         convertS3KeysToUrls(response);
 
         return response;
     }
 
-    /**
-     * Convert all S3 keys in PortfolioResponse to URLs.
-     *
-     * Uses PublicUrlService which automatically chooses:
-     * - Public CloudFront URLs (no expiration) for portfolio/avatar images when enabled
-     * - Presigned URLs (24h expiration) as fallback or when public URLs disabled
-     *
-     * Configuration in application.yml:
-     * cloudfront:
-     *   domain: d123abc.cloudfront.net
-     *   use-public-urls: true  # Enable permanent URLs for portfolio/avatar
-     */
     private void convertS3KeysToUrls(PortfolioResponse response) {
-        // Convert cover image key to URL (public CloudFront URL if enabled)
         if (response.getCoverImageUrl() != null && !response.getCoverImageUrl().isEmpty()) {
             String url = publicUrlService.toUrl(response.getCoverImageUrl());
             response.setCoverImageUrl(url);
             log.debug("Converted cover image key to URL: {}", url);
         }
 
-        // Convert avatar URL if it's an S3 key (public CloudFront URL if enabled)
         if (response.getAvatarUrl() != null && !response.getAvatarUrl().isEmpty()
                 && !response.getAvatarUrl().startsWith("http")) {
             String url = publicUrlService.toUrl(response.getAvatarUrl());
@@ -187,7 +169,6 @@ public class PortfolioServiceImpl implements PortfolioService {
             log.debug("Converted avatar key to URL: {}", url);
         }
 
-        // Convert personal project cover images (public CloudFront URL if enabled)
         if (response.getPersonalProjects() != null) {
             response.getPersonalProjects().forEach(project -> {
                 if (project.getCoverImageUrl() != null && !project.getCoverImageUrl().isEmpty()
@@ -209,7 +190,6 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
 
-        // Convert S3 keys to URLs
         convertS3KeysToUrls(response);
 
         log.info("Portfolio found successfully. ID: {}", id);
@@ -218,13 +198,35 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     @Override
     @Transactional
-    public PortfolioResponse update(Long id, PortfolioRequest request) {
-        log.info("Updating portfolio ID: {}", id);
+    public PortfolioResponse updatePersonalPortfolio(PortfolioUpdateRequest request, MultipartFile coverImage) {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
-        Portfolio portfolio = portfolioRepository.findById(id)
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Portfolio portfolio = portfolioRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
 
-        // Update basic fields
+        if (coverImage != null && !coverImage.isEmpty()) {
+            log.info("Updating cover image for portfolio ID: {}", portfolio.getId());
+
+            // Xóa ảnh cũ nếu có
+            if (portfolio.getCoverImageUrl() != null && !portfolio.getCoverImageUrl().isEmpty()) {
+                try {
+                    fileStorageService.deleteFile(portfolio.getCoverImageUrl());
+                    log.info("Deleted old cover image: {}", portfolio.getCoverImageUrl());
+                } catch (Exception e) {
+                    log.warn("Failed to delete old cover image: {}", e.getMessage());
+                }
+            }
+
+            String coverImageKey = fileKeyGenerator.generatePortfolioCoverImageKey(user.getId(), coverImage.getOriginalFilename());
+            fileStorageService.uploadFile(coverImage, coverImageKey);
+            portfolio.setCoverImageUrl(coverImageKey);
+            log.info("Uploaded new cover image: {}", coverImageKey);
+        }
+
         if (request.getCustomUrlSlug() != null) {
             portfolio.setCustomUrlSlug(request.getCustomUrlSlug());
         }
@@ -238,7 +240,6 @@ public class PortfolioServiceImpl implements PortfolioService {
             portfolio.setLongitude(request.getLongitude());
         }
 
-        // Update genres
         if (request.getGenreIds() != null) {
             Set<Genre> genres = new HashSet<>();
             if (!request.getGenreIds().isEmpty()) {
@@ -252,7 +253,6 @@ public class PortfolioServiceImpl implements PortfolioService {
             portfolio.setGenres(genres);
         }
 
-        // Update tags
         if (request.getTags() != null) {
             Set<Tag> tags = new HashSet<>();
             if (!request.getTags().isEmpty()) {
@@ -270,73 +270,126 @@ public class PortfolioServiceImpl implements PortfolioService {
             portfolio.setTags(tags);
         }
 
-        // Update sections
         if (request.getSections() != null) {
-            // Clear existing sections (orphanRemoval will delete them)
-            portfolio.getSections().clear();
 
-            // Add new sections
-            Set<PortfolioSection> sections = new HashSet<>();
-            for (PortfolioSectionRequest sectionReq : request.getSections()) {
-                PortfolioSection section = PortfolioSection.builder()
-                        .portfolio(portfolio)
-                        .title(sectionReq.getTitle())
-                        .content(sectionReq.getContent())
-                        .displayOrder(sectionReq.getDisplayOrder())
-                        .sectionType(sectionReq.getSectionType())
-                        .build();
-                sections.add(section);
+            for (PortfolioSectionUpdateRequest sectionReq : request.getSections()) {
+                if (sectionReq.getId() != null) {
+                    PortfolioSection existingSection = portfolioSectionRepository.findById(sectionReq.getId())
+                            .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+
+                    if (!existingSection.getPortfolio().getId().equals(portfolio.getId())) {
+                        throw new AppException(ErrorCode.UNAUTHORIZED);
+                    }
+
+                    existingSection.setTitle(sectionReq.getTitle());
+                    existingSection.setContent(sectionReq.getContent());
+                    existingSection.setDisplayOrder(sectionReq.getDisplayOrder());
+                    existingSection.setSectionType(sectionReq.getSectionType());
+                    portfolioSectionRepository.save(existingSection);
+                    log.debug("Updated section ID: {}", sectionReq.getId());
+                } else {
+                    // Create new section
+                    PortfolioSection newSection = PortfolioSection.builder()
+                            .portfolio(portfolio)
+                            .title(sectionReq.getTitle())
+                            .content(sectionReq.getContent())
+                            .displayOrder(sectionReq.getDisplayOrder())
+                            .sectionType(sectionReq.getSectionType())
+                            .build();
+                    portfolio.getSections().add(newSection);
+                    portfolioSectionRepository.save(newSection);
+                    log.debug("Created new section: {}", sectionReq.getTitle());
+                }
             }
-            portfolio.setSections(sections);
         }
 
-        // Update personal projects
         if (request.getPersonalProjects() != null) {
-            // Clear existing personal projects (orphanRemoval will delete them)
-            portfolio.getPersonalProjects().clear();
 
-            // Add new personal projects
-            Set<PersonalProject> personalProjects = new HashSet<>();
-            for (PersonalProjectRequest projectReq : request.getPersonalProjects()) {
-                PersonalProject project = PersonalProject.builder()
-                        .portfolio(portfolio)
-                        .title(projectReq.getTitle())
-                        .description(projectReq.getDescription())
-                        .audioDemoUrl(projectReq.getAudioDemoUrl())
-                        .coverImageUrl(projectReq.getCoverImageUrl())
-                        .releaseYear(projectReq.getReleaseYear())
-                        .build();
-                personalProjects.add(project);
+            for (PersonalProjectUpdateRequest projectReq : request.getPersonalProjects()) {
+                if (projectReq.getId() != null) {
+                    PersonalProject existingProject = personalProjectRepository.findById(projectReq.getId())
+                            .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+
+                    if (!existingProject.getPortfolio().getId().equals(portfolio.getId())) {
+                        throw new AppException(ErrorCode.UNAUTHORIZED);
+                    }
+
+                    existingProject.setTitle(projectReq.getTitle());
+                    existingProject.setDescription(projectReq.getDescription());
+                    existingProject.setAudioDemoUrl(projectReq.getAudioDemoUrl());
+                    existingProject.setCoverImageUrl(projectReq.getCoverImageUrl());
+                    existingProject.setReleaseYear(projectReq.getReleaseYear());
+                    personalProjectRepository.save(existingProject);
+                    log.debug("Updated personal project ID: {}", projectReq.getId());
+                } else {
+                    // Create new project
+                    PersonalProject newProject = PersonalProject.builder()
+                            .portfolio(portfolio)
+                            .title(projectReq.getTitle())
+                            .description(projectReq.getDescription())
+                            .audioDemoUrl(projectReq.getAudioDemoUrl())
+                            .coverImageUrl(projectReq.getCoverImageUrl())
+                            .releaseYear(projectReq.getReleaseYear())
+                            .build();
+                    portfolio.getPersonalProjects().add(newProject);
+                    personalProjectRepository.save(newProject);
+                    log.debug("Created new personal project: {}", projectReq.getTitle());
+                }
             }
-            portfolio.setPersonalProjects(personalProjects);
         }
 
-        // Update social links
         if (request.getSocialLinks() != null) {
-            // Clear existing social links (orphanRemoval will delete them)
-            portfolio.getSocialLinks().clear();
+            for (SocialLinkUpdateRequest linkReq : request.getSocialLinks()) {
+                if (linkReq.getId() != null) {
+                    SocialLink existingLink = socialLinkRepository.findById(linkReq.getId())
+                            .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
-            // Add new social links
-            Set<SocialLink> socialLinks = new HashSet<>();
-            for (SocialLinkRequest linkReq : request.getSocialLinks()) {
-                SocialLink link = SocialLink.builder()
-                        .portfolio(portfolio)
-                        .platform(linkReq.getPlatform())
-                        .url(linkReq.getUrl())
-                        .build();
-                socialLinks.add(link);
+                    if (!existingLink.getPortfolio().getId().equals(portfolio.getId())) {
+                        throw new AppException(ErrorCode.UNAUTHORIZED);
+                    }
+
+                    existingLink.setPlatform(linkReq.getPlatform());
+                    existingLink.setUrl(linkReq.getUrl());
+                    socialLinkRepository.save(existingLink);
+                    log.debug("Updated social link ID: {}", linkReq.getId());
+                } else {
+                    SocialLink newLink = SocialLink.builder()
+                            .portfolio(portfolio)
+                            .platform(linkReq.getPlatform())
+                            .url(linkReq.getUrl())
+                            .build();
+                    portfolio.getSocialLinks().add(newLink);
+                    socialLinkRepository.save(newLink);
+                    log.debug("Created new social link: {}", linkReq.getPlatform());
+                }
             }
-            portfolio.setSocialLinks(socialLinks);
         }
 
         Portfolio updatedPortfolio = portfolioRepository.save(portfolio);
-        log.info("Portfolio updated successfully. ID: {}", id);
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(updatedPortfolio);
 
-        // Convert S3 keys to URLs
         convertS3KeysToUrls(response);
 
+        return response;
+    }
+
+    @Override
+    public PortfolioResponse getPersonalPortfolio() {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Portfolio portfolio = portfolioRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
+
+        PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
+
+        convertS3KeysToUrls(response);
+
+        log.info("Portfolio found successfully for user email: {}", user.getEmail());
         return response;
     }
 }

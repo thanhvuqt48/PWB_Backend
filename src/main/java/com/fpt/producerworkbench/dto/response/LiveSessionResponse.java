@@ -17,7 +17,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class LiveSessionResponse {
     private String id;
-
+    private Long currentUserId;
     // Project & Host
     private Long projectId;
     private String projectName;

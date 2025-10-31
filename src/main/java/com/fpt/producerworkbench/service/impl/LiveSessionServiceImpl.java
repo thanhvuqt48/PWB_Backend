@@ -355,7 +355,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<LiveSessionResponse> getSessionsByProject(Long projectId, SessionStatus status, Pageable pageable) {
+    public Page<LiveSessionResponse> getSessionsByProject(Long projectId, SessionStatus status, Pageable pageable,Long currentUserId) {
         Page<LiveSession> sessions;
 
         if (status != null) {
@@ -364,7 +364,11 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             sessions = sessionRepository.findByProjectId(projectId, pageable);
         }
 
-        return sessions.map(sessionMapper::toDTO);
+        return sessions.map(session -> {
+            LiveSessionResponse dto = sessionMapper.toDTO(session);
+            dto.setCurrentUserId(currentUserId);  // ✅ SET CURRENT USER ID
+            return dto;
+        });
     }
 
     @Override
