@@ -202,11 +202,141 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     @Override
     public PortfolioResponse findById(Long id) {
-        return null;
+        log.info("Finding portfolio by ID: {}", id);
+
+        Portfolio portfolio = portfolioRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
+
+        PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
+
+        // Convert S3 keys to URLs
+        convertS3KeysToUrls(response);
+
+        log.info("Portfolio found successfully. ID: {}", id);
+        return response;
     }
 
     @Override
+    @Transactional
     public PortfolioResponse update(Long id, PortfolioRequest request) {
-        return null;
+        log.info("Updating portfolio ID: {}", id);
+
+        Portfolio portfolio = portfolioRepository.findById(id)
+                .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
+
+        // Update basic fields
+        if (request.getCustomUrlSlug() != null) {
+            portfolio.setCustomUrlSlug(request.getCustomUrlSlug());
+        }
+        if (request.getHeadline() != null) {
+            portfolio.setHeadline(request.getHeadline());
+        }
+        if (request.getLatitude() != null) {
+            portfolio.setLatitude(request.getLatitude());
+        }
+        if (request.getLongitude() != null) {
+            portfolio.setLongitude(request.getLongitude());
+        }
+
+        // Update genres
+        if (request.getGenreIds() != null) {
+            Set<Genre> genres = new HashSet<>();
+            if (!request.getGenreIds().isEmpty()) {
+                List<Genre> foundGenres = genreRepository.findAllById(request.getGenreIds());
+                if (foundGenres.size() != request.getGenreIds().size()) {
+                    log.warn("Some genre IDs not found. Requested: {}, Found: {}",
+                            request.getGenreIds().size(), foundGenres.size());
+                }
+                genres.addAll(foundGenres);
+            }
+            portfolio.setGenres(genres);
+        }
+
+        // Update tags
+        if (request.getTags() != null) {
+            Set<Tag> tags = new HashSet<>();
+            if (!request.getTags().isEmpty()) {
+                for (String tagName : request.getTags()) {
+                    Tag tag = tagRepository.findByName(tagName)
+                            .orElseGet(() -> {
+                                log.info("Creating new tag: {}", tagName);
+                                return tagRepository.save(Tag.builder()
+                                        .name(tagName)
+                                        .build());
+                            });
+                    tags.add(tag);
+                }
+            }
+            portfolio.setTags(tags);
+        }
+
+        // Update sections
+        if (request.getSections() != null) {
+            // Clear existing sections (orphanRemoval will delete them)
+            portfolio.getSections().clear();
+
+            // Add new sections
+            Set<PortfolioSection> sections = new HashSet<>();
+            for (PortfolioSectionRequest sectionReq : request.getSections()) {
+                PortfolioSection section = PortfolioSection.builder()
+                        .portfolio(portfolio)
+                        .title(sectionReq.getTitle())
+                        .content(sectionReq.getContent())
+                        .displayOrder(sectionReq.getDisplayOrder())
+                        .sectionType(sectionReq.getSectionType())
+                        .build();
+                sections.add(section);
+            }
+            portfolio.setSections(sections);
+        }
+
+        // Update personal projects
+        if (request.getPersonalProjects() != null) {
+            // Clear existing personal projects (orphanRemoval will delete them)
+            portfolio.getPersonalProjects().clear();
+
+            // Add new personal projects
+            Set<PersonalProject> personalProjects = new HashSet<>();
+            for (PersonalProjectRequest projectReq : request.getPersonalProjects()) {
+                PersonalProject project = PersonalProject.builder()
+                        .portfolio(portfolio)
+                        .title(projectReq.getTitle())
+                        .description(projectReq.getDescription())
+                        .audioDemoUrl(projectReq.getAudioDemoUrl())
+                        .coverImageUrl(projectReq.getCoverImageUrl())
+                        .releaseYear(projectReq.getReleaseYear())
+                        .build();
+                personalProjects.add(project);
+            }
+            portfolio.setPersonalProjects(personalProjects);
+        }
+
+        // Update social links
+        if (request.getSocialLinks() != null) {
+            // Clear existing social links (orphanRemoval will delete them)
+            portfolio.getSocialLinks().clear();
+
+            // Add new social links
+            Set<SocialLink> socialLinks = new HashSet<>();
+            for (SocialLinkRequest linkReq : request.getSocialLinks()) {
+                SocialLink link = SocialLink.builder()
+                        .portfolio(portfolio)
+                        .platform(linkReq.getPlatform())
+                        .url(linkReq.getUrl())
+                        .build();
+                socialLinks.add(link);
+            }
+            portfolio.setSocialLinks(socialLinks);
+        }
+
+        Portfolio updatedPortfolio = portfolioRepository.save(portfolio);
+        log.info("Portfolio updated successfully. ID: {}", id);
+
+        PortfolioResponse response = portfolioMapper.toPortfolioResponse(updatedPortfolio);
+
+        // Convert S3 keys to URLs
+        convertS3KeysToUrls(response);
+
+        return response;
     }
 }
