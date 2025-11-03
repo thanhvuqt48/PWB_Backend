@@ -6,6 +6,8 @@ import com.fpt.producerworkbench.dto.request.PortfolioUpdateRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.PortfolioResponse;
 import com.fpt.producerworkbench.service.PortfolioService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -16,6 +18,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Set;
+
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -25,6 +29,7 @@ public class PortfolioController {
 
     PortfolioService portfolioService;
     ObjectMapper objectMapper;
+    Validator validator;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
@@ -36,6 +41,9 @@ public class PortfolioController {
 
         try {
             PortfolioRequest request = objectMapper.readValue(dataJson, PortfolioRequest.class);
+
+            validateRequest(request);
+
             PortfolioResponse result = portfolioService.create(request, coverImage);
 
             log.info("Portfolio created successfully with ID: {}", result.getId());
@@ -75,6 +83,10 @@ public class PortfolioController {
 
         try {
             PortfolioUpdateRequest request = objectMapper.readValue(dataJson, PortfolioUpdateRequest.class);
+
+            // Validate request
+            validateRequest(request);
+
             PortfolioResponse result = portfolioService.updatePersonalPortfolio(request, coverImage);
 
             log.info("Portfolio updated successfully");
@@ -91,6 +103,7 @@ public class PortfolioController {
     }
 
     @GetMapping("/personal")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<PortfolioResponse> getPersonalPortfolio() {
 
         PortfolioResponse result = portfolioService.getPersonalPortfolio();
@@ -100,6 +113,27 @@ public class PortfolioController {
                 .code(HttpStatus.OK.value())
                 .result(result)
                 .build();
+    }
+
+    @GetMapping("/user/{userId}")
+    public ApiResponse<PortfolioResponse> getPortfolioByUserId(@PathVariable Long userId) {
+        log.info("Getting portfolio for user ID: {}", userId);
+
+        PortfolioResponse result = portfolioService.getPortfolioByUserId(userId);
+
+        return ApiResponse.<PortfolioResponse>builder()
+                .message("Lấy portfolio thành công")
+                .code(HttpStatus.OK.value())
+                .result(result)
+                .build();
+    }
+
+    private <T> void validateRequest(T request) {
+        Set<ConstraintViolation<T>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            log.error("Validation failed: {} violations found", violations.size());
+            throw new jakarta.validation.ConstraintViolationException(violations);
+        }
     }
 
 }

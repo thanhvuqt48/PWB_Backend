@@ -392,4 +392,23 @@ public class PortfolioServiceImpl implements PortfolioService {
         log.info("Portfolio found successfully for user email: {}", user.getEmail());
         return response;
     }
+
+    @Override
+    public PortfolioResponse getPortfolioByUserId(Long userId) {
+        log.info("Finding portfolio by user ID: {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Portfolio portfolio = portfolioRepository.findByUserId(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
+
+
+        PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
+
+        convertS3KeysToUrls(response);
+
+        log.info("Portfolio found successfully for user ID: {}", userId);
+        return response;
+    }
 }
