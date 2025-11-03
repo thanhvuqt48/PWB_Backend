@@ -3,9 +3,12 @@ package com.fpt.producerworkbench.exception;
 import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.http.ResponseEntity;
@@ -84,6 +87,27 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.badRequest().body(fallback);
+    }
+
+    /**
+     * Handle ConstraintViolationException - thrown by manual validation using Validator.validate()
+     */
+    @ExceptionHandler(value = ConstraintViolationException.class)
+    ResponseEntity<ApiResponse> handleConstraintViolationException(ConstraintViolationException e) {
+        Set<ConstraintViolation<?>> violations = e.getConstraintViolations();
+
+        String errorMessage = violations.stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.joining(", "));
+
+        log.warn("Constraint violation: {}", errorMessage);
+
+        ApiResponse response = ApiResponse.builder()
+                .code(ErrorCode.VALIDATION_FAILED.getCode())
+                .message(errorMessage)
+                .build();
+
+        return ResponseEntity.badRequest().body(response);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

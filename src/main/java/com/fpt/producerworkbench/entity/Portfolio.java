@@ -27,7 +27,7 @@ public class Portfolio extends AbstractEntity<Long> {
     private String coverImageUrl;
 
     @Column(name = "is_public")
-    private boolean isPublic;
+    private Boolean isPublic;
 
     @Column(name = "latitude")
     private Double latitude;
