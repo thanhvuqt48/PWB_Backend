@@ -154,11 +154,18 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         boolean payMilestone = Boolean.TRUE.equals(req.getPayMilestone());
         if (payOnce == payMilestone) throw new AppException(ErrorCode.BAD_REQUEST);
 
+        int totalQtyFromLines = computeTotalQtyFromLines(req);
+
         if (payOnce) {
             if (req.getFpEditAmount() == null) throw new AppException(ErrorCode.BAD_REQUEST);
+            if (totalQtyFromLines <= 0) {
+                throw new AppException(ErrorCode.PRODUCT_COUNT_REQUIRED);
+            }
         }
+
         if (payMilestone) {
             validateMilestonesAmountPreVat(req.getMilestones(), totals.sum);
+            validateMilestonesProductQty(req.getMilestones(), totalQtyFromLines);
         }
 
         if (projectId == null) throw new AppException(ErrorCode.BAD_REQUEST);
@@ -180,6 +187,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         contract.setPaymentType(payOnce ? PaymentType.FULL : PaymentType.MILESTONE);
         contract.setStatus(ContractStatus.DRAFT);
         contract.setFpEditAmount(req.getFpEditAmount());
+        if (payOnce) {
+            contract.setProductCount(totalQtyFromLines);
+        }
         contract = contractRepository.save(contract);
 
         List<BigDecimal> milestoneGrossList = payMilestone
@@ -199,6 +209,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                         .status(MilestoneStatus.PENDING)
                         .sequence(idx + 1)
                         .editCount(m.getEditCount())
+                        .productCount(m.getProductCount())
                         .build();
                 milestoneRepository.save(ms);
                 idx++;
@@ -229,6 +240,14 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
             fields.put("Percent", ns(req.getPercent()));
             fields.put("FP Edit Amount", req.getFpEditAmount() == null ? "" : String.valueOf(req.getFpEditAmount()));
+            fields.put("FpEditAmount",  req.getFpEditAmount() == null ? "" : String.valueOf(req.getFpEditAmount()));
+
+            if (payOnce) {
+                fields.put("NumOfProduct", String.valueOf(totalQtyFromLines));
+            } else {
+                fields.put("NumOfProduct", "");
+            }
+
 
             Rectangle addRect = null;
             PdfPage addPage = null;
@@ -336,8 +355,11 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                     ? null : ("• Mô tả: " + m.getDescription());
             String revisions = (m.getEditCount() == null) ? null : ("• Số lần chỉnh sửa: " + m.getEditCount());
 
+            String qty = (m.getProductCount() == null) ? null
+                    : ("• Số sản phẩm: " + m.getProductCount());
+
             com.itextpdf.layout.element.Div probe =
-                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions);
+                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions, qty);
             float needed = measureHeight(probe, rect);
 
             if (needed > remaining) {
@@ -351,7 +373,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             }
 
             com.itextpdf.layout.element.Div real =
-                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions);
+                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions, qty);
             canvas.add(real);
             remaining -= needed;
         }
@@ -362,7 +384,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     private com.itextpdf.layout.element.Div buildMilestoneBlock(PdfFont font, float width,
                                                                 String title, String due,
                                                                 String money, String desc,
-                                                                String revisions) {
+                                                                String revisions,String qty) {
         com.itextpdf.layout.Style base = new com.itextpdf.layout.Style()
                 .setFont(font).setFontSize(10.5f);
 
@@ -390,6 +412,16 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 .setMultipliedLeading(1.15f)
                 .setMargin(0).setPadding(0);
         block.add(pMoney);
+
+        if (qty != null) {
+            Text tQty = new Text(qty).setFont(font).setFontSize(10.5f);
+            Paragraph pQty = new Paragraph(tQty)
+                    .setFont(font).setFontSize(10.5f)
+                    .setMultipliedLeading(1.15f)
+                    .setMargin(0).setPadding(0);
+            block.add(pQty);
+        }
+
 
         if (desc != null) {
             com.itextpdf.layout.element.Text tDesc = new com.itextpdf.layout.element.Text(desc)
@@ -681,7 +713,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             return;
         }
 
-        int base = 10;
+        int base = 9;
         for (int i = 0; i < clauses.size(); i++) {
             String body = clauses.get(i);
             int no = base + i;
@@ -744,6 +776,32 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         nf.setMaximumFractionDigits(0);
         nf.setMinimumFractionDigits(0);
         return nf.format(v);
+    }
+
+    private int computeTotalQtyFromLines(ContractPdfFillRequest req) {
+        int total = 0;
+        for (Line ln : collectLines(req)) {
+            if (ln.qty != null && ln.qty > 0) total += ln.qty;
+        }
+        return total;
+    }
+
+    private void validateMilestonesProductQty(List<MilestoneRequest> milestones, int expectedQty) {
+        if (milestones == null || milestones.isEmpty()) throw new AppException(ErrorCode.BAD_REQUEST);
+
+        int sum = 0;
+        for (MilestoneRequest m : milestones) {
+            if (m.getProductCount() == null || m.getProductCount() <= 0) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+            sum += m.getProductCount();
+        }
+
+        if (sum < expectedQty) {
+            throw new AppException(ErrorCode.MILESTONES_PRODUCT_TOTAL_NOT_ENOUGH);
+        } else if (sum > expectedQty) {
+            throw new AppException(ErrorCode.MILESTONES_PRODUCT_TOTAL_EXCEEDS);
+        }
     }
 
     private String ns(Object o) { return o == null ? "" : String.valueOf(o); }

@@ -39,6 +39,9 @@ public class Milestone extends AbstractEntity<Long>{
     @Column(name = "edit_count")
     private Integer editCount;
 
+    @Column(name = "product_count")
+    private Integer productCount;
+
     private Integer sequence;
 
 }

@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.configuration.SignNowProperties;
 import com.fpt.producerworkbench.entity.Contract;
+import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.entity.ContractDocument;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ContractAddendumRepository;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
@@ -39,6 +41,7 @@ public class SignNowWebhookController {
 
     private final SignNowProperties props;
     private final ContractRepository contractRepository;
+    private final ContractAddendumRepository contractAddendumRepository; // NEW
     private final ContractDocumentRepository contractDocumentRepository;
     private final SignNowClient signNowClient;
     private final FileStorageService fileStorageService;
@@ -97,37 +100,64 @@ public class SignNowWebhookController {
             return ResponseEntity.ok("no doc id");
         }
 
-        Optional<Contract> opt = contractRepository.findBySignnowDocumentId(documentId);
-        if (opt.isEmpty()) {
-            log.warn("[Webhook] No contract matches signNow docId={}", documentId);
-            return ResponseEntity.ok("no related contract");
-        }
-        Contract c = opt.get();
-
-        if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.COMPLETED) {
-            return ResponseEntity.ok("already completed");
-        }
-
-        boolean withHistory = props.getWebhook().isWithHistory();
-        try {
-            if (!signNowClient.canDownloadCollapsed(documentId, withHistory)) {
-                return ResponseEntity.accepted().body("collapsed not ready");
+        Optional<Contract> optC = contractRepository.findBySignnowDocumentId(documentId);
+        if (optC.isPresent()) {
+            Contract c = optC.get();
+            if (c.getStatus() == ContractStatus.COMPLETED) {
+                return ResponseEntity.ok("already completed");
             }
-        } catch (Exception e) {
-            log.debug("[Webhook] canDownloadCollapsed check failed: {}", e.getMessage());
+
+            boolean withHistory = props.getWebhook().isWithHistory();
+            try {
+                if (!signNowClient.canDownloadCollapsed(documentId, withHistory)) {
+                    return ResponseEntity.accepted().body("collapsed not ready");
+                }
+            } catch (Exception e) {
+                log.debug("[Webhook] canDownloadCollapsed(contract) failed: {}", e.getMessage());
+            }
+
+            try {
+                saveSignedAndComplete(c, withHistory);
+                return ResponseEntity.ok("ok");
+            } catch (AppException ex) {
+                return ResponseEntity.accepted().body("not ready");
+            } catch (Exception ex) {
+                log.error("[Webhook] saveSignedAndComplete failed", ex);
+                return ResponseEntity.internalServerError().body("error");
+            }
         }
 
-        try {
-            saveSignedAndComplete(c, withHistory);
-            return ResponseEntity.ok("ok");
-        } catch (AppException ex) {
-            return ResponseEntity.accepted().body("not ready");
-        } catch (Exception ex) {
-            log.error("[Webhook] saveSignedAndComplete failed", ex);
-            return ResponseEntity.internalServerError().body("error");
+        Optional<ContractAddendum> optA = contractAddendumRepository.findBySignnowDocumentId(documentId);
+        if (optA.isPresent()) {
+            ContractAddendum a = optA.get();
+
+            if (a.getSignnowStatus() == ContractStatus.COMPLETED) {
+                return ResponseEntity.ok("addendum already completed");
+            }
+
+            boolean withHistory = props.getWebhook().isWithHistory();
+            try {
+                if (!signNowClient.canDownloadCollapsed(documentId, withHistory)) {
+                    return ResponseEntity.accepted().body("collapsed not ready");
+                }
+            } catch (Exception e) {
+                log.debug("[Webhook] canDownloadCollapsed(addendum) failed: {}", e.getMessage());
+            }
+
+            try {
+                saveSignedAddendumAndComplete(a, withHistory); // NEW
+                return ResponseEntity.ok("ok");
+            } catch (AppException ex) {
+                return ResponseEntity.accepted().body("not ready");
+            } catch (Exception ex) {
+                log.error("[Webhook] saveSignedAddendumAndComplete failed", ex);
+                return ResponseEntity.internalServerError().body("error");
+            }
         }
+
+        log.warn("[Webhook] No contract/addendum matches signNow docId={}", documentId);
+        return ResponseEntity.ok("no related contract/addendum");
     }
-
 
     private boolean verifyHmac(String signature, byte[] body, String secret) {
         if (!StringUtils.hasText(signature) || !StringUtils.hasText(secret)) return false;
@@ -190,7 +220,8 @@ public class SignNowWebhookController {
         return null;
     }
 
-    @Transactional
+
+
     private void saveSignedAndComplete(Contract c, boolean withHistory) {
         if (c.getSignnowDocumentId() == null || c.getSignnowDocumentId().isBlank()) {
             throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
@@ -241,5 +272,60 @@ public class SignNowWebhookController {
         contractRepository.save(c);
 
         log.info("[Webhook] Successfully saved signed contract {} version {}", c.getId(), nextVer);
+    }
+
+
+    private void saveSignedAddendumAndComplete(ContractAddendum a, boolean withHistory) {
+        if (a.getSignnowDocumentId() == null || a.getSignnowDocumentId().isBlank()) {
+            throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+        }
+
+        byte[] pdf;
+        try {
+            pdf = signNowClient.downloadFinalPdf(a.getSignnowDocumentId(), withHistory);
+            log.info("[Webhook][Addendum] Downloaded final PDF bytes={}", (pdf == null ? 0 : pdf.length));
+        } catch (org.springframework.web.reactive.function.client.WebClientResponseException ex) {
+            int sc = ex.getStatusCode().value();
+            if (sc == 400 || sc == 409 || sc == 422) {
+                log.warn("[Webhook][Addendum] Collapsed not ready: status={} body={}", sc, ex.getResponseBodyAsString());
+                throw new AppException(ErrorCode.SIGNNOW_DOC_NOT_COMPLETED);
+            }
+            log.error("[Webhook][Addendum] Download failed: status={} body={}", sc, ex.getResponseBodyAsString());
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        } catch (IllegalStateException ex) {
+            log.error("[Webhook][Addendum] Download failed: empty body (200 OK)", ex);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        } catch (Exception ex) {
+            log.error("[Webhook][Addendum] Download failed (unexpected)", ex);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        }
+
+        Long contractId = a.getContract().getId();
+
+        ContractDocument existing = contractDocumentRepository
+                .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.SIGNED)
+                .orElse(null);
+
+        String key = fileKeyGenerator.generateContractDocumentKey(contractId, "addendum-signed.pdf");
+        fileStorageService.uploadBytes(pdf, key, "application/pdf");
+
+        if (existing == null) {
+            existing = ContractDocument.builder()
+                    .contract(a.getContract())
+                    .type(ContractDocumentType.SIGNED)
+                    .version(1)
+                    .storageUrl(key)
+                    .build();
+        } else {
+            existing.setStorageUrl(key);
+            if (existing.getVersion() == null || existing.getVersion() <= 0) existing.setVersion(1);
+        }
+        contractDocumentRepository.save(existing);
+
+        a.setSignnowStatus(ContractStatus.COMPLETED);
+        contractAddendumRepository.save(a);
+
+        log.info("[Webhook] Successfully saved signed addendum for contract {} (addendumId={})",
+                contractId, a.getId());
     }
 }

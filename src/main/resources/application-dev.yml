@@ -98,6 +98,9 @@ pwb:
   contract:
     template: classpath:templates/hop-dong-san-xuat-am-nhac.pdf
     font: classpath:/templates/NotoSerif-Regular.ttf
+  addendum:
+    template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac.pdf
+    font: classpath:templates/NotoSerif-Regular.ttf
 
 storage:
   base-dir: ${STORAGE_BASE_DIR:/var/pwb-files}

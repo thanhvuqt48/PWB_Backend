@@ -88,6 +88,9 @@ public enum ErrorCode {
     CONTRACT_NOT_DECLINED(7013, "Hợp đồng chưa bị từ chối.", HttpStatus.BAD_REQUEST),
     MILESTONES_TOTAL_NOT_ENOUGH(7014, "Tổng số tiền các cột mốc nhỏ hơn tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
     MILESTONES_TOTAL_EXCEEDS(7015, "Tổng số tiền các cột mốc vượt quá tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
+    PRODUCT_COUNT_REQUIRED(7016, "Thiếu số lượng sản phẩm (tổng từ bảng hạng mục phải > 0).", HttpStatus.BAD_REQUEST),
+    MILESTONES_PRODUCT_TOTAL_NOT_ENOUGH(7017, "Tổng số lượng sản phẩm ở các cột mốc BỊ THIẾU so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
+    MILESTONES_PRODUCT_TOTAL_EXCEEDS(7018, "Tổng số lượng sản phẩm ở các cột mốc BỊ DƯ so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
