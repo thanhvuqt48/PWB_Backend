@@ -5,5 +5,6 @@ public enum ContractDocumentType {
     FILLED,
     SIGNNOW_UPLOADED,
     SIGNED,
-    AUDIT_TRAIL
+    AUDIT_TRAIL,
+    ADDENDUM
 }

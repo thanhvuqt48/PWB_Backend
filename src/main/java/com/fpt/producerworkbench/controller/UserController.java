@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.*;
+import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.service.UserService;
 import jakarta.mail.MessagingException;
 import jakarta.validation.Valid;
@@ -18,7 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 @RequestMapping("/api/v1/users")
-public class UserController {
+public class UserController extends User {
 
     UserService userService;
 

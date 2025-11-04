@@ -50,6 +50,9 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "fp_edit_amount")
     private Integer fpEditAmount;
 
+    @Column(name = "product_count")
+    private Integer productCount;
+
     // ====== Bổ sung cho SignNow / ký điện tử ======
     @Column(name = "signnow_template_id", length = 128)
     private String signnowTemplateId;
