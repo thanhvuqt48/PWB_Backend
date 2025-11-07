@@ -42,10 +42,6 @@ public class LiveSessionResponse {
     private LocalDateTime actualStart;
     private LocalDateTime actualEnd;
 
-    // Recording
-    private Boolean recordingEnabled;
-    private String recordingUrl;
-
     // Playback
     private Long currentPlayingFileId;
 

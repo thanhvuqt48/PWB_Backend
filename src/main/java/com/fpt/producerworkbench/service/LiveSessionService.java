@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.entity.LiveSession;
 
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
+import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
 import org.springframework.data.domain.Page;
@@ -12,6 +13,13 @@ public interface LiveSessionService {
 
      //Create a new live session
     LiveSessionResponse createSession(CreateSessionRequest request, Long hostId);
+    
+     //Update a session
+    LiveSessionResponse updateSession(String sessionId, UpdateSessionRequest request, Long userId);
+    
+     //Delete a session
+    void deleteSession(String sessionId, Long userId);
+    
     //Start a session
     LiveSessionResponse startSession(String sessionId, Long userId);
      //Pause a session

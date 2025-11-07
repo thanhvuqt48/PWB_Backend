@@ -155,6 +155,18 @@ public enum ErrorCode {
     // Project errors (4xxx)
     ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
     PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
+    PROJECT_ALREADY_HAS_BLOCKING_SESSION(4004, "Dự án đã có phiên đang được lên lịch hoặc đang hoạt động", HttpStatus.BAD_REQUEST),
+
+    // Session Update/Delete errors (5300-5399)
+    SCHEDULED_START_MUST_BE_FUTURE(5301, "Thời gian bắt đầu phải là thời gian tương lai", HttpStatus.BAD_REQUEST),
+    MAX_PARTICIPANTS_INVALID(5302, "Số lượng người tham gia tối đa phải từ 2 đến 10", HttpStatus.BAD_REQUEST),
+    CANNOT_UPDATE_ACTIVE_OR_PAUSED_SESSION(5303, "Không thể cập nhật phiên đang hoạt động hoặc đang tạm dừng", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_UPDATE_SCHEDULED_OR_ENDED_SESSION(5304, "Chỉ có thể cập nhật phiên đã lên lịch hoặc đã kết thúc", HttpStatus.BAD_REQUEST),
+    MAX_PARTICIPANTS_TOO_LOW(5305, "Số lượng người tham gia tối đa không được thấp hơn số người đang tham gia", HttpStatus.BAD_REQUEST),
+    CANNOT_DELETE_ACTIVE_SESSION(5306, "Không thể xóa phiên đang hoạt động. Vui lòng kết thúc phiên trước", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_DELETE_SCHEDULED_OR_ENDED_SESSION(5307, "Chỉ có thể xóa phiên đã lên lịch hoặc đã kết thúc", HttpStatus.BAD_REQUEST),
+    ANONYMOUS_MEMBER_CANNOT_ACCESS_SESSION(5308, "Thành viên ẩn danh không thể truy cập phiên", HttpStatus.FORBIDDEN),
+    NOT_PROJECT_MEMBER(5309, "Bạn không phải là thành viên của dự án này", HttpStatus.FORBIDDEN),
 
     // Join Request errors (5200-5299)
     JOIN_REQUEST_NOT_FOUND(5201, "Không tìm thấy yêu cầu tham gia hoặc đã hết hạn", HttpStatus.NOT_FOUND),

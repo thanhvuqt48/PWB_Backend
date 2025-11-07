@@ -40,4 +40,7 @@ public interface SessionParticipantRepository extends JpaRepository<SessionParti
             @Param("sessionId") String sessionId,
             @Param("userId") Long userId
     );
+
+    @Query("DELETE FROM SessionParticipant p WHERE p.session.id = :sessionId")
+    void deleteBySessionId(@Param("sessionId") String sessionId);
 }

@@ -35,7 +35,5 @@ public class CreateSessionRequest {
 
     private List<Long> preloadedFileIds; // Optional, files to share in session
 
-    private Boolean recordingEnabled = false;
-
     private Integer maxParticipants = 6;
 }

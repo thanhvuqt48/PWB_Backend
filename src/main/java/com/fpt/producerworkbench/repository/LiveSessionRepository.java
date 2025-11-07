@@ -36,4 +36,9 @@ public interface LiveSessionRepository extends JpaRepository<LiveSession, String
             "FROM LiveSession s WHERE s.project.id = :projectId AND s.status = 'ACTIVE'")
     boolean hasActiveSessionForProject(@Param("projectId") Long projectId);
 
+    @Query("SELECT CASE WHEN COUNT(s) > 0 THEN true ELSE false END " +
+            "FROM LiveSession s WHERE s.project.id = :projectId " +
+            "AND s.status IN ('SCHEDULED', 'ACTIVE', 'PAUSED')")
+    boolean hasBlockingSessionForProject(@Param("projectId") Long projectId);
+
 }

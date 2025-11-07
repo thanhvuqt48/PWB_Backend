@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.configuration.AgoraConfig;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
+import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
 import com.fpt.producerworkbench.dto.websocket.SessionStateChangeEvent;
@@ -38,6 +39,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final SessionParticipantRepository participantRepository;
+    private final com.fpt.producerworkbench.repository.ProjectMemberRepository projectMemberRepository;
     private final LiveSessionMapper sessionMapper;
     private final WebSocketService webSocketService; // ✅ Add WebSocket service
     private final AgoraConfig agoraConfig;
@@ -60,9 +62,21 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.ONLY_PROJECT_OWNER_CAN_CREATE_SESSION);
         }
 
+        // ✅ NEW: Check if project has any blocking session (SCHEDULED/ACTIVE/PAUSED)
+        if (sessionRepository.hasBlockingSessionForProject(request.getProjectId())) {
+            throw new AppException(ErrorCode.PROJECT_ALREADY_HAS_BLOCKING_SESSION);
+        }
 
-        if (sessionRepository.hasActiveSessionForProject(request.getProjectId())) {
-            throw new AppException(ErrorCode.PROJECT_ALREADY_HAS_ACTIVE_SESSION);
+        // ✅ NEW: Validate scheduledStart if provided
+        if (request.getScheduledStart() != null 
+            && request.getScheduledStart().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.SCHEDULED_START_MUST_BE_FUTURE);
+        }
+
+        // ✅ NEW: Validate maxParticipants (2-10)
+        Integer maxParticipants = request.getMaxParticipants() != null ? request.getMaxParticipants() : 6;
+        if (maxParticipants < 2 || maxParticipants > 10) {
+            throw new AppException(ErrorCode.MAX_PARTICIPANTS_INVALID);
         }
 
 
@@ -78,10 +92,9 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                 .status(SessionStatus.SCHEDULED)
                 .agoraChannelName(channelName)
                 .agoraAppId(getAgoraAppId())
-                .maxParticipants(request.getMaxParticipants())
+                .maxParticipants(maxParticipants)
                 .currentParticipants(0)
                 .scheduledStart(request.getScheduledStart())
-                .recordingEnabled(request.getRecordingEnabled())
                 .build();
 
         LiveSession saved = sessionRepository.save(session);
@@ -89,6 +102,84 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         log.info("Session created: {}", saved.getId());
 
         return sessionMapper.toDTO(saved);
+    }
+
+    @Override
+    @Transactional
+    public LiveSessionResponse updateSession(String sessionId, UpdateSessionRequest request, Long userId) {
+        log.info("Updating session {} by user {}", sessionId, userId);
+
+        LiveSession session = getSessionEntity(sessionId);
+        validateIsHost(session, userId);
+
+        // ❌ Cannot update ACTIVE or PAUSED sessions
+        if (session.getStatus() == SessionStatus.ACTIVE || session.getStatus() == SessionStatus.PAUSED) {
+            throw new AppException(ErrorCode.CANNOT_UPDATE_ACTIVE_OR_PAUSED_SESSION);
+        }
+
+        // ✅ Only update SCHEDULED or ENDED sessions
+        if (session.getStatus() != SessionStatus.SCHEDULED && session.getStatus() != SessionStatus.ENDED) {
+            throw new AppException(ErrorCode.CAN_ONLY_UPDATE_SCHEDULED_OR_ENDED_SESSION);
+        }
+
+        // Update title if provided
+        if (request.getTitle() != null) {
+            session.setTitle(request.getTitle());
+        }
+
+        // Update description if provided
+        if (request.getDescription() != null) {
+            session.setDescription(request.getDescription());
+        }
+
+        // Update scheduledStart if provided and validate it's in the future
+        if (request.getScheduledStart() != null) {
+            if (request.getScheduledStart().isBefore(LocalDateTime.now())) {
+                throw new AppException(ErrorCode.SCHEDULED_START_MUST_BE_FUTURE);
+            }
+            session.setScheduledStart(request.getScheduledStart());
+        }
+
+        // Update maxParticipants if provided
+        if (request.getMaxParticipants() != null) {
+            // ❌ Cannot reduce below current participants
+            if (request.getMaxParticipants() < session.getCurrentParticipants()) {
+                throw new AppException(ErrorCode.MAX_PARTICIPANTS_TOO_LOW);
+            }
+            session.setMaxParticipants(request.getMaxParticipants());
+        }
+
+        LiveSession updated = sessionRepository.save(session);
+        log.info("Session {} updated successfully", sessionId);
+
+        return sessionMapper.toDTO(updated);
+    }
+
+    @Override
+    @Transactional
+    public void deleteSession(String sessionId, Long userId) {
+        log.info("Deleting session {} by user {}", sessionId, userId);
+
+        LiveSession session = getSessionEntity(sessionId);
+        validateIsHost(session, userId);
+
+        // ❌ Cannot delete ACTIVE or PAUSED sessions - must END first
+        if (session.getStatus() == SessionStatus.ACTIVE || session.getStatus() == SessionStatus.PAUSED) {
+            throw new AppException(ErrorCode.CANNOT_DELETE_ACTIVE_SESSION);
+        }
+
+        // ✅ Only delete SCHEDULED or ENDED sessions
+        if (session.getStatus() != SessionStatus.SCHEDULED && session.getStatus() != SessionStatus.ENDED) {
+            throw new AppException(ErrorCode.CAN_ONLY_DELETE_SCHEDULED_OR_ENDED_SESSION);
+        }
+
+        // Cascade delete all participants
+        participantRepository.deleteBySessionId(sessionId);
+
+        // Delete session
+        sessionRepository.delete(session);
+
+        log.info("Session {} deleted successfully", sessionId);
     }
 
     @Override
@@ -367,7 +458,17 @@ public class LiveSessionServiceImpl implements LiveSessionService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<LiveSessionResponse> getSessionsByProject(Long projectId, SessionStatus status, Pageable pageable,Long currentUserId) {
+    public Page<LiveSessionResponse> getSessionsByProject(Long projectId, SessionStatus status, Pageable pageable, Long currentUserId) {
+        // ✅ NEW: Check if user is project member
+        com.fpt.producerworkbench.entity.ProjectMember member = projectMemberRepository
+                .findByProjectIdAndUserId(projectId, currentUserId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_PROJECT_MEMBER));
+
+        // ❌ NEW: Block anonymous members from viewing sessions
+        if (member.isAnonymous()) {
+            throw new AppException(ErrorCode.ANONYMOUS_MEMBER_CANNOT_ACCESS_SESSION);
+        }
+
         Page<LiveSession> sessions;
 
         if (status != null) {
@@ -430,7 +531,6 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                 .actualEnd(session.getActualEnd())
                 .duration(duration)
                 .totalParticipants(totalParticipants.intValue())
-                .recordingUrl(session.getRecordingUrl())
                 .build();
     }
 

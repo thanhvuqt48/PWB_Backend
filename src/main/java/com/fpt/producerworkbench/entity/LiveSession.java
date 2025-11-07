@@ -79,14 +79,6 @@ public class LiveSession {
     @Column(name = "actual_end")
     private LocalDateTime actualEnd;
 
-    // ========== Recording ==========
-
-    @Column(name = "recording_enabled")
-    private Boolean recordingEnabled = false;
-
-    @Column(name = "recording_url", length = 500)
-    private String recordingUrl;
-
     // ========== Playback State ==========
 
     @Column(name = "current_playing_file_id")

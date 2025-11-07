@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
+import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.PageResponse;
@@ -47,6 +48,29 @@ public class SessionController {
         return ApiResponse.<LiveSessionResponse>builder()
                 .message("Session retrieved successfully")
                 .result(session)
+                .build();
+    }
+
+    @PutMapping("/{sessionId}")
+    public ApiResponse<LiveSessionResponse> updateSession(
+            @PathVariable String sessionId,
+            @Valid @RequestBody UpdateSessionRequest request) {
+        Long userId = securityUtils.getCurrentUserId();
+        LiveSessionResponse session = sessionService.updateSession(sessionId, request, userId);
+
+        return ApiResponse.<LiveSessionResponse>builder()
+                .message("Session updated successfully")
+                .result(session)
+                .build();
+    }
+
+    @DeleteMapping("/{sessionId}")
+    public ApiResponse<Void> deleteSession(@PathVariable String sessionId) {
+        Long userId = securityUtils.getCurrentUserId();
+        sessionService.deleteSession(sessionId, userId);
+
+        return ApiResponse.<Void>builder()
+                .message("Session deleted successfully")
                 .build();
     }
 
