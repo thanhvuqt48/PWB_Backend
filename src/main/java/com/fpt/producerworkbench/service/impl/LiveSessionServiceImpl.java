@@ -41,6 +41,8 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     private final LiveSessionMapper sessionMapper;
     private final WebSocketService webSocketService; // ✅ Add WebSocket service
     private final AgoraConfig agoraConfig;
+    private final com.fpt.producerworkbench.utils.SecurityUtils securityUtils; // ✅ Add SecurityUtils
+    
     @Override
     @Transactional
     public LiveSessionResponse createSession(CreateSessionRequest request, Long hostId) {
@@ -350,7 +352,17 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     @Transactional(readOnly = true)
     public LiveSessionResponse getSessionById(String sessionId) {
         LiveSession session = getSessionEntity(sessionId);
-        return sessionMapper.toDTO(session);
+        LiveSessionResponse response = sessionMapper.toDTO(session);
+        
+        // ✅ Get current user ID from SecurityContext
+        try {
+            Long currentUserId = securityUtils.getCurrentUserId();
+            response.setCurrentUserId(currentUserId);
+        } catch (Exception e) {
+            log.warn("⚠️ Could not get current user ID for session {}: {}", sessionId, e.getMessage());
+        }
+        
+        return response;
     }
 
     @Override

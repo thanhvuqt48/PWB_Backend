@@ -155,6 +155,13 @@ public enum ErrorCode {
     // Project errors (4xxx)
     ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
     PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
+
+    // Join Request errors (5200-5299)
+    JOIN_REQUEST_NOT_FOUND(5201, "Không tìm thấy yêu cầu tham gia hoặc đã hết hạn", HttpStatus.NOT_FOUND),
+    JOIN_REQUEST_EXPIRED(5202, "Yêu cầu tham gia đã hết hạn", HttpStatus.BAD_REQUEST),
+    DUPLICATE_JOIN_REQUEST(5203, "Bạn đã có yêu cầu tham gia đang chờ xử lý", HttpStatus.CONFLICT),
+    REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
+    OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;
