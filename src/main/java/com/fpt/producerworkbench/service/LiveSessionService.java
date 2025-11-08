@@ -22,10 +22,6 @@ public interface LiveSessionService {
     
     //Start a session
     LiveSessionResponse startSession(String sessionId, Long userId);
-     //Pause a session
-    LiveSessionResponse pauseSession(String sessionId, Long userId);
-     //Resume a paused session
-    LiveSessionResponse resumeSession(String sessionId, Long userId);
      //End a session
     SessionSummaryResponse endSession(String sessionId, Long userId);
      //Cancel a scheduled session

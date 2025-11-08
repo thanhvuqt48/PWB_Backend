@@ -1,7 +1,5 @@
 package com.fpt.producerworkbench.dto.request;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,8 +21,4 @@ public class UpdateSessionRequest {
     private String description;
 
     private LocalDateTime scheduledStart;
-
-    @Min(value = 2, message = "Max participants must be at least 2")
-    @Max(value = 10, message = "Max participants cannot exceed 10")
-    private Integer maxParticipants;
 }

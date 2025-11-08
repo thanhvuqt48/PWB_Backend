@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.entity.LiveSession;
 import com.fpt.producerworkbench.service.EmailService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -20,6 +21,7 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Service
@@ -77,6 +79,141 @@ public class EmailServiceImpl implements EmailService {
         mailSender.send(mimeMessage);
 
         log.info("Email sent to {} successfully!", event.getRecipient());
+    }
+
+    @Async
+    @Override
+    public void sendSessionInviteNotification(LiveSession session, List<String> memberEmails) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        if (memberEmails == null || memberEmails.isEmpty()) {
+            log.warn("No member emails to send session invite notification");
+            return;
+        }
+
+        log.info("Sending session invite notification to {} members for session: {}", 
+                memberEmails.size(), session.getTitle());
+
+        // Prepare template variables
+        Context context = new Context();
+        context.setVariable("sessionTitle", session.getTitle());
+        context.setVariable("sessionDescription", session.getDescription());
+        context.setVariable("hostName", getFullName(session.getHost()));
+        context.setVariable("projectName", session.getProject().getTitle());
+        
+        // Format scheduled start time
+        if (session.getScheduledStart() != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy 'at' hh:mm a");
+            String formattedDate = session.getScheduledStart().format(formatter);
+            context.setVariable("scheduledStart", formattedDate);
+        } else {
+            context.setVariable("scheduledStart", "To be announced");
+        }
+        
+        // Session link (adjust based on your frontend URL structure)
+        String sessionLink = String.format("http://localhost:5173/projects/%d/sessions/%s", 
+                session.getProject().getId(), session.getId());
+        context.setVariable("sessionLink", sessionLink);
+
+        // Send email to each member
+        for (String memberEmail : memberEmails) {
+            try {
+                context.setVariable("recipientName", extractNameFromEmail(memberEmail));
+                String personalizedHtml = templateEngine.process("session-invite-notification", context);
+                
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                        MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+
+                helper.setFrom(emailFrom, "Producer Workbench");
+                helper.setTo(memberEmail);
+                helper.setSubject("🎵 You're Invited: " + session.getTitle());
+                helper.setText(personalizedHtml, true);
+
+                mailSender.send(mimeMessage);
+                log.info("Session invite email sent to {} successfully!", memberEmail);
+                
+            } catch (Exception e) {
+                log.error("Failed to send session invite email to {}: {}", memberEmail, e.getMessage());
+            }
+        }
+    }
+
+    private String getFullName(com.fpt.producerworkbench.entity.User user) {
+        if (user.getFirstName() != null && user.getLastName() != null) {
+            return user.getFirstName() + " " + user.getLastName();
+        } else if (user.getFirstName() != null) {
+            return user.getFirstName();
+        } else if (user.getLastName() != null) {
+            return user.getLastName();
+        }
+        return user.getEmail();
+    }
+
+    private String extractNameFromEmail(String email) {
+        if (email.contains("@")) {
+            String username = email.substring(0, email.indexOf("@"));
+            // Capitalize first letter
+            return username.substring(0, 1).toUpperCase() + username.substring(1);
+        }
+        return email;
+    }
+
+    @Async
+    @Override
+    public void sendSessionReminderNotification(LiveSession session, List<String> participantEmails) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        if (participantEmails == null || participantEmails.isEmpty()) {
+            log.warn("No participant emails to send session reminder notification");
+            return;
+        }
+
+        log.info("Sending session reminder notification to {} participants for session: {}", 
+                participantEmails.size(), session.getTitle());
+
+        // Prepare template variables
+        Context context = new Context();
+        context.setVariable("sessionTitle", session.getTitle());
+        context.setVariable("hostName", getFullName(session.getHost()));
+        context.setVariable("projectName", session.getProject().getTitle());
+        
+        // Format scheduled start time
+        if (session.getScheduledStart() != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy 'at' hh:mm a");
+            String formattedDate = session.getScheduledStart().format(formatter);
+            context.setVariable("scheduledStart", formattedDate);
+        } else {
+            context.setVariable("scheduledStart", "Now");
+        }
+        
+        // Session link
+        String sessionLink = String.format("http://localhost:5173/projects/%d/sessions/%s", 
+                session.getProject().getId(), session.getId());
+        context.setVariable("sessionLink", sessionLink);
+
+        // Send email to each participant
+        for (String participantEmail : participantEmails) {
+            try {
+                context.setVariable("recipientName", extractNameFromEmail(participantEmail));
+                String personalizedHtml = templateEngine.process("session-reminder-notification", context);
+                
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                        MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+
+                helper.setFrom(emailFrom, "Producer Workbench");
+                helper.setTo(participantEmail);
+                helper.setSubject("⏰ REMINDER: " + session.getTitle() + " starts in 5 minutes!");
+                helper.setText(personalizedHtml, true);
+
+                mailSender.send(mimeMessage);
+                log.info("Session reminder email sent to {} successfully!", participantEmail);
+                
+            } catch (Exception e) {
+                log.error("Failed to send session reminder email to {}: {}", participantEmail, e.getMessage());
+            }
+        }
     }
 
 }

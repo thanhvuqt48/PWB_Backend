@@ -1,7 +1,6 @@
 package com.fpt.producerworkbench.dto.response;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fpt.producerworkbench.common.SessionStatus;
-import com.fpt.producerworkbench.common.SessionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,15 +26,14 @@ public class LiveSessionResponse {
     // Basic Info
     private String title;
     private String description;
-    private SessionType sessionType;
     private SessionStatus status;
 
     // Agora Info
     private String agoraChannelName;
 
     // Participants
-    private Integer maxParticipants;
     private Integer currentParticipants;
+    private Boolean isPublic; // true = PUBLIC (anyone can join), false = PRIVATE (invited only)
 
     // Timing
     private LocalDateTime scheduledStart;

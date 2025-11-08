@@ -132,28 +132,6 @@ public class SessionController {
                 .build();
     }
 
-    @PostMapping("/{sessionId}/pause")
-    public ApiResponse<LiveSessionResponse> pauseSession(@PathVariable String sessionId) {
-        Long userId = securityUtils.getCurrentUserId();
-        LiveSessionResponse session = sessionService.pauseSession(sessionId, userId);
-
-        return ApiResponse.<LiveSessionResponse>builder()
-                .message("Session paused successfully")
-                .result(session)
-                .build();
-    }
-
-    @PostMapping("/{sessionId}/resume")
-    public ApiResponse<LiveSessionResponse> resumeSession(@PathVariable String sessionId) {
-        Long userId = securityUtils.getCurrentUserId();
-        LiveSessionResponse session = sessionService.resumeSession(sessionId, userId);
-
-        return ApiResponse.<LiveSessionResponse>builder()
-                .message("Session resumed successfully")
-                .result(session)
-                .build();
-    }
-
     @PostMapping("/{sessionId}/end")
     public ApiResponse<SessionSummaryResponse> endSession(@PathVariable String sessionId) {
         Long userId = securityUtils.getCurrentUserId();

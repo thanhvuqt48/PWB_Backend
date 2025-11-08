@@ -48,12 +48,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             throw new AppException(ErrorCode.SESSION_NOT_ACTIVE);
         }
 
-        // 2. Check session not full
-        if (session.isFull()) {
-            throw new AppException(ErrorCode.SESSION_FULL);
-        }
-
-        // 3. Check user is in project
+        // 2. Check user is in project
         ProjectMember projectMember = projectMemberRepository
                 .findByProjectIdAndUserId(session.getProject().getId(), userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECT));
@@ -159,15 +154,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
             throw new AppException(ErrorCode.JOIN_REQUEST_EXPIRED);
         }
 
-        // 4. Double check session not full
-        LiveSession session = sessionRepository.findById(request.getSessionId())
-                .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
-
-        if (session.isFull()) {
-            throw new AppException(ErrorCode.SESSION_FULL);
-        }
-
-        // 5. Acquire processing lock (prevent double approve)
+        // 4. Acquire processing lock (prevent double approve)
         if (!redisService.acquireProcessingLock(requestId)) {
             throw new AppException(ErrorCode.REQUEST_ALREADY_PROCESSED);
         }

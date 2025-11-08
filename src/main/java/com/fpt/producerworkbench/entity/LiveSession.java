@@ -1,7 +1,6 @@
 package com.fpt.producerworkbench.entity;
 
 import com.fpt.producerworkbench.common.SessionStatus;
-import com.fpt.producerworkbench.common.SessionType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -46,11 +45,10 @@ public class LiveSession {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SessionType sessionType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
     private SessionStatus status = SessionStatus.SCHEDULED;
+
+    @Column(name = "is_public")
+    private Boolean isPublic = true; // true = PUBLIC (anyone can see), false = PRIVATE (invited only)
 
     // ========== Agora Config ==========
 
@@ -61,9 +59,6 @@ public class LiveSession {
     private String agoraAppId;
 
     // ========== Participants ==========
-
-    @Column(name = "max_participants", nullable = false)
-    private Integer maxParticipants = 6;
 
     @Column(name = "current_participants", nullable = false)
     private Integer currentParticipants = 0;
@@ -109,8 +104,7 @@ public class LiveSession {
     }
 
     public boolean canJoin() {
-        return this.status == SessionStatus.ACTIVE
-                && this.currentParticipants < this.maxParticipants;
+        return this.status == SessionStatus.ACTIVE;
     }
 
     public void incrementParticipants() {
@@ -121,10 +115,6 @@ public class LiveSession {
         if (this.currentParticipants > 0) {
             this.currentParticipants--;
         }
-    }
-
-    public boolean isFull() {
-        return this.currentParticipants >= this.maxParticipants;
     }
 
     public boolean isHost(Long userId) {
