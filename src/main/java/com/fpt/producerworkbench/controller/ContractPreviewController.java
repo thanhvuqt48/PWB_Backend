@@ -8,7 +8,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,7 +22,7 @@ public class ContractPreviewController {
     private final ContractRepository contractRepository;
     private final ContractDocumentRepository contractDocumentRepository;
     private final FileStorageService fileStorageService;
-    private final ContractPermissionService contractPermissionService;
+    private final ProjectPermissionService projectPermissionService;
 
     private void ensureCanViewFilled(Authentication auth, Long contractId) {
         Contract contract = contractRepository.findById(contractId)
@@ -32,7 +32,7 @@ public class ContractPreviewController {
             throw new AppException(ErrorCode.PROJECT_NOT_FOUND);
         }
 
-        var permissions = contractPermissionService.checkContractPermissions(auth, project.getId());
+        var permissions = projectPermissionService.checkContractPermissions(auth, project.getId());
         if (!permissions.isCanViewContract()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }

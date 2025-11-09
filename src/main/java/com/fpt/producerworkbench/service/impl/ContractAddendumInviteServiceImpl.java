@@ -13,7 +13,7 @@ import com.fpt.producerworkbench.repository.ContractAddendumRepository;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractAddendumInviteService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.SignNowWebhookService;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
@@ -39,7 +39,7 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
     private final SignNowClient signNowClient;
     private final SignNowWebhookService signNowWebhookService;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
-    private final ContractPermissionService contractPermissionService;
+    private final ProjectPermissionService projectPermissionService;
 
     private static boolean eqIgnore(String a, String b) {
         return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
@@ -70,7 +70,7 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
-        var permissions = contractPermissionService.checkContractPermissions(auth, contract.getProject().getId());
+        var permissions = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
         if (!permissions.isCanInviteToSign()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
         ContractAddendum addendum = addendumRepository

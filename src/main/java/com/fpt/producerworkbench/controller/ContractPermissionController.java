@@ -2,7 +2,7 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ContractPermissionResponse;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class ContractPermissionController {
 
-    private final ContractPermissionService contractPermissionService;
+    private final ProjectPermissionService projectPermissionService;
 
     @GetMapping("/{projectId}/contract-permissions")
     public ApiResponse<ContractPermissionResponse> getContractPermissions(
             @PathVariable Long projectId,
             Authentication auth) {
-        var permissions = contractPermissionService.checkContractPermissions(auth, projectId);
+        var permissions = projectPermissionService.checkContractPermissions(auth, projectId);
         return ApiResponse.<ContractPermissionResponse>builder()
                 .code(200)
                 .result(permissions)
