@@ -36,6 +36,12 @@ public class Milestone extends AbstractEntity<Long>{
     @Column(nullable = false)
     private MilestoneStatus status;
 
+    @Column(name = "pit_tax", precision = 15, scale = 2)
+    private BigDecimal pitTax;
+
+    @Column(name = "vat_tax", precision = 15, scale = 2)
+    private BigDecimal vatTax;
+
     @Column(name = "edit_count")
     private Integer editCount;
 

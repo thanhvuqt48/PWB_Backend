@@ -81,6 +81,12 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "expires_at")
     private Date expiresAt;
 
+    @Column(name = "pit_tax", precision = 15, scale = 2)
+    private BigDecimal pitTax;
+
+    @Column(name = "vat_tax", precision = 15, scale = 2)
+    private BigDecimal vatTax;
+
     /** Ghi lỗi cuối cùng khi gọi API ký (nếu có) */
     @Lob
     @Column(name = "last_error")
