@@ -19,7 +19,7 @@ import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.service.ContractPdfService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
 import com.itextpdf.forms.fields.PdfTextFormField;
@@ -112,7 +112,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     ContractDocumentRepository contractDocumentRepository;
     FileStorageService fileStorageService;
     FileKeyGenerator fileKeyGenerator;
-    ContractPermissionService contractPermissionService;
+    ProjectPermissionService projectPermissionService;
     Resource templateResource;
     Resource fontResource;
 
@@ -122,7 +122,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             ContractDocumentRepository contractDocumentRepository,
             FileStorageService fileStorageService,
             FileKeyGenerator fileKeyGenerator,
-            ContractPermissionService contractPermissionService,
+            ProjectPermissionService projectPermissionService,
             MilestoneRepository milestoneRepository,
             @Value("${pwb.contract.template}") Resource templateResource,
             @Value("${pwb.contract.font}") Resource fontResource
@@ -132,7 +132,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         this.contractDocumentRepository = contractDocumentRepository;
         this.fileStorageService = fileStorageService;
         this.fileKeyGenerator = fileKeyGenerator;
-        this.contractPermissionService = contractPermissionService;
+        this.projectPermissionService = projectPermissionService;
         this.milestoneRepository = milestoneRepository;
         this.templateResource = templateResource;
         this.fontResource = fontResource;
@@ -142,7 +142,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     public byte[] fillTemplate(Authentication auth, Long projectId, ContractPdfFillRequest req) {
         if (req.getPercent() == null || req.getPercent().isBlank()) throw new AppException(ErrorCode.BAD_REQUEST);
 
-        var permissions = contractPermissionService.checkContractPermissions(auth, projectId);
+        var permissions = projectPermissionService.checkContractPermissions(auth, projectId);
         if (!permissions.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
         MoneyTotals totals = computeTotals(req);

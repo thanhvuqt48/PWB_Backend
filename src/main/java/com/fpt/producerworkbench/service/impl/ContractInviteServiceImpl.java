@@ -13,7 +13,7 @@ import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractInviteService;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.service.SignNowWebhookService;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -37,7 +37,7 @@ public class ContractInviteServiceImpl implements ContractInviteService {
     private final FileStorageService fileStorageService;
     private final SignNowClient signNowClient;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
-    private final ContractPermissionService contractPermissionService;
+    private final ProjectPermissionService projectPermissionService;
     private final SignNowWebhookService signNowWebhookService;
 
 
@@ -95,7 +95,7 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
-        var permissions = contractPermissionService.checkContractPermissions(auth, c.getProject().getId());
+        var permissions = projectPermissionService.checkContractPermissions(auth, c.getProject().getId());
         if (!permissions.isCanInviteToSign()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
