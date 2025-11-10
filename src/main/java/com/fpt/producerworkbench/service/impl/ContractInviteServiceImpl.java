@@ -95,9 +95,28 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
+        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE)
+        // Kiểm tra cả status và signnowStatus để đảm bảo chính xác
+        // Lưu ý: Nếu status là DRAFT, cho phép gửi lại lời mời (hợp đồng mới hoặc đã reset)
+        if (c.getStatus() != com.fpt.producerworkbench.common.ContractStatus.DRAFT) {
+            if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.OUT_FOR_SIGNATURE
+                    || c.getSignnowStatus() == com.fpt.producerworkbench.common.ContractStatus.OUT_FOR_SIGNATURE) {
+                throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
+            }
+        }
+
         var permissions = projectPermissionService.checkContractPermissions(auth, c.getProject().getId());
         if (!permissions.isCanInviteToSign()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // Nếu status là DRAFT (hợp đồng mới hoặc đã reset), đảm bảo reset signnowDocumentId
+        // để upload document mới, tránh dùng document cũ có thể đã có invite
+        if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.DRAFT && c.getSignnowDocumentId() != null) {
+            log.info("Resetting signnowDocumentId for DRAFT contract {} to allow new document upload", c.getId());
+            c.setSignnowDocumentId(null);
+            c.setSignnowStatus(com.fpt.producerworkbench.common.ContractStatus.DRAFT);
+            contractRepository.save(c);
         }
 
         List<ContractInviteRequest.Signer> autoSigners = generateAutoSigners(c.getProject());
@@ -125,6 +144,10 @@ public class ContractInviteServiceImpl implements ContractInviteService {
 
             String docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "contract-" + contractId + ".pdf");
             c.setSignnowDocumentId(docId);
+            // Save contract ngay sau khi set signnowDocumentId để đảm bảo webhook có thể tìm thấy contract
+            // khi document.complete event được gửi từ SignNow
+            contractRepository.save(c);
+            
             try {
                 signNowWebhookService.ensureCompletedEventForDocument(docId);
             } catch (WebClientResponseException ex) {
@@ -191,6 +214,7 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         }
 
         c.setStatus(ContractStatus.OUT_FOR_SIGNATURE);
+        c.setSignnowStatus(ContractStatus.OUT_FOR_SIGNATURE);
         contractRepository.save(c);
 
         try {

@@ -82,6 +82,7 @@ public enum ErrorCode {
     CONTRACT_DOC_NOT_FOUND(7007, "Không tìm thấy hợp đồng.", HttpStatus.BAD_REQUEST),
     ALREADY_SIGNED_FINAL(7008, "Hợp đồng đã có bản ký cuối. Không thể lưu thêm.", HttpStatus.CONFLICT),
     INVITE_NOT_ALLOWED_ALREADY_COMPLETED(7009, "Hợp đồng đã hoàn tất ký. Không thể mời ký lại.", HttpStatus.CONFLICT),
+    INVITE_ALREADY_SENT(7017, "Lời mời ký đã được gửi cho hợp đồng này. Không thể gửi lại lời mời lần thứ 2.", HttpStatus.CONFLICT),
     CLIENT_NOT_FOUND(7010, "Dự án chưa có khách hàng. Vui lòng mời khách hàng tham gia dự án trước.", HttpStatus.BAD_REQUEST),
     CONTRACT_ALREADY_DECLINED(7011, "Hợp đồng đã bị từ chối trước đó. Không thể từ chối lại.", HttpStatus.CONFLICT),
     CONTRACT_ALREADY_COMPLETED(7012, "Hợp đồng đã hoàn tất ký. Không thể từ chối.", HttpStatus.CONFLICT),

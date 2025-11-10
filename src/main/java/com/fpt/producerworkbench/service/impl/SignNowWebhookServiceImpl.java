@@ -76,27 +76,45 @@ public class SignNowWebhookServiceImpl implements SignNowWebhookService {
         String cb = props.getWebhook().getCallbackUrl();
         String secret = props.getWebhook().getSecretKey();
 
+        log.info("[Webhook] Registering webhook for documentId={}, callbackUrl={}", documentId, cb);
+        
         try {
             Map<String, Object> created = signNowClient.createDocumentEventSubscriptionBearer(
                     documentId, cb, secret, true
             );
-            log.info("[Webhook] Created document.complete (Bearer): {}", created);
+            log.info("[Webhook] Created document.complete (Bearer) for docId={}: {}", documentId, created);
         } catch (WebClientResponseException e) {
-            log.error("[Webhook] Create document.complete (Bearer) failed: status={} body={}",
-                    e.getStatusCode().value(), e.getResponseBodyAsString());
+            int sc = e.getStatusCode().value();
+            String body = e.getResponseBodyAsString();
+            log.error("[Webhook] Create document.complete (Bearer) failed for docId={}: status={} body={}",
+                    documentId, sc, body);
+            // Nếu lỗi 409 (Conflict) hoặc 422 (Unprocessable Entity), có thể webhook đã tồn tại
+            if (sc == 409 || sc == 422) {
+                log.info("[Webhook] Webhook may already exist for docId={}, will verify", documentId);
+            }
         } catch (Exception e) {
-            log.error("[Webhook] Create document.complete (Bearer) EX: {}", e.toString());
+            log.error("[Webhook] Create document.complete (Bearer) EX for docId={}: {}", documentId, e.toString(), e);
         }
 
+        // Verify webhook đã được đăng ký thành công
         try {
-            signNowClient.findDocumentCompleteSubscriptionIdBasic(documentId)
-                    .ifPresentOrElse(
-                            id -> log.info("[Webhook] Confirmed subscription id={}", id),
-                            () -> log.warn("[Webhook] Created but not found via Basic listing (could be sync delay).")
-                    );
+            Thread.sleep(500); // Đợi một chút để SignNow sync
+            Optional<String> subscriptionId = signNowClient.findDocumentCompleteSubscriptionIdBasic(documentId);
+            if (subscriptionId.isPresent()) {
+                log.info("[Webhook] Verified webhook subscription for docId={}, subscriptionId={}", 
+                        documentId, subscriptionId.get());
+            } else {
+                log.warn("[Webhook] Webhook subscription NOT FOUND for docId={} after registration. " +
+                        "This may cause webhook events to be missed!", documentId);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("[Webhook] Interrupted while verifying webhook for docId={}", documentId);
         } catch (WebClientResponseException e) {
-            log.warn("[Webhook] Confirm list (Basic) failed: status={} body={}",
-                    e.getStatusCode().value(), e.getResponseBodyAsString());
+            log.warn("[Webhook] Verify subscription (Basic) failed for docId={}: status={} body={}",
+                    documentId, e.getStatusCode().value(), e.getResponseBodyAsString());
+        } catch (Exception e) {
+            log.warn("[Webhook] Verify subscription failed for docId={}: {}", documentId, e.toString());
         }
     }
 
