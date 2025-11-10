@@ -20,6 +20,9 @@ import org.springframework.kafka.core.KafkaTemplate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -39,10 +42,50 @@ public class ContractInviteServiceImpl implements ContractInviteService {
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final ProjectPermissionService projectPermissionService;
     private final SignNowWebhookService signNowWebhookService;
+    
+    @Lazy
+    @Autowired
+    private ContractInviteServiceImpl self;
 
 
     private static boolean eqIgnore(String a, String b) {
         return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
+    }
+
+    @Async
+    public void sendInviteEmailsAsync(Contract contract, List<ContractInviteRequest.Signer> signers) {
+        try {
+            String previewUrl = null;
+            try {
+                var filledDoc = contractDocumentRepository
+                        .findTopByContract_IdAndTypeOrderByVersionDesc(contract.getId(), ContractDocumentType.FILLED)
+                        .orElse(null);
+                if (filledDoc != null) {
+                    previewUrl = fileStorageService.generatePresignedUrl(filledDoc.getStorageUrl(), false, null);
+                }
+            } catch (Exception ignore) { }
+
+            for (var s : signers) {
+                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
+                NotificationEvent event = NotificationEvent.builder()
+                        .subject("Yêu cầu ký hợp đồng - Project #" + contract.getProject().getId())
+                        .recipient(s.getEmail().trim())
+                        .templateCode("contract-invite-sent.html")
+                        .param(new java.util.HashMap<>())
+                        .build();
+                event.getParam().put("projectId", String.valueOf(contract.getProject().getId()));
+                event.getParam().put("projectTitle", contract.getProject().getTitle());
+                event.getParam().put("contractId", String.valueOf(contract.getId()));
+                event.getParam().put("recipient", s.getFullName() == null ? s.getEmail() : s.getFullName());
+                if (previewUrl != null) {
+                    event.getParam().put("previewUrl", previewUrl);
+                }
+                kafkaTemplate.send("notification-delivery", event);
+            }
+            log.info("Sent invite emails for contract {} to {} signers", contract.getId(), signers.size());
+        } catch (Exception mailEx) {
+            log.error("Failed to send invite emails for contract {}: {}", contract.getId(), mailEx.getMessage(), mailEx);
+        }
     }
 
 
@@ -148,19 +191,8 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             // khi document.complete event được gửi từ SignNow
             contractRepository.save(c);
             
-            try {
-                signNowWebhookService.ensureCompletedEventForDocument(docId);
-            } catch (WebClientResponseException ex) {
-                int sc = ex.getStatusCode().value();
-                if (sc == 409 || sc == 422) {
-                    log.info("[Webhook] already exists or not applicable: status={}", sc);
-                } else {
-                    log.warn("[Webhook] register failed: status={} body={}", sc, ex.getResponseBodyAsString());
-                }
-            } catch (Exception ex) {
-                log.warn("[Webhook] register failed (unexpected): {}", ex.toString());
-            }
-
+            // Đăng ký webhook async để không block request
+            signNowWebhookService.ensureCompletedEventForDocument(docId);
         }
 
         String ownerEmail = signNowClient.getDocumentOwnerEmail(c.getSignnowDocumentId());
@@ -217,37 +249,8 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         c.setSignnowStatus(ContractStatus.OUT_FOR_SIGNATURE);
         contractRepository.save(c);
 
-        try {
-            String previewUrl = null;
-            try {
-                var filledDoc = contractDocumentRepository
-                        .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.FILLED)
-                        .orElse(null);
-                if (filledDoc != null) {
-                    previewUrl = fileStorageService.generatePresignedUrl(filledDoc.getStorageUrl(), false, null);
-                }
-            } catch (Exception ignore) { }
-
-            for (var s : filtered) {
-                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
-                NotificationEvent event = NotificationEvent.builder()
-                        .subject("Yêu cầu ký hợp đồng - Project #" + c.getProject().getId())
-                        .recipient(s.getEmail().trim())
-                        .templateCode("contract-invite-sent.html")
-                        .param(new java.util.HashMap<>())
-                        .build();
-                event.getParam().put("projectId", String.valueOf(c.getProject().getId()));
-                event.getParam().put("projectTitle", c.getProject().getTitle());
-                event.getParam().put("contractId", String.valueOf(c.getId()));
-                event.getParam().put("recipient", s.getFullName() == null ? s.getEmail() : s.getFullName());
-                if (previewUrl != null) {
-                    event.getParam().put("previewUrl", previewUrl);
-                }
-                kafkaTemplate.send("notification-delivery", event);
-            }
-        } catch (Exception mailEx) {
-            log.warn("Failed to publish contract invite notification emails: {}", mailEx.getMessage());
-        }
+        // Gửi mail async để không block request (gọi qua self để Spring proxy hoạt động)
+        self.sendInviteEmailsAsync(c, filtered);
 
         return resp;
     }
