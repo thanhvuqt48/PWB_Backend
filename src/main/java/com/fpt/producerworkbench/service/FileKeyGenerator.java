@@ -13,4 +13,6 @@ public interface FileKeyGenerator {
     String generatePortfolioCoverImageKey(Long userId, String originalFilename);
 
     String generatePersonalProjectImageKey(Long userId, Long personalProjectId, String originalFilename);
+
+    String generateInspirationAssetKey(Long projectId, String originalFilename);
 }

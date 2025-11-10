@@ -49,6 +49,13 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
         return String.format("users/%d/public/portfolio/projects/%d/%s%s", userId, personalProjectId, uuid, getFileExtension(originalFilename));
     }
 
+    @Override
+    public String generateInspirationAssetKey(Long projectId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("projects/%d/inspiration/%s%s",
+                projectId, uuid, getFileExtension(originalFilename));
+    }
+
     private String getFileExtension(String filename) {
         if (!StringUtils.hasText(filename) || !filename.contains(".")) {
             return "";

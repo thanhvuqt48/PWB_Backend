@@ -92,6 +92,12 @@ public enum ErrorCode {
     MILESTONES_PRODUCT_TOTAL_NOT_ENOUGH(7017, "Tổng số lượng sản phẩm ở các cột mốc BỊ THIẾU so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
     MILESTONES_PRODUCT_TOTAL_EXCEEDS(7018, "Tổng số lượng sản phẩm ở các cột mốc BỊ DƯ so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
 
+    // ===== 8xxx: Tích hợp SignNow (MỚI) =====
+    FILE_TOO_LARGE(8000, "Dung lượng file vượt quá 50MB", HttpStatus.BAD_REQUEST),
+    UNSUPPORTED_MEDIA_TYPE(8001, "Định dạng file không được hỗ trợ", HttpStatus.BAD_REQUEST),
+    NOT_PROJECT_MEMBER(8004, "Bạn không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
+    INSPIRATION_ITEM_NOT_FOUND(8005, "Không tìm thấy mục cảm hứng", HttpStatus.BAD_REQUEST),
+
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -124,8 +130,9 @@ public enum ErrorCode {
     CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
     INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
-
     PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+    NOT_FOUND(8006, "Không tìm thấy.", HttpStatus.BAD_REQUEST),
+    INVALID_REQUEST(8007, "Yếu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
 
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
     MILESTONE_TITLE_DUPLICATE(8010, "Tên cột mốc đã tồn tại trong dự án này. Vui lòng chọn tên khác.", HttpStatus.BAD_REQUEST),
