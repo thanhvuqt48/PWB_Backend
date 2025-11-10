@@ -18,9 +18,8 @@ public class MilestonePermissionResponse {
     
     private UserRole userRole;
     private ProjectRole projectRole;
-    private String reason; // Lý do không được phép (nếu có)
+    private String reason; 
     
-    // Helper methods for FE
     public boolean isProducer() {
         return userRole == UserRole.PRODUCER;
     }

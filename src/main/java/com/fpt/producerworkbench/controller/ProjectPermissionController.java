@@ -14,16 +14,6 @@ public class ProjectPermissionController {
 
     private final ProjectPermissionService projectPermissionService;
 
-    @GetMapping("/permissions")
-    public ApiResponse<ProjectPermissionResponse> getProjectPermissions(
-            Authentication auth) {
-        var permissions = projectPermissionService.checkProjectPermissions(auth, null);
-        return ApiResponse.<ProjectPermissionResponse>builder()
-                .code(200)
-                .result(permissions)
-                .build();
-    }
-
     @GetMapping("/{projectId}/permissions")
     public ApiResponse<ProjectPermissionResponse> getProjectPermissions(
             @PathVariable Long projectId,

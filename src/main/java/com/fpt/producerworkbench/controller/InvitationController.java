@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.common.InvitationStatus;
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
@@ -40,7 +41,7 @@ public class InvitationController {
             Authentication auth) {
 
         var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
-        if (!permissions.isCanInviteMembers()) {
+        if (permissions.getProject() == null || !permissions.getProject().isCanInviteMembers()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
@@ -60,7 +61,7 @@ public class InvitationController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<InvitationResponse>>> getPendingInvitations(@PathVariable Long projectId, @AuthenticationPrincipal Jwt jwt, Authentication auth) {
         var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
-        if (!permissions.isCanManageInvitations()) {
+        if (permissions.getProject() == null || !permissions.getProject().isCanManageInvitations()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
@@ -77,12 +78,12 @@ public class InvitationController {
             @RequestParam(name = "status", required = false) InvitationStatus status,
             Pageable pageable,
             Authentication auth) {
-        var permissions = projectPermissionService.checkProjectPermissions(auth, null);
-        if (!permissions.isCanCreateProject()) {
+        User owner = userRepository.findByEmail(jwt.getSubject()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        
+        UserRole userRole = owner.getRole();
+        if (userRole != UserRole.PRODUCER && userRole != UserRole.ADMIN) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
-
-        User owner = userRepository.findByEmail(jwt.getSubject()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         PageResponse<InvitationResponse> page = invitationService.getAllOwnedInvitations(owner, status, pageable);
         return ResponseEntity.ok(ApiResponse.<PageResponse<InvitationResponse>>builder()
                 .result(page)
@@ -93,7 +94,7 @@ public class InvitationController {
     public ResponseEntity<ApiResponse<Void>> cancelInvitation(@PathVariable Long projectId, @PathVariable Long invitationId, @AuthenticationPrincipal Jwt jwt, Authentication auth) {
         // Check permissions using service
         var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
-        if (!permissions.isCanManageInvitations()) {
+        if (permissions.getProject() == null || !permissions.getProject().isCanManageInvitations()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
