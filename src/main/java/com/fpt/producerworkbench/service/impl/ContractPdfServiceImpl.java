@@ -187,6 +187,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         contract.setVatTax(totals.vat);
         contract.setStatus(ContractStatus.DRAFT);
         contract.setFpEditAmount(req.getFpEditAmount());
+        // Reset SignNow fields khi tạo hợp đồng mới (hoặc reset hợp đồng cũ)
+        contract.setSignnowDocumentId(null);
+        contract.setSignnowStatus(ContractStatus.DRAFT);
 
         if (payOnce) {
             contract.setProductCount(totalQtyFromLines);
