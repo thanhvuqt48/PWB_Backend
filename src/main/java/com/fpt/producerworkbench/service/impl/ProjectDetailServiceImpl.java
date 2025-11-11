@@ -8,6 +8,7 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
+import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.ProjectDetailService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class ProjectDetailServiceImpl implements ProjectDetailService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
+    private final ContractRepository contractRepository;
 
     @Override
     public ProjectDetailResponse getProjectDetail(Authentication auth, Long projectId) {
@@ -52,6 +54,9 @@ public class ProjectDetailServiceImpl implements ProjectDetailService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
+        // Lấy thông tin contract (nếu có) theo projectId
+        var contractOpt = contractRepository.findByProjectId(projectId);
+
         // Tạo response
         return ProjectDetailResponse.builder()
                 .id(project.getId())
@@ -64,6 +69,10 @@ public class ProjectDetailServiceImpl implements ProjectDetailService {
                 .createdAt(project.getCreatedAt())
                 .startDate(project.getStartDate())
                 .completedAt(project.getCompletedAt())
+                .totalAmount(contractOpt.map(c -> c.getTotalAmount()).orElse(null))
+                .paymentType(contractOpt.map(c -> c.getPaymentType()).orElse(null))
+                .productCount(contractOpt.map(c -> c.getProductCount()).orElse(null))
+                .fpEditAmount(contractOpt.map(c -> c.getFpEditAmount()).orElse(null))
                 .build();
     }
 }

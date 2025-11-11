@@ -44,6 +44,7 @@ public class ProjectPermissionResponse {
     public static class RoleInfo {
         private UserRole userRole;
         private ProjectRole projectRole;
+        private boolean anonymous;
     }
     
     @Data

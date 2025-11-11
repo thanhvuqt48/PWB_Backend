@@ -38,12 +38,14 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         final boolean isProjectOwner;
         final ProjectRole projectRole;
         final boolean isProjectMember;
+        final boolean isAnonymousMember;
 
-        ProjectContext(UserRole userRole, boolean isProjectOwner, ProjectRole role, boolean isProjectMember) {
+        ProjectContext(UserRole userRole, boolean isProjectOwner, ProjectRole role, boolean isProjectMember, boolean isAnonymousMember) {
             this.userRole = userRole;
             this.isProjectOwner = isProjectOwner;
             this.projectRole = role;
             this.isProjectMember = isProjectMember;
+            this.isAnonymousMember = isAnonymousMember;
         }
     }
 
@@ -88,15 +90,19 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         ProjectRole projectRole = null;
         boolean isProjectMember = false;
+        boolean isAnonymousMember = false;
         if (isProjectOwner) {
             projectRole = ProjectRole.OWNER;
             isProjectMember = true;
+            isAnonymousMember = false;
         } else if (memberOpt.isPresent()) {
-            projectRole = memberOpt.get().getProjectRole();
+            ProjectMember member = memberOpt.get();
+            projectRole = member.getProjectRole();
             isProjectMember = true;
+            isAnonymousMember = member.isAnonymous();
         }
 
-        return new ProjectContext(userRole, isProjectOwner, projectRole, isProjectMember);
+        return new ProjectContext(userRole, isProjectOwner, projectRole, isProjectMember, isAnonymousMember);
     }
 
     /**
@@ -107,6 +113,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                 .role(ProjectPermissionResponse.RoleInfo.builder()
                         .userRole(null)
                         .projectRole(null)
+                        .anonymous(false)
                         .build())
                 .project(ProjectPermissionResponse.ProjectPermissions.builder()
                         .canCreateProject(false)
@@ -175,6 +182,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                 .role(ProjectPermissionResponse.RoleInfo.builder()
                         .userRole(context.userRole)
                         .projectRole(context.projectRole)
+                        .anonymous(context.isAnonymousMember)
                         .build())
                 
                 .project(ProjectPermissionResponse.ProjectPermissions.builder()
