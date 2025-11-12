@@ -166,6 +166,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
         participantRepository.save(participant);
 
         session.incrementParticipants();
+        session.updateActivity(); // ✅ Update activity when user joins
         sessionRepository.save(session);
 
         // WebSocket broadcasts...
@@ -223,6 +224,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
 
         session.decrementParticipants();
+        session.updateActivity(); // ✅ Update activity when user leaves
         sessionRepository.save(session);
 
         // ✅ Broadcast participant left
@@ -391,7 +393,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     public ParticipantRole determineParticipantRole(Long projectId, Long userId) {
         ProjectMember member = projectMemberRepository
                 .findByProjectIdAndUserId(projectId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECT));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECTS));
 
         return mapProjectRoleToParticipantRole(member.getProjectRole());
     }

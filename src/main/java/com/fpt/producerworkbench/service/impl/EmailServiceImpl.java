@@ -21,6 +21,7 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -212,6 +213,130 @@ public class EmailServiceImpl implements EmailService {
                 
             } catch (Exception e) {
                 log.error("Failed to send session reminder email to {}: {}", participantEmail, e.getMessage());
+            }
+        }
+    }
+
+    @Async
+    @Override
+    public void sendSessionCancellationEmail(LiveSession session, List<String> participantEmails, String reason) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        if (participantEmails == null || participantEmails.isEmpty()) {
+            log.warn("No participant emails to send session cancellation notification");
+            return;
+        }
+
+        log.info("Sending session cancellation notification to {} participants for session: {}", 
+                participantEmails.size(), session.getTitle());
+
+        // Prepare template variables
+        Context context = new Context();
+        context.setVariable("sessionTitle", session.getTitle());
+        context.setVariable("sessionDescription", session.getDescription());
+        context.setVariable("hostName", getFullName(session.getHost()));
+        context.setVariable("projectName", session.getProject().getTitle());
+        context.setVariable("reason", reason != null ? reason : "No specific reason provided");
+        
+        // Format scheduled start time
+        if (session.getScheduledStart() != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy 'at' hh:mm a");
+            String formattedDate = session.getScheduledStart().format(formatter);
+            context.setVariable("scheduledStart", formattedDate);
+        } else {
+            context.setVariable("scheduledStart", "Not specified");
+        }
+        
+        // Project link
+        String projectLink = String.format("http://localhost:5173/projects/%d", 
+                session.getProject().getId());
+        context.setVariable("projectLink", projectLink);
+
+        // Send email to each participant
+        for (String participantEmail : participantEmails) {
+            try {
+                context.setVariable("recipientName", extractNameFromEmail(participantEmail));
+                String personalizedHtml = templateEngine.process("session-cancellation-notification", context);
+                
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                        MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+
+                helper.setFrom(emailFrom, "Producer Workbench");
+                helper.setTo(participantEmail);
+                helper.setSubject("❌ Session Cancelled: " + session.getTitle());
+                helper.setText(personalizedHtml, true);
+
+                mailSender.send(mimeMessage);
+                log.info("Session cancellation email sent to {} successfully!", participantEmail);
+                
+            } catch (Exception e) {
+                log.error("Failed to send session cancellation email to {}: {}", participantEmail, e.getMessage());
+            }
+        }
+    }
+
+    @Override
+    @Async
+    public void sendSessionScheduleChangeNotification(LiveSession session, List<String> participantEmails, 
+            LocalDateTime oldScheduledStart) throws MessagingException, UnsupportedEncodingException {
+        
+        if (participantEmails == null || participantEmails.isEmpty()) {
+            log.warn("No participant emails to send schedule change notification");
+            return;
+        }
+
+        log.info("Sending schedule change notification to {} participants for session: {}", 
+                participantEmails.size(), session.getTitle());
+
+        // Prepare template variables
+        Context context = new Context();
+        context.setVariable("sessionTitle", session.getTitle());
+        context.setVariable("sessionDescription", session.getDescription());
+        context.setVariable("hostName", getFullName(session.getHost()));
+        context.setVariable("projectName", session.getProject().getTitle());
+        
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy 'at' hh:mm a");
+        
+        // Old scheduled time
+        if (oldScheduledStart != null) {
+            context.setVariable("oldScheduledStart", oldScheduledStart.format(formatter));
+        } else {
+            context.setVariable("oldScheduledStart", "Not previously scheduled");
+        }
+        
+        // New scheduled time
+        if (session.getScheduledStart() != null) {
+            context.setVariable("newScheduledStart", session.getScheduledStart().format(formatter));
+        } else {
+            context.setVariable("newScheduledStart", "Not specified");
+        }
+        
+        // Project link
+        String projectLink = String.format("http://localhost:5173/projects/%d", 
+                session.getProject().getId());
+        context.setVariable("projectLink", projectLink);
+
+        // Send email to each participant
+        for (String participantEmail : participantEmails) {
+            try {
+                context.setVariable("recipientName", extractNameFromEmail(participantEmail));
+                String personalizedHtml = templateEngine.process("session-schedule-change-notification", context);
+                
+                MimeMessage mimeMessage = mailSender.createMimeMessage();
+                MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                        MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+
+                helper.setFrom(emailFrom, "Producer Workbench");
+                helper.setTo(participantEmail);
+                helper.setSubject("🔄 Session Time Changed: " + session.getTitle());
+                helper.setText(personalizedHtml, true);
+
+                mailSender.send(mimeMessage);
+                log.info("Schedule change email sent to {} successfully!", participantEmail);
+                
+            } catch (Exception e) {
+                log.error("Failed to send schedule change email to {}: {}", participantEmail, e.getMessage());
             }
         }
     }

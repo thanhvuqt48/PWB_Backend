@@ -74,6 +74,9 @@ public class LiveSession {
     @Column(name = "actual_end")
     private LocalDateTime actualEnd;
 
+    @Column(name = "last_activity_time")
+    private LocalDateTime lastActivityTime;
+
     // ========== Playback State ==========
 
     @Column(name = "current_playing_file_id")
@@ -119,5 +122,9 @@ public class LiveSession {
 
     public boolean isHost(Long userId) {
         return this.host.getId().equals(userId);
+    }
+
+    public void updateActivity() {
+        this.lastActivityTime = LocalDateTime.now();
     }
 }

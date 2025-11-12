@@ -51,7 +51,7 @@ public class JoinRequestServiceImpl implements JoinRequestService {
         // 2. Check user is in project
         ProjectMember projectMember = projectMemberRepository
                 .findByProjectIdAndUserId(session.getProject().getId(), userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECT));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECTS));
 
         // 4. Check user is not host/owner (owner join directly, no need approval)
         if (session.isHost(userId)) {

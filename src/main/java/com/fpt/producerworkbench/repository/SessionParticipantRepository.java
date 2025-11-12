@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.common.InvitationStatus;
 import com.fpt.producerworkbench.common.ParticipantRole;
 import com.fpt.producerworkbench.entity.SessionParticipant;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -41,6 +42,7 @@ public interface SessionParticipantRepository extends JpaRepository<SessionParti
             @Param("userId") Long userId
     );
 
+    @Modifying
     @Query("DELETE FROM SessionParticipant p WHERE p.session.id = :sessionId")
     void deleteBySessionId(@Param("sessionId") String sessionId);
 }

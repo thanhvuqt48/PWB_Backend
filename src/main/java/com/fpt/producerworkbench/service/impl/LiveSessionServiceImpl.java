@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.configuration.AgoraConfig;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
+import com.fpt.producerworkbench.dto.request.InviteMoreMembersRequest;
 import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
@@ -159,15 +160,14 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         LiveSession session = getSessionEntity(sessionId);
         validateIsHost(session, userId);
 
-        // ❌ Cannot update ACTIVE sessions
-        if (session.getStatus() == SessionStatus.ACTIVE) {
-            throw new AppException(ErrorCode.CANNOT_UPDATE_ACTIVE_SESSION);
+        // ✅ ONLY allow update for SCHEDULED sessions
+        if (session.getStatus() != SessionStatus.SCHEDULED) {
+            throw new AppException(ErrorCode.CAN_ONLY_UPDATE_SCHEDULED_SESSION);
         }
 
-        // ✅ Only update SCHEDULED or ENDED sessions
-        if (session.getStatus() != SessionStatus.SCHEDULED && session.getStatus() != SessionStatus.ENDED) {
-            throw new AppException(ErrorCode.CAN_ONLY_UPDATE_SCHEDULED_OR_ENDED_SESSION);
-        }
+        // ✅ Track if scheduledStart is changed for email notification
+        boolean scheduledStartChanged = false;
+        LocalDateTime oldScheduledStart = session.getScheduledStart();
 
         // Update title if provided
         if (request.getTitle() != null) {
@@ -184,11 +184,35 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             if (request.getScheduledStart().isBefore(LocalDateTime.now())) {
                 throw new AppException(ErrorCode.SCHEDULED_START_MUST_BE_FUTURE);
             }
+            // ✅ Check if scheduledStart actually changed
+            if (oldScheduledStart == null || !oldScheduledStart.equals(request.getScheduledStart())) {
+                scheduledStartChanged = true;
+            }
             session.setScheduledStart(request.getScheduledStart());
         }
 
         LiveSession updated = sessionRepository.save(session);
         log.info("Session {} updated successfully", sessionId);
+
+        // ✅ Send email notification if scheduledStart changed
+        if (scheduledStartChanged && !Boolean.TRUE.equals(session.getIsPublic())) {
+            try {
+                List<String> invitedMemberEmails = participantRepository.findBySessionId(updated.getId())
+                        .stream()
+                        .filter(p -> !p.getUser().getId().equals(userId)) // Exclude host
+                        .map(p -> p.getUser().getEmail())
+                        .collect(Collectors.toList());
+
+                if (!invitedMemberEmails.isEmpty()) {
+                    emailService.sendSessionScheduleChangeNotification(
+                            updated, invitedMemberEmails, oldScheduledStart);
+                    log.info("Sent schedule change notification to {} members", 
+                            invitedMemberEmails.size());
+                }
+            } catch (Exception e) {
+                log.error("Failed to send schedule change emails: {}", e.getMessage(), e);
+            }
+        }
 
         return sessionMapper.toDTO(updated);
     }
@@ -206,9 +230,11 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             throw new AppException(ErrorCode.CANNOT_DELETE_ACTIVE_SESSION);
         }
 
-        // ✅ Only delete SCHEDULED or ENDED sessions
-        if (session.getStatus() != SessionStatus.SCHEDULED && session.getStatus() != SessionStatus.ENDED) {
-            throw new AppException(ErrorCode.CAN_ONLY_DELETE_SCHEDULED_OR_ENDED_SESSION);
+        // ✅ Only delete SCHEDULED, ENDED, or CANCELLED sessions
+        if (session.getStatus() != SessionStatus.SCHEDULED 
+            && session.getStatus() != SessionStatus.ENDED
+            && session.getStatus() != SessionStatus.CANCELLED) {
+            throw new AppException(ErrorCode.CAN_ONLY_DELETE_SCHEDULED_ENDED_OR_CANCELLED_SESSION);
         }
 
         // Cascade delete all participants
@@ -244,6 +270,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         SessionStatus oldStatus = session.getStatus();
         session.setStatus(SessionStatus.ACTIVE);
         session.setActualStart(LocalDateTime.now());
+        session.updateActivity(); // ✅ Update activity time
 
         LiveSession updated = sessionRepository.save(session);
 
@@ -379,6 +406,25 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                         .requiresAction(false)
                         .build()
         );
+
+        // ✅ Send cancellation email to invited participants
+        try {
+            List<String> participantEmails = participantRepository.findBySessionId(sessionId)
+                    .stream()
+                    .filter(p -> !p.getUser().getId().equals(userId)) // Exclude host
+                    .map(p -> p.getUser().getEmail())
+                    .collect(Collectors.toList());
+
+            if (!participantEmails.isEmpty()) {
+                emailService.sendSessionCancellationEmail(updated, participantEmails, reason);
+                log.info("Cancellation emails sent to {} participants", participantEmails.size());
+            } else {
+                log.info("No participants to notify about cancellation");
+            }
+        } catch (Exception e) {
+            log.error("Failed to send cancellation emails: {}", e.getMessage(), e);
+            // Don't fail the cancellation if email fails
+        }
 
         log.info("Session {} cancelled. Reason: {}", sessionId, reason);
 
@@ -540,5 +586,134 @@ public class LiveSessionServiceImpl implements LiveSessionService {
             case CLIENT -> com.fpt.producerworkbench.common.ParticipantRole.OBSERVER;
             default -> com.fpt.producerworkbench.common.ParticipantRole.OBSERVER;
         };
+    }
+
+    // ✅ NEW: Invite more members to SCHEDULED PRIVATE session
+    @Override
+    @Transactional
+    public LiveSessionResponse inviteMoreMembers(String sessionId, 
+            com.fpt.producerworkbench.dto.request.InviteMoreMembersRequest request, Long userId) {
+        log.info("Inviting more members to session {} by user {}", sessionId, userId);
+
+        LiveSession session = getSessionEntity(sessionId);
+        validateIsHost(session, userId);
+
+        // ✅ Only allow inviting to SCHEDULED sessions
+        if (session.getStatus() != SessionStatus.SCHEDULED) {
+            throw new AppException(ErrorCode.CAN_ONLY_INVITE_TO_SCHEDULED_SESSION);
+        }
+
+        // ✅ Only allow inviting to PRIVATE sessions
+        if (Boolean.TRUE.equals(session.getIsPublic())) {
+            throw new AppException(ErrorCode.CAN_ONLY_INVITE_TO_PRIVATE_SESSION);
+        }
+
+        // ✅ Validate memberIds and roles have same size
+        if (request.getMemberIds().size() != request.getRoles().size()) {
+            throw new AppException(ErrorCode.MEMBER_IDS_AND_ROLES_MUST_MATCH);
+        }
+
+        // ✅ Get existing invited member IDs to prevent duplicates
+        List<Long> existingInvitedMemberIds = participantRepository
+                .findBySessionId(sessionId)
+                .stream()
+                .map(p -> p.getUser().getId())
+                .collect(Collectors.toList());
+
+        List<String> newMemberEmails = new java.util.ArrayList<>();
+        int invitedCount = 0;
+
+        for (int i = 0; i < request.getMemberIds().size(); i++) {
+            Long memberId = request.getMemberIds().get(i);
+            com.fpt.producerworkbench.common.ProjectRole role = request.getRoles().get(i);
+
+            // ✅ Skip if already invited
+            if (existingInvitedMemberIds.contains(memberId)) {
+                log.warn("Member {} already invited to session {}", memberId, sessionId);
+                continue;
+            }
+
+            // ✅ Validate member is in the project
+            com.fpt.producerworkbench.entity.ProjectMember projectMember = 
+                    projectMemberRepository.findByProjectIdAndUserId(session.getProject().getId(), memberId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECT));
+
+            // ✅ Map role to participant role
+            com.fpt.producerworkbench.common.ParticipantRole participantRole = 
+                    mapProjectRoleToParticipantRole(role);
+
+            // ✅ Create SessionParticipant
+            com.fpt.producerworkbench.entity.SessionParticipant participant = 
+                    com.fpt.producerworkbench.entity.SessionParticipant.builder()
+                    .session(session)
+                    .user(projectMember.getUser())
+                    .participantRole(participantRole)
+                    .invitationStatus(com.fpt.producerworkbench.common.InvitationStatus.PENDING)
+                    .invitedAt(LocalDateTime.now())
+                    .canShareAudio(true)
+                    .canShareVideo(true)
+                    .canControlPlayback(participantRole == com.fpt.producerworkbench.common.ParticipantRole.OWNER)
+                    .canApproveFiles(participantRole == com.fpt.producerworkbench.common.ParticipantRole.OWNER)
+                    .audioEnabled(true)
+                    .videoEnabled(true)
+                    .isOnline(false)
+                    .build();
+
+            participantRepository.save(participant);
+            newMemberEmails.add(projectMember.getUser().getEmail());
+            invitedCount++;
+        }
+
+        // ✅ Send email to newly invited members
+        if (!newMemberEmails.isEmpty()) {
+            try {
+                // ✅ IMPORTANT: Fetch all lazy-loaded fields BEFORE async call to avoid Hibernate LazyInitializationException
+                session.getProject().getTitle(); // Force load project title
+                session.getTitle(); // Force load session title
+                
+                emailService.sendSessionInviteNotification(session, newMemberEmails);
+                log.info("Sent invitation emails to {} new members for session {}", 
+                        newMemberEmails.size(), sessionId);
+            } catch (Exception e) {
+                log.error("Failed to send invitation emails: {}", e.getMessage(), e);
+            }
+        }
+
+        log.info("Successfully invited {} new members to session {}", invitedCount, sessionId);
+        return sessionMapper.toDTO(session);
+    }
+
+    // ✅ NEW: Get available members (exclude already invited)
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.fpt.producerworkbench.dto.response.AvailableMemberResponse> getAvailableMembers(
+            String sessionId, Long userId) {
+        log.info("Getting available members for session {} by user {}", sessionId, userId);
+
+        LiveSession session = getSessionEntity(sessionId);
+        validateIsHost(session, userId);
+
+        // ✅ Get all project members
+        List<com.fpt.producerworkbench.entity.ProjectMember> allProjectMembers = 
+                projectMemberRepository.findByProjectId(session.getProject().getId());
+
+        // ✅ Get already invited member IDs
+        List<Long> invitedMemberIds = participantRepository.findBySessionId(sessionId)
+                .stream()
+                .map(p -> p.getUser().getId())
+                .collect(Collectors.toList());
+
+        // ✅ Filter out already invited members AND the host/owner (don't need to invite themselves)
+        return allProjectMembers.stream()
+                .filter(pm -> !invitedMemberIds.contains(pm.getUser().getId()))
+                .filter(pm -> !pm.getUser().getId().equals(userId)) // ✅ Exclude the host
+                .map(pm -> com.fpt.producerworkbench.dto.response.AvailableMemberResponse.builder()
+                        .userId(pm.getUser().getId())
+                        .username(pm.getUser().getUsername())
+                        .email(pm.getUser().getEmail())
+                        .fullName(pm.getUser().getFirstName() + " " + pm.getUser().getLastName())
+                        .projectRole(pm.getProjectRole())
+                        .build())
+                .collect(Collectors.toList());
     }
 }

@@ -158,10 +158,13 @@ public enum ErrorCode {
 
     // Session Update/Delete errors (5300-5399)
     SCHEDULED_START_MUST_BE_FUTURE(5301, "Thời gian bắt đầu phải là thời gian tương lai", HttpStatus.BAD_REQUEST),
-    CANNOT_UPDATE_ACTIVE_SESSION(5303, "Không thể cập nhật phiên đang hoạt động", HttpStatus.BAD_REQUEST),
-    CAN_ONLY_UPDATE_SCHEDULED_OR_ENDED_SESSION(5304, "Chỉ có thể cập nhật phiên đã lên lịch hoặc đã kết thúc", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_UPDATE_SCHEDULED_SESSION(5304, "Chỉ có thể cập nhật phiên đã lên lịch", HttpStatus.BAD_REQUEST),
     CANNOT_DELETE_ACTIVE_SESSION(5306, "Không thể xóa phiên đang hoạt động. Vui lòng kết thúc phiên trước", HttpStatus.BAD_REQUEST),
-    CAN_ONLY_DELETE_SCHEDULED_OR_ENDED_SESSION(5307, "Chỉ có thể xóa phiên đã lên lịch hoặc đã kết thúc", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_DELETE_SCHEDULED_ENDED_OR_CANCELLED_SESSION(5307, "Chỉ có thể xóa phiên đã lên lịch, đã kết thúc hoặc đã hủy", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_INVITE_TO_SCHEDULED_SESSION(5310, "Chỉ có thể mời thêm thành viên vào phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_INVITE_TO_PRIVATE_SESSION(5311, "Chỉ có thể mời thêm thành viên vào phiên riêng tư", HttpStatus.BAD_REQUEST),
+    MEMBER_IDS_AND_ROLES_MUST_MATCH(5312, "Số lượng thành viên và vai trò phải khớp nhau", HttpStatus.BAD_REQUEST),
+    USER_NOT_IN_PROJECTS(5313, "Người dùng không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
     ANONYMOUS_MEMBER_CANNOT_ACCESS_SESSION(5308, "Thành viên ẩn danh không thể truy cập phiên", HttpStatus.FORBIDDEN),
     NOT_PROJECT_MEMBER(5309, "Bạn không phải là thành viên của dự án này", HttpStatus.FORBIDDEN),
 

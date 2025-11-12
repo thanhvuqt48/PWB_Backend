@@ -16,4 +16,8 @@ public interface EmailService {
     void sendSessionInviteNotification(LiveSession session, List<String> memberEmails) throws MessagingException, UnsupportedEncodingException;
     
     void sendSessionReminderNotification(LiveSession session, List<String> participantEmails) throws MessagingException, UnsupportedEncodingException;
+    
+    void sendSessionCancellationEmail(LiveSession session, List<String> participantEmails, String reason) throws MessagingException, UnsupportedEncodingException;
+    
+    void sendSessionScheduleChangeNotification(LiveSession session, List<String> participantEmails, java.time.LocalDateTime oldScheduledStart) throws MessagingException, UnsupportedEncodingException;
 }
