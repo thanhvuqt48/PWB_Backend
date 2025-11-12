@@ -27,5 +27,4 @@ public class JoinSessionResponse {
     // Optional: Session info
     private String sessionTitle;
     private Integer currentParticipants;
-    private Integer maxParticipants;
 }

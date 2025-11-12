@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.entity.LiveSession;
 import jakarta.mail.MessagingException;
 
 import java.io.UnsupportedEncodingException;
@@ -11,4 +12,12 @@ public interface EmailService {
     void sendEmail(String subject, String content, List<String> toList) throws MessagingException, UnsupportedEncodingException;
 
     void sendEmailByKafka(NotificationEvent event) throws MessagingException, UnsupportedEncodingException;
+    
+    void sendSessionInviteNotification(LiveSession session, List<String> memberEmails) throws MessagingException, UnsupportedEncodingException;
+    
+    void sendSessionReminderNotification(LiveSession session, List<String> participantEmails) throws MessagingException, UnsupportedEncodingException;
+    
+    void sendSessionCancellationEmail(LiveSession session, List<String> participantEmails, String reason) throws MessagingException, UnsupportedEncodingException;
+    
+    void sendSessionScheduleChangeNotification(LiveSession session, List<String> participantEmails, java.time.LocalDateTime oldScheduledStart) throws MessagingException, UnsupportedEncodingException;
 }

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Starting Soon!</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .alert-icon {
+            font-size: 50px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .urgent-message {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .urgent-message h2 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #856404;
+        }
+        .urgent-message .time {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin: 10px 0;
+        }
+        .session-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #ff6b6b;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 5px;
+        }
+        .session-info h2 {
+            margin: 0 0 15px 0;
+            font-size: 22px;
+            color: #ff6b6b;
+        }
+        .info-row {
+            display: flex;
+            margin: 12px 0;
+            align-items: flex-start;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 140px;
+            display: inline-block;
+        }
+        .info-value {
+            color: #333;
+            flex: 1;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 18px 45px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 18px;
+            margin: 25px 0;
+            transition: transform 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .checklist {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .checklist h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #2196f3;
+        }
+        .checklist ul {
+            margin: 0;
+            padding-left: 25px;
+        }
+        .checklist li {
+            margin: 10px 0;
+            color: #555;
+            font-size: 15px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 25px;
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="alert-icon">⏰</div>
+            <h1>Session Starting Soon!</h1>
+        </div>
+        
+        <div class="content">
+            <p class="greeting">Hi <strong th:text="${recipientName}">Member</strong>,</p>
+            
+            <div class="urgent-message">
+                <h2>🔥 REMINDER 🔥</h2>
+                <p>Your session is starting in</p>
+                <div class="time">5 MINUTES</div>
+                <p>Don't miss it!</p>
+            </div>
+            
+            <div class="session-info">
+                <h2 th:text="${sessionTitle}">Session Title</h2>
+                
+                <div class="info-row">
+                    <span class="info-label">⏰ Starting At:</span>
+                    <span class="info-value" th:text="${scheduledStart}">January 1, 2025 10:00 AM</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">🎤 Host:</span>
+                    <span class="info-value" th:text="${hostName}">Producer Name</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">🎵 Project:</span>
+                    <span class="info-value" th:text="${projectName}">Project Name</span>
+                </div>
+            </div>
+            
+            <div style="text-align: center;">
+                <a th:href="${sessionLink}" class="cta-button">
+                    🚀 JOIN NOW
+                </a>
+            </div>
+            
+            <div class="checklist">
+                <h3>✅ Quick Pre-Session Checklist:</h3>
+                <ul>
+                    <li><strong>Internet:</strong> Check your connection is stable</li>
+                    <li><strong>Audio:</strong> Test your microphone and speakers</li>
+                    <li><strong>Camera:</strong> Make sure your video works (if needed)</li>
+                    <li><strong>Environment:</strong> Find a quiet space</li>
+                    <li><strong>Ready?</strong> Click the button above to join!</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Producer Workbench</strong></p>
+            <p>Where music creation comes alive ✨</p>
+            <p style="margin-top: 15px; font-size: 11px; color: #999;">
+                This is an automated reminder. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

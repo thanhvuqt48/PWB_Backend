@@ -161,12 +161,11 @@ public enum ErrorCode {
 
     SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
     SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
-    SESSION_FULL(5011, "Phiên đã đạt số lượng người tham gia tối đa", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ACTIVE(5012, "Phiên đã hoạt động", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ENDED(5013, "Phiên đã kết thúc", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_STARTED(5014, "Phiên đã bắt đầu", HttpStatus.BAD_REQUEST),
-    SESSION_NOT_PAUSED(5015, "Phiên không bị tạm dừng", HttpStatus.BAD_REQUEST),
     CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Chỉ có thể hủy phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    MUST_REQUEST_JOIN_FIRST(5017, "Bạn phải gửi yêu cầu tham gia và được phê duyệt trước", HttpStatus.FORBIDDEN),
     CANNOT_REMOVE_HOST(5106, "Không thể xóa người chủ trì phiên", HttpStatus.BAD_REQUEST),
 
 
@@ -179,6 +178,26 @@ public enum ErrorCode {
     // Project errors (4xxx)
     ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
     PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
+    MAX_CONCURRENT_SESSIONS_REACHED(4004, "Dự án đã đạt giới hạn tối đa 3 phiên đồng thời", HttpStatus.BAD_REQUEST),
+
+    // Session Update/Delete errors (5300-5399)
+    SCHEDULED_START_MUST_BE_FUTURE(5301, "Thời gian bắt đầu phải là thời gian tương lai", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_UPDATE_SCHEDULED_SESSION(5304, "Chỉ có thể cập nhật phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CANNOT_DELETE_ACTIVE_SESSION(5306, "Không thể xóa phiên đang hoạt động. Vui lòng kết thúc phiên trước", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_DELETE_SCHEDULED_ENDED_OR_CANCELLED_SESSION(5307, "Chỉ có thể xóa phiên đã lên lịch, đã kết thúc hoặc đã hủy", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_INVITE_TO_SCHEDULED_SESSION(5310, "Chỉ có thể mời thêm thành viên vào phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_INVITE_TO_PRIVATE_SESSION(5311, "Chỉ có thể mời thêm thành viên vào phiên riêng tư", HttpStatus.BAD_REQUEST),
+    MEMBER_IDS_AND_ROLES_MUST_MATCH(5312, "Số lượng thành viên và vai trò phải khớp nhau", HttpStatus.BAD_REQUEST),
+    USER_NOT_IN_PROJECTS(5313, "Người dùng không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
+    ANONYMOUS_MEMBER_CANNOT_ACCESS_SESSION(5308, "Thành viên ẩn danh không thể truy cập phiên", HttpStatus.FORBIDDEN),
+    NOT_PROJECT_MEMBER(5309, "Bạn không phải là thành viên của dự án này", HttpStatus.FORBIDDEN),
+
+    // Join Request errors (5200-5299)
+    JOIN_REQUEST_NOT_FOUND(5201, "Không tìm thấy yêu cầu tham gia hoặc đã hết hạn", HttpStatus.NOT_FOUND),
+    JOIN_REQUEST_EXPIRED(5202, "Yêu cầu tham gia đã hết hạn", HttpStatus.BAD_REQUEST),
+    DUPLICATE_JOIN_REQUEST(5203, "Bạn đã có yêu cầu tham gia đang chờ xử lý", HttpStatus.CONFLICT),
+    REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
+    OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
     ;
 
     private final int code;

@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,4 +18,5 @@ public class SystemNotification {
     private String message;
     private Boolean requiresAction;
     private String actionUrl;
+    private Map<String, Object> data; // ✅ Additional data payload
 }

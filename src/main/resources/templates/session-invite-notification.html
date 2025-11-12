@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Live Session Scheduled</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .session-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 5px;
+        }
+        .session-info h2 {
+            margin: 0 0 15px 0;
+            font-size: 22px;
+            color: #667eea;
+        }
+        .info-row {
+            display: flex;
+            margin: 12px 0;
+            align-items: flex-start;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            min-width: 140px;
+            display: inline-block;
+        }
+        .info-value {
+            color: #333;
+            flex: 1;
+        }
+        .session-type {
+            display: inline-block;
+            padding: 5px 12px;
+            background-color: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 14px 35px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 600;
+            margin: 25px 0;
+            transition: transform 0.3s ease;
+        }
+        .cta-button:hover {
+            transform: translateY(-2px);
+        }
+        .description {
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            color: #333;
+            line-height: 1.6;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 25px;
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        .tips {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .tips h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #2196f3;
+        }
+        .tips ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .tips li {
+            margin: 5px 0;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 New Live Session Scheduled!</h1>
+        </div>
+        
+        <div class="content">
+            <p class="greeting">Hi <strong th:text="${recipientName}">Member</strong>,</p>
+            
+            <p>You've been invited to join a new live session! <strong th:text="${hostName}">Host</strong> has scheduled a session for the project <strong th:text="${projectName}">Project</strong>.</p>
+            
+            <div class="session-info">
+                <h2 th:text="${sessionTitle}">Session Title</h2>
+                
+                <div class="info-row">
+                    <span class="info-label">📅 Scheduled Time:</span>
+                    <span class="info-value" th:text="${scheduledStart}">January 1, 2025 10:00 AM</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">🎬 Session Type:</span>
+                    <span class="info-value">
+                        <span class="session-type" th:text="${sessionType}">RECORDING</span>
+                    </span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">👥 Max Participants:</span>
+                    <span class="info-value" th:text="${maxParticipants}">6</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">🎤 Host:</span>
+                    <span class="info-value" th:text="${hostName}">Producer Name</span>
+                </div>
+                
+                <div class="info-row">
+                    <span class="info-label">🎵 Project:</span>
+                    <span class="info-value" th:text="${projectName}">Project Name</span>
+                </div>
+            </div>
+            
+            <div class="description" th:if="${sessionDescription}">
+                <strong>📝 Session Description:</strong>
+                <p th:text="${sessionDescription}">Description here</p>
+            </div>
+            
+            <div style="text-align: center;">
+                <a th:href="${sessionLink}" class="cta-button">
+                    🚀 View Session Details
+                </a>
+            </div>
+            
+            <div class="tips">
+                <h3>💡 Quick Tips:</h3>
+                <ul>
+                    <li>Make sure you have a stable internet connection</li>
+                    <li>Test your audio equipment before the session</li>
+                    <li>Join a few minutes early to avoid missing the start</li>
+                    <li>Session will start automatically at the scheduled time</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p><strong>Producer Workbench</strong></p>
+            <p>Where music creation comes alive ✨</p>
+            <p style="margin-top: 15px; font-size: 11px; color: #999;">
+                This is an automated notification. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

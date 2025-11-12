@@ -46,6 +46,9 @@ public class SessionParticipantController {
     /**
      * Join a session (get Agora credentials)
      * POST /api/sessions/{sessionId}/join
+     * 
+     * For OWNER/HOST: Join directly without approval
+     * For MEMBERS: Called after WebSocket approval from host
      */
     @PostMapping("/join")
     public ApiResponse<JoinSessionResponse> joinSession(@PathVariable String sessionId) {
