@@ -42,7 +42,7 @@ public class MilestoneController {
                 .build();
     }
 
-    @GetMapping("/{projectId}/milestones/{milestonkieId}")
+    @GetMapping("/{projectId}/milestones/{milestoneId}")
     public ApiResponse<MilestoneDetailResponse> getMilestoneDetail(
             @PathVariable Long projectId,
             @PathVariable Long milestoneId,
