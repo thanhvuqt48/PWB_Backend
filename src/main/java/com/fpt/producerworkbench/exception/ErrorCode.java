@@ -98,6 +98,7 @@ public enum ErrorCode {
     NOT_PROJECT_MEMBER(8004, "Bạn không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
     INSPIRATION_ITEM_NOT_FOUND(8005, "Không tìm thấy mục cảm hứng", HttpStatus.BAD_REQUEST),
 
+
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -125,6 +126,11 @@ public enum ErrorCode {
     NO_ACCESS(8003, "Không có quyền truy cập.", HttpStatus.FORBIDDEN),
     FILE_NOT_IN_PROJECT(7002, "File không thuộc về dự án này", HttpStatus.FORBIDDEN),
     INVALID_FILE_FORMAT(7003, "Định dạng file không hợp lệ", HttpStatus.BAD_REQUEST),
+
+    // ========== Sugguestion (8xxx) ==========
+    CONFLICT(8006, "Track đang xử lý, vui lòng đợi xong rồi mới đề xuất lại", HttpStatus.BAD_REQUEST),
+    FILE_LARGE(8007,  "File vượt quá giới hạn 25MB", HttpStatus.BAD_REQUEST),
+    FILE_STORAGE_NOT_FOUND(8007,  "Không tìm thấy File", HttpStatus.BAD_REQUEST),
 
     // ========== Playback Related (8xxx) ==========
     CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
@@ -185,6 +191,7 @@ public enum ErrorCode {
     // Project errors (4xxx)
     ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
     PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
+
     ;
 
     private final int code;

@@ -56,6 +56,13 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
                 projectId, uuid, getFileExtension(originalFilename));
     }
 
+    @Override
+    public String generateTrackAudioKey(Long projectId, String originalFilename) {
+        String uuid = java.util.UUID.randomUUID().toString();
+        String ext = getFileExtension(originalFilename);
+        return String.format("projects/%d/tracks/%s%s", projectId, uuid, ext);
+    }
+
     private String getFileExtension(String filename) {
         if (!StringUtils.hasText(filename) || !filename.contains(".")) {
             return "";

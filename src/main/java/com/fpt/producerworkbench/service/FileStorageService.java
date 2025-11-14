@@ -8,4 +8,6 @@ public interface FileStorageService {
     String generatePresignedUrl(String objectKey, boolean forDownload, String fileName);
     String uploadBytes(byte[] bytes, String objectKey, String contentType);
     byte[] downloadBytes(String objectKey);
+
+    String generatePresignedUploadUrl(String objectKey, String contentType, java.time.Duration expiration);
 }

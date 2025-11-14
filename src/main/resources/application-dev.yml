@@ -93,6 +93,9 @@ signnow:
     connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
 
+bedrock:
+  region: ap-southeast-1
+  modelId: anthropic.claude-3-haiku-20240307-v1:0
 
 pwb:
   contract:
@@ -116,8 +119,17 @@ aws:
   region: ${AWS_REGION}
   access-key-id: ${AWS_ACCESS_KEY_ID}
   secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  ai:
+    suggestion-mode: BY_SONG
+    num-suggestions: 3
+    song:
+      scale-factor: 1.0
+      max-sections: 8
+      min-lines: 24
+      per-section-min: 4
   s3:
     bucket-name: ${S3_BUCKET_NAME}
+    max-upload-mb: 25
 
 logging:
   charset:
