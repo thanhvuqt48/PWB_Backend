@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MilestoneMemberRepository extends JpaRepository<MilestoneMember, Long> {
@@ -14,6 +15,8 @@ public interface MilestoneMemberRepository extends JpaRepository<MilestoneMember
     boolean existsByMilestoneIdAndUserId(Long milestoneId, Long userId);
 
     List<MilestoneMember> findByMilestoneIdInAndUserId(List<Long> milestoneIds, Long userId);
+
+    Optional<MilestoneMember> findByMilestoneIdAndUserId(Long milestoneId, Long userId);
 }
 
 

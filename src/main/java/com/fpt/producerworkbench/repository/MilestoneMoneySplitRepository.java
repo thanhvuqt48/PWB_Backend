@@ -18,6 +18,12 @@ public interface MilestoneMoneySplitRepository extends JpaRepository<MilestoneMo
     Optional<MilestoneMoneySplit> findByMilestoneIdAndUserIdAndStatus(Long milestoneId, Long userId, MoneySplitStatus status);
 
     boolean existsByMilestoneIdAndUserIdAndStatus(Long milestoneId, Long userId, MoneySplitStatus status);
+
+    boolean existsByMilestoneIdAndStatus(Long milestoneId, MoneySplitStatus status);
+
+    List<MilestoneMoneySplit> findByMilestoneIdInAndUserId(List<Long> milestoneIds, Long userId);
+
+    boolean existsByMilestoneIdInAndUserIdAndStatus(List<Long> milestoneIds, Long userId, MoneySplitStatus status);
 }
 
 

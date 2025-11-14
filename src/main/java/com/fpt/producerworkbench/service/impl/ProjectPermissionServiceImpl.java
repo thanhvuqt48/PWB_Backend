@@ -1,11 +1,13 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.dto.response.ContractPermissionResponse;
 import com.fpt.producerworkbench.dto.response.MilestonePermissionResponse;
 import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
 import com.fpt.producerworkbench.entity.Project;
+import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.ProjectMember;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
@@ -13,13 +15,17 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.repository.MilestoneMoneySplitRepository;
+import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,23 +35,30 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final MilestoneRepository milestoneRepository;
+    private final MilestoneMoneySplitRepository milestoneMoneySplitRepository;
 
     /**
      * Context class chứa thông tin chung về user và project để tránh query database nhiều lần
      */
     private static class ProjectContext {
+        final Long userId;
         final UserRole userRole;
         final boolean isProjectOwner;
         final ProjectRole projectRole;
         final boolean isProjectMember;
         final boolean isAnonymousMember;
+        final Project project;
 
-        ProjectContext(UserRole userRole, boolean isProjectOwner, ProjectRole role, boolean isProjectMember, boolean isAnonymousMember) {
+        ProjectContext(Long userId, UserRole userRole, boolean isProjectOwner, ProjectRole role,
+                       boolean isProjectMember, boolean isAnonymousMember, Project project) {
+            this.userId = userId;
             this.userRole = userRole;
             this.isProjectOwner = isProjectOwner;
             this.projectRole = role;
             this.isProjectMember = isProjectMember;
             this.isAnonymousMember = isAnonymousMember;
+            this.project = project;
         }
     }
 
@@ -102,7 +115,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
             isAnonymousMember = member.isAnonymous();
         }
 
-        return new ProjectContext(userRole, isProjectOwner, projectRole, isProjectMember, isAnonymousMember);
+        return new ProjectContext(user.getId(), userRole, isProjectOwner, projectRole, isProjectMember, isAnonymousMember, project);
     }
 
     /**
@@ -118,6 +131,8 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                 .project(ProjectPermissionResponse.ProjectPermissions.builder()
                         .canCreateProject(false)
                         .canInviteMembers(false)
+                        .canRemoveMembers(false)
+                        .canUpdateMemberRole(false)
                         .canViewProject(false)
                         .canEditProject(false)
                         .canDeleteProject(false)
@@ -127,12 +142,17 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeclineInvitation(false)
                         .canViewMyInvitations(false)
                         .build())
+                .room(ProjectPermissionResponse.RoomPermissions.builder()
+                        .canEnterCustomerRoom(false)
+                        .canEnterInternalRoom(false)
+                        .build())
                 .milestone(ProjectPermissionResponse.MilestonePermissions.builder()
                         .canCreateMilestone(false)
                         .canViewMilestones(false)
                         .canEditMilestone(false)
                         .canDeleteMilestone(false)
                         .canAddMembersToMilestone(false)
+                        .canRemoveMembersFromMilestone(false)
                         .build())
                 .contract(ProjectPermissionResponse.ContractPermissions.builder()
                         .canCreateContract(false)
@@ -177,6 +197,9 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
             return createDefaultDeniedResponse("Không thể load project context");
         }
 
+        boolean canEnterCustomerRoom = canEnterCustomerRoom(context);
+        boolean canEnterInternalRoom = canEnterInternalRoom(context);
+
         return ProjectPermissionResponse.builder()
                 // Role information
                 .role(ProjectPermissionResponse.RoleInfo.builder()
@@ -188,6 +211,8 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                 .project(ProjectPermissionResponse.ProjectPermissions.builder()
                         .canCreateProject(canCreateProject(context.userRole))
                         .canInviteMembers(canInviteMembers(context.userRole, context.isProjectOwner))
+                        .canRemoveMembers(canRemoveProjectMembers(context.isProjectOwner))
+                        .canUpdateMemberRole(canUpdateProjectMemberRole(context.isProjectOwner))
                         .canViewProject(canViewProject(context.userRole, context.isProjectOwner, context.projectRole))
                         .canEditProject(canEditProject(context.userRole, context.isProjectOwner))
                         .canDeleteProject(canDeleteProject(context.userRole, context.isProjectOwner))
@@ -197,6 +222,10 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeclineInvitation(true)
                         .canViewMyInvitations(true) 
                         .build())
+                .room(ProjectPermissionResponse.RoomPermissions.builder()
+                        .canEnterCustomerRoom(canEnterCustomerRoom)
+                        .canEnterInternalRoom(canEnterInternalRoom)
+                        .build())
                 
                 // Milestone permissions
                 .milestone(ProjectPermissionResponse.MilestonePermissions.builder()
@@ -205,6 +234,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canEditMilestone(canEditMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .canDeleteMilestone(canDeleteMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .canAddMembersToMilestone(canAddMembersToMilestone(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canRemoveMembersFromMilestone(canRemoveMembersFromMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .build())
                 
                 // Contract permissions
@@ -251,6 +281,14 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         return userRole == UserRole.ADMIN || isProjectOwner;
     }
 
+    private boolean canRemoveProjectMembers(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    private boolean canUpdateProjectMemberRole(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
     private boolean canViewProject(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole) {
         return userRole == UserRole.ADMIN || isProjectOwner || projectRole != null;
     }
@@ -281,6 +319,68 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         }
         
         return null;
+    }
+
+    private boolean canEnterCustomerRoom(ProjectContext context) {
+        if (context == null) {
+            return false;
+        }
+
+        if (context.userRole == UserRole.ADMIN || context.isProjectOwner) {
+            return true;
+        }
+
+        Project project = context.project;
+        if (project == null || !Boolean.TRUE.equals(project.getIsFunded())) {
+            return false;
+        }
+
+        return context.projectRole == ProjectRole.CLIENT || context.projectRole == ProjectRole.OBSERVER;
+    }
+
+    private boolean canEnterInternalRoom(ProjectContext context) {
+        if (context == null) {
+            return false;
+        }
+
+        if (context.userRole == UserRole.ADMIN || context.isProjectOwner) {
+            return true;
+        }
+
+        if (!context.isProjectMember || context.projectRole == null) {
+            return false;
+        }
+
+        if (context.projectRole != ProjectRole.COLLABORATOR) {
+            return false;
+        }
+
+        return hasApprovedMoneySplit(context.project, context.userId);
+    }
+
+    private boolean hasApprovedMoneySplit(Project project, Long userId) {
+        if (project == null || userId == null) {
+            return false;
+        }
+
+        List<Milestone> milestones = milestoneRepository.findByProjectIdOrderBySequenceAsc(project.getId());
+        if (milestones.isEmpty()) {
+            return false;
+        }
+
+        List<Long> milestoneIds = milestones.stream()
+                .map(Milestone::getId)
+                .collect(Collectors.toList());
+
+        if (milestoneIds.isEmpty()) {
+            return false;
+        }
+
+        return milestoneMoneySplitRepository.existsByMilestoneIdInAndUserIdAndStatus(
+                milestoneIds,
+                userId,
+                MoneySplitStatus.APPROVED
+        );
     }
 
     @Override
@@ -444,6 +544,10 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
     }
 
     private boolean canAddMembersToMilestone(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        return userRole == UserRole.PRODUCER && isProjectOwner;
+    }
+
+    private boolean canRemoveMembersFromMilestone(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
         return userRole == UserRole.PRODUCER && isProjectOwner;
     }
 
