@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Cancelled</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .header h1 {
+            color: white;
+            margin: 0;
+            font-size: 28px;
+            font-weight: 700;
+        }
+        .header .icon {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 40px 30px;
+        }
+        .greeting {
+            font-size: 18px;
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+        .message {
+            font-size: 16px;
+            color: #4a5568;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .session-info {
+            background: #fff5f5;
+            border-left: 4px solid #fc8181;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 8px;
+        }
+        .session-info h3 {
+            color: #c53030;
+            margin: 0 0 15px 0;
+            font-size: 18px;
+        }
+        .info-row {
+            display: flex;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #2d3748;
+            min-width: 140px;
+        }
+        .info-value {
+            color: #4a5568;
+            flex: 1;
+        }
+        .reason-box {
+            background: #fffaf0;
+            border-left: 4px solid #ed8936;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .reason-box p {
+            margin: 0;
+            color: #7c2d12;
+            font-style: italic;
+        }
+        .button {
+            display: inline-block;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+        }
+        .footer {
+            background: #f7fafc;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+        .footer p {
+            color: #718096;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        .divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, #cbd5e0, transparent);
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="icon">❌</div>
+            <h1>Session Cancelled</h1>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <div class="greeting">
+                Hi <strong th:text="${recipientName}">User</strong>,
+            </div>
+
+            <div class="message">
+                We regret to inform you that the following live session has been <strong>cancelled</strong>:
+            </div>
+
+            <!-- Session Info -->
+            <div class="session-info">
+                <h3>📋 Session Details</h3>
+                <div class="info-row">
+                    <span class="info-label">📌 Title:</span>
+                    <span class="info-value" th:text="${sessionTitle}">Session Title</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">🎵 Project:</span>
+                    <span class="info-value" th:text="${projectName}">Project Name</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">👤 Host:</span>
+                    <span class="info-value" th:text="${hostName}">Host Name</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">📅 Was Scheduled:</span>
+                    <span class="info-value" th:text="${scheduledStart}">Date</span>
+                </div>
+            </div>
+
+            <!-- Cancellation Reason -->
+            <div class="reason-box">
+                <p><strong>Reason:</strong> <span th:text="${reason}">Cancelled by host</span></p>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="message">
+                We apologize for any inconvenience this may cause. You can check the project for any updates or upcoming sessions.
+            </div>
+
+            <center>
+                <a th:href="${projectLink}" class="button">View Project</a>
+            </center>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p><strong>Producer Workbench</strong></p>
+            <p>Your professional music collaboration platform</p>
+            <p style="color: #a0aec0; font-size: 12px; margin-top: 15px;">
+                This is an automated notification. Please do not reply to this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

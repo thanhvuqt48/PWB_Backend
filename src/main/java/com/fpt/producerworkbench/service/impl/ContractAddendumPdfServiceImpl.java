@@ -11,7 +11,7 @@ import com.fpt.producerworkbench.repository.ContractAddendumRepository;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractAddendumPdfService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.itextpdf.forms.PdfAcroForm;
@@ -56,7 +56,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     private final ContractDocumentRepository contractDocumentRepository;
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
-    private final ContractPermissionService contractPermissionService;
+    private final ProjectPermissionService projectPermissionService;
 
     @Value("${pwb.addendum.template}") private Resource addendumTemplate;
     @Value("${pwb.contract.font}")     private Resource fontResource;
@@ -104,7 +104,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
-        var perms = contractPermissionService.checkContractPermissions(auth, contract.getProject().getId());
+        var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
         if (!perms.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
         ContractAddendum add = addendumRepository

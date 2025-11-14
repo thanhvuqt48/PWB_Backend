@@ -113,15 +113,33 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
             throw new AppException(ErrorCode.SESSION_NOT_ACTIVE);
         }
 
-        if (session.isFull()) {
-            throw new AppException(ErrorCode.SESSION_FULL);
-        }
-
+        // ✅ Check if user has SessionParticipant (invited) or is host
         SessionParticipant participant = participantRepository
                 .findBySessionIdAndUserId(sessionId, userId)
-                .orElseGet(() -> createParticipantForUser(session, userId));
+                .orElse(null);
 
-        if (participant.getInvitationStatus() == InvitationStatus.DECLINED) {
+        // ✅ NEW LOGIC: If session is PUBLIC → allow anyone to join (create participant automatically)
+        // If session is PRIVATE → only host or invited members can join
+        if (participant == null) {
+            // Host can always join
+            if (session.isHost(userId)) {
+                participant = createParticipantForUser(session, userId);
+            }
+            // Public session → create participant for anyone
+            else if (Boolean.TRUE.equals(session.getIsPublic())) {
+                participant = createParticipantForUser(session, userId);
+                // Auto-accept for public sessions
+                participant.setInvitationStatus(InvitationStatus.ACCEPTED);
+                participantRepository.save(participant);
+            }
+            // Private session + not invited → reject
+            else {
+                throw new AppException(ErrorCode.MUST_REQUEST_JOIN_FIRST);
+            }
+        }
+
+        // If participant exists but declined → cannot join
+        if (participant != null && participant.getInvitationStatus() == InvitationStatus.DECLINED) {
             throw new AppException(ErrorCode.INVITATION_DECLINED);
         }
 
@@ -148,6 +166,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
         participantRepository.save(participant);
 
         session.incrementParticipants();
+        session.updateActivity(); // ✅ Update activity when user joins
         sessionRepository.save(session);
 
         // WebSocket broadcasts...
@@ -186,7 +205,6 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 .expiresIn(TOKEN_EXPIRATION_SECONDS)
                 .sessionTitle(session.getTitle())
                 .currentParticipants(session.getCurrentParticipants())
-                .maxParticipants(session.getMaxParticipants())
                 .build();
     }
 
@@ -206,6 +224,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
                 .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
 
         session.decrementParticipants();
+        session.updateActivity(); // ✅ Update activity when user leaves
         sessionRepository.save(session);
 
         // ✅ Broadcast participant left
@@ -356,10 +375,6 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
             return false;
         }
 
-        if (session.isFull()) {
-            return false;
-        }
-
         boolean isInvited = participantRepository.existsBySessionIdAndUserId(sessionId, userId);
         if (isInvited) {
             return true;
@@ -378,7 +393,7 @@ public class SessionParticipantServiceImpl implements SessionParticipantService 
     public ParticipantRole determineParticipantRole(Long projectId, Long userId) {
         ProjectMember member = projectMemberRepository
                 .findByProjectIdAndUserId(projectId, userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECT));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_IN_PROJECTS));
 
         return mapProjectRoleToParticipantRole(member.getProjectRole());
     }

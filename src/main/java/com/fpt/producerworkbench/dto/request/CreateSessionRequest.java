@@ -1,6 +1,6 @@
 package com.fpt.producerworkbench.dto.request;
 
-import com.fpt.producerworkbench.common.SessionType;
+import com.fpt.producerworkbench.common.ProjectRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -28,14 +28,19 @@ public class CreateSessionRequest {
     @Size(max = 1000, message = "Description cannot exceed 1000 characters")
     private String description;
 
-    @NotNull(message = "Session type is required")
-    private SessionType sessionType;
-
     private LocalDateTime scheduledStart; // Optional, null = start now
 
     private List<Long> preloadedFileIds; // Optional, files to share in session
 
-    private Boolean recordingEnabled = false;
-
-    private Integer maxParticipants = 6;
+    // ========== Invite Members (Optional) ==========
+    // If provided, will send email invitations immediately after creating session
+    
+    private List<Long> invitedMemberIds; // Specific member IDs to invite
+    
+    private List<ProjectRole> inviteRoles; // Or invite all members with these roles
+    
+    // ========== Visibility ==========
+    // Will be auto-calculated: if invitedMemberIds or inviteRoles provided -> isPublic = false
+    // Otherwise -> isPublic = true (PUBLIC session)
+    // Frontend doesn't need to send this field
 }

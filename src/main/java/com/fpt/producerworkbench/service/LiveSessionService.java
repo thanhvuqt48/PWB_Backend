@@ -1,23 +1,32 @@
 package com.fpt.producerworkbench.service;
 
+import com.fpt.producerworkbench.dto.response.AvailableMemberResponse;
 import com.fpt.producerworkbench.entity.LiveSession;
 
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
+import com.fpt.producerworkbench.dto.request.InviteMoreMembersRequest;
+import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+
+import java.util.List;
+
 public interface LiveSessionService {
 
      //Create a new live session
     LiveSessionResponse createSession(CreateSessionRequest request, Long hostId);
+    
+     //Update a session
+    LiveSessionResponse updateSession(String sessionId, UpdateSessionRequest request, Long userId);
+    
+     //Delete a session
+    void deleteSession(String sessionId, Long userId);
+    
     //Start a session
     LiveSessionResponse startSession(String sessionId, Long userId);
-     //Pause a session
-    LiveSessionResponse pauseSession(String sessionId, Long userId);
-     //Resume a paused session
-    LiveSessionResponse resumeSession(String sessionId, Long userId);
      //End a session
     SessionSummaryResponse endSession(String sessionId, Long userId);
      //Cancel a scheduled session
@@ -30,5 +39,9 @@ public interface LiveSessionService {
     Page<LiveSessionResponse> getSessionsByHost(Long hostId, Pageable pageable);
      //Check if project has active session
     boolean hasActiveSession(Long projectId);
+     //Invite more members to SCHEDULED PRIVATE session
+    LiveSessionResponse inviteMoreMembers(String sessionId, InviteMoreMembersRequest request, Long userId);
+     //Get available members (exclude already invited)
+    List<AvailableMemberResponse> getAvailableMembers(String sessionId, Long userId);
 
 }

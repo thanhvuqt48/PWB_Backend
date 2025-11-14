@@ -22,5 +22,4 @@ public class SessionSummaryResponse {
     private String duration; // "1h 30m"
     private Integer totalParticipants;
     private Integer filesPlayed;
-    private String recordingUrl;
 }
