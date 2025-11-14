@@ -126,6 +126,7 @@ public enum ErrorCode {
     INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
 
+    PROJECT_NOT_FUNDED(8004, "Dự án chưa được thanh toán.", HttpStatus.BAD_REQUEST),
     PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
 
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
@@ -149,6 +150,13 @@ public enum ErrorCode {
     MONEY_SPLIT_CANNOT_UPDATE_REJECTED(8027, "Không thể chỉnh sửa phân chia tiền đã bị từ chối. Vui lòng tạo mới.", HttpStatus.BAD_REQUEST),
     MONEY_SPLIT_CANNOT_DELETE_APPROVED(8028, "Không thể xóa phân chia tiền đã được chấp nhận. Chỉ có thể xóa phân chia tiền đang chờ phản hồi hoặc đã bị từ chối.", HttpStatus.BAD_REQUEST),
     CONTRACT_NOT_COMPLETED_FOR_MILESTONE(8029, "Hợp đồng chưa được hoàn thành. Chỉ có thể tạo hoặc sử dụng cột mốc khi hợp đồng đã được hoàn thành.", HttpStatus.BAD_REQUEST),
+    MILESTONE_HAS_APPROVED_MONEY_SPLIT(8030, "Cột mốc đã có phân chia tiền được chấp nhận. Không thể xóa.", HttpStatus.BAD_REQUEST),
+    MILESTONE_MEMBER_NOT_FOUND(8031, "Không tìm thấy thành viên cột mốc.", HttpStatus.NOT_FOUND),
+    MILESTONE_MEMBER_HAS_APPROVED_MONEY_SPLIT(8032, "Không thể xóa thành viên vì đã có phân chia tiền hoàn tất.", HttpStatus.BAD_REQUEST),
+    PROJECT_MEMBER_HAS_MONEY_SPLIT(8033, "Thành viên đã được phân chia tiền trong cột mốc. Không thể xóa.", HttpStatus.BAD_REQUEST),
+    PROJECT_OWNER_CANNOT_BE_MODIFIED(8034, "Không thể chỉnh sửa hoặc xóa chủ dự án.", HttpStatus.BAD_REQUEST),
+    PROJECT_CLIENT_CANNOT_BE_MODIFIED(8035, "Không thể chỉnh sửa hoặc xóa khách hàng của dự án.", HttpStatus.BAD_REQUEST),
+    PROJECT_CLIENT_CONTRACT_COMPLETED(8036, "Không thể xóa khách hàng vì hợp đồng của dự án đã hoàn thành.", HttpStatus.BAD_REQUEST),
     PLAYBACK_CONTROL_DENIED(8001, "Bạn không có quyền điều khiển phát lại", HttpStatus.FORBIDDEN),
     NO_FILE_PLAYING(8002, "Hiện tại không có file nào đang phát", HttpStatus.BAD_REQUEST),
     INVALID_PLAYBACK_POSITION(8003, "Vị trí phát lại không hợp lệ", HttpStatus.BAD_REQUEST),

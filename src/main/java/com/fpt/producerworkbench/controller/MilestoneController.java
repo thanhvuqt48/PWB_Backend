@@ -78,6 +78,25 @@ public class MilestoneController {
                 .build();
     }
 
+    @PutMapping("/{projectId}/milestones/{milestoneId}")
+    public ApiResponse<MilestoneResponse> updateMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @Valid @RequestBody MilestoneRequest request,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneResponse milestone = milestoneService.updateMilestone(projectId, milestoneId, request, authentication);
+
+        return ApiResponse.<MilestoneResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật cột mốc thành công")
+                .result(milestone)
+                .build();
+    }
+
     @GetMapping("/{projectId}/milestones/{milestoneId}/available-members")
     public ApiResponse<List<AvailableProjectMemberResponse>> getAvailableProjectMembers(
             @PathVariable Long projectId,
@@ -114,6 +133,45 @@ public class MilestoneController {
                 .code(HttpStatus.OK.value())
                 .message("Thêm thành viên vào cột mốc thành công")
                 .result(milestoneDetail)
+                .build();
+    }
+
+    @DeleteMapping("/{projectId}/milestones/{milestoneId}/members/{userId}")
+    public ApiResponse<MilestoneDetailResponse> removeMemberFromMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @PathVariable Long userId,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0
+                || milestoneId == null || milestoneId <= 0
+                || userId == null || userId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneDetailResponse milestoneDetail =
+                milestoneService.removeMemberFromMilestone(projectId, milestoneId, userId, authentication);
+
+        return ApiResponse.<MilestoneDetailResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Xóa thành viên khỏi cột mốc thành công")
+                .result(milestoneDetail)
+                .build();
+    }
+
+    @DeleteMapping("/{projectId}/milestones/{milestoneId}")
+    public ApiResponse<Void> deleteMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        milestoneService.deleteMilestone(projectId, milestoneId, authentication);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Xóa cột mốc thành công")
                 .build();
     }
 }

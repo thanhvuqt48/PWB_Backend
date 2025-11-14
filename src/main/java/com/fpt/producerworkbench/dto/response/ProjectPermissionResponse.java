@@ -19,6 +19,9 @@ public class ProjectPermissionResponse {
     // Project permissions
     private ProjectPermissions project;
     
+    // Room permissions
+    private RoomPermissions room;
+    
     // Milestone permissions
     private MilestonePermissions milestone;
     
@@ -54,6 +57,8 @@ public class ProjectPermissionResponse {
     public static class ProjectPermissions {
         private boolean canCreateProject;
         private boolean canInviteMembers;
+        private boolean canRemoveMembers;
+        private boolean canUpdateMemberRole;
         private boolean canViewProject;
         private boolean canEditProject;
         private boolean canDeleteProject;
@@ -68,12 +73,22 @@ public class ProjectPermissionResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class RoomPermissions {
+        private boolean canEnterCustomerRoom;
+        private boolean canEnterInternalRoom;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class MilestonePermissions {
         private boolean canCreateMilestone;
         private boolean canViewMilestones;
         private boolean canEditMilestone;
         private boolean canDeleteMilestone;
         private boolean canAddMembersToMilestone;
+        private boolean canRemoveMembersFromMilestone;
     }
     
     @Data
