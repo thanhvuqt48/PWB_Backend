@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.MessageStatus;
 import com.fpt.producerworkbench.common.MessageType;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.ChatRequest;
 import com.fpt.producerworkbench.dto.response.ChatResponse;
 import com.fpt.producerworkbench.dto.response.PageResponse;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -25,9 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,11 +36,15 @@ import java.util.stream.Collectors;
 @Slf4j(topic = "CHAT-MESSAGE-SERVICE")
 public class ChatMessageService {
 
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
+    private static final String FRONTEND_URL = "http://localhost:5173"; // Có thể config từ application.yml
+
     private final ChatMessageRepository chatMessageRepository;
     private final ConversationRepository conversationRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketSessionRedisService socketSessionRedisService;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Transactional
     public ChatResponse createMessage(ChatRequest request) {
@@ -71,6 +76,15 @@ public class ChatMessageService {
             messagingTemplate.convertAndSendToUser(userId.toString(), "/queue/messages", userResponse);
             log.info("Sent message to user: {} (me: {})", userId, userResponse.isMe());
         });
+
+        Set<String> offlineUserIds = userIds.stream()
+                .filter(userId -> !onlineUserIds.contains(userId))
+                .filter(userId -> !userId.equals(currentUser.getEmail()))
+                .collect(Collectors.toSet());
+
+        if (!offlineUserIds.isEmpty()) {
+            sendEmailNotificationToOfflineUsers(offlineUserIds, currentUser, chatMessage, conversation);
+        }
 
         return ChatMessageMapper.toSenderResponse(chatMessage, request.getTempId());
     }
@@ -110,6 +124,37 @@ public class ChatMessageService {
             chatMessageRepository.save(chatMessage);
             log.info("Marked message as read: {}", messageId);
         }
+    }
+
+    public Map<String, Boolean> getOnlineStatusForConversation(String conversationId) {
+
+        Conversation conversation = conversationRepository
+                .findById(conversationId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+
+        Set<String> userEmails = conversation.getParticipants().stream()
+                .map(p -> p.getUser().getEmail())
+                .collect(Collectors.toSet());
+
+        log.info("Checking online status for conversation {}: participants = {}", conversationId, userEmails);
+
+        Set<WebSocketSession> onlineSessions = socketSessionRedisService.getSessionByUserIds(userEmails);
+        Set<String> onlineUserEmails = onlineSessions.stream()
+                .map(WebSocketSession::getUserId)
+                .collect(Collectors.toSet());
+
+        log.info("Online users from Redis: {}", onlineUserEmails);
+
+        Map<String, Boolean> onlineStatus = userEmails.stream()
+                .collect(Collectors.toMap(
+                    email -> email,
+                    onlineUserEmails::contains
+                ));
+
+        log.info("Retrieved online status for conversation {}: {} users, {} online. Status map: {}",
+                conversationId, userEmails.size(), onlineUserEmails.size(), onlineStatus);
+
+        return onlineStatus;
     }
 
     private ChatMessage buildChatMessage(ChatRequest request, User sender) {
@@ -156,6 +201,81 @@ public class ChatMessageService {
         }
         chatMessageRepository.save(chatMessage);
         return chatMessage;
+    }
+
+    private void sendEmailNotificationToOfflineUsers(Set<String> offlineUserEmails,
+                                                      User sender,
+                                                      ChatMessage chatMessage,
+                                                      Conversation conversation) {
+        try {
+            List<User> offlineUsers = userRepository.findAllByEmailIn(new ArrayList<>(offlineUserEmails));
+
+            for (User offlineUser : offlineUsers) {
+                try {
+                    String messageContent = prepareMessageContentForEmail(chatMessage);
+
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+                    String formattedTime = chatMessage.getSentAt().format(formatter);
+
+                    String conversationLink = FRONTEND_URL + "/chat/" + conversation.getId();
+
+                    String senderAvatar = sender.getAvatarUrl() != null
+                            ? sender.getAvatarUrl()
+                            : "https://via.placeholder.com/48";
+
+                    NotificationEvent event = NotificationEvent.builder()
+                            .recipient(offlineUser.getEmail())
+                            .subject("Tin nhắn mới từ " + sender.getFullName())
+                            .templateCode("new-message-notification")
+                            .param(Map.of(
+                                    "recipientName", offlineUser.getFullName() != null ? offlineUser.getFullName() : offlineUser.getEmail(),
+                                    "senderName", sender.getFullName() != null ? sender.getFullName() : sender.getEmail(),
+                                    "senderAvatar", senderAvatar,
+                                    "messageContent", messageContent,
+                                    "messageTime", formattedTime,
+                                    "conversationLink", conversationLink
+                            ))
+                            .build();
+
+                    kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+                    log.info("Đã gửi email notification cho user offline: {}", offlineUser.getEmail());
+
+                } catch (Exception e) {
+                    log.error("Lỗi khi gửi email notification cho user {}: {}", offlineUser.getEmail(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi xử lý email notification cho offline users: {}", e.getMessage());
+        }
+    }
+
+    private String prepareMessageContentForEmail(ChatMessage chatMessage) {
+        String content = chatMessage.getContent();
+
+        if (chatMessage.getMessageType() == MessageType.TEXT) {
+            if (content != null && content.length() > 200) {
+                return content.substring(0, 200) + "...";
+            }
+            return content != null ? content : "";
+        }
+
+        if (chatMessage.getMessageType() == MessageType.IMAGE) {
+            return "📷 Đã gửi một hình ảnh" + (content != null && !content.isEmpty() ? ": " + content : "");
+        }
+
+        if (chatMessage.getMessageType() == MessageType.VIDEO) {
+            return "🎥 Đã gửi một video" + (content != null && !content.isEmpty() ? ": " + content : "");
+        }
+
+        if (chatMessage.getMessageType() == MessageType.AUDIO) {
+            return "🎵 Đã gửi một file âm thanh" + (content != null && !content.isEmpty() ? ": " + content : "");
+        }
+
+        if (chatMessage.getMessageType() == MessageType.FILE) {
+            return "📎 Đã gửi một file" + (content != null && !content.isEmpty() ? ": " + content : "");
+        }
+
+        return content != null ? content : "Đã gửi một tin nhắn";
     }
 
 }

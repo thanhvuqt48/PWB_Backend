@@ -4,10 +4,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
-/**
- * Interface cho dịch vụ test các chức năng S3.
- */
-public interface S3TestService {
+public interface FileService {
 
     String uploadUserAvatar(Long userId, MultipartFile file);
     String uploadProjectMusic(Long projectId, MultipartFile file);
@@ -25,5 +22,5 @@ public interface S3TestService {
     String getDownloadUrl(String objectKey, String originalFileName);
     void deleteFile(String objectKey);
 
-
+    List<String> uploadChatMessageFile(String conversationId, List<MultipartFile> files);
 }

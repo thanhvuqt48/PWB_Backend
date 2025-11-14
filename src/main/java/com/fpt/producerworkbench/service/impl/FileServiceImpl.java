@@ -1,20 +1,19 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.service.FileKeyGenerator;
+import com.fpt.producerworkbench.service.FileService;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.S3TestService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class S3TestServiceImpl implements S3TestService {
+public class FileServiceImpl implements FileService {
 
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
@@ -89,6 +88,23 @@ public class S3TestServiceImpl implements S3TestService {
     @Override
     public void deleteFile(String objectKey) {
         fileStorageService.deleteFile(objectKey);
+    }
+
+    @Override
+    public List<String> uploadChatMessageFile(String conversationId, List<MultipartFile> files) {
+        List<CompletableFuture<String>> futures = files.stream().map(file ->
+                CompletableFuture.supplyAsync(() -> {
+                    String key = fileKeyGenerator.generateChatMessageFileKey(conversationId, file.getOriginalFilename());
+                    fileStorageService.uploadFile(file, key);
+                    return key;
+                })
+        ).toList();
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        return futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList());
     }
 
     @Override
