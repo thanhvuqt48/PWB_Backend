@@ -17,5 +17,6 @@ public class AwsProperties {
     @Setter
     public static class S3 {
         private String bucketName;
+        private Long maxFileSize = 10L * 1024 * 1024; // 10MB
     }
 }

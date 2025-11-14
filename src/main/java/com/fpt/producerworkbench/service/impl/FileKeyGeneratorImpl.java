@@ -49,6 +49,12 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
         return String.format("users/%d/public/portfolio/projects/%d/%s%s", userId, personalProjectId, uuid, getFileExtension(originalFilename));
     }
 
+    @Override
+    public String generateChatMessageFileKey(String conversationId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("conversations/%s/files/%s%s", conversationId, uuid, getFileExtension(originalFilename));
+    }
+
     private String getFileExtension(String filename) {
         if (!StringUtils.hasText(filename) || !filename.contains(".")) {
             return "";

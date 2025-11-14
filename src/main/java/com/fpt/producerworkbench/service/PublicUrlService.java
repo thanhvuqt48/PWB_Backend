@@ -1,26 +1,11 @@
 package com.fpt.producerworkbench.service;
 
-/**
- * Service for converting S3 keys to public CloudFront URLs.
- * 
- * This service is used for public content (portfolio images, avatars) that don't need
- * access control. The generated URLs never expire and can be cached by browsers/CDN.
- * 
- * Benefits:
- * - No expiration (URLs work forever)
- * - Better performance (CloudFront caching)
- * - SEO friendly (stable URLs)
- * - Simpler frontend (no need to refresh URLs)
- * 
- * Security Note:
- * Only use this for truly public content. For sensitive files (contracts, private docs),
- * continue using presigned URLs from FileStorageService.
- */
+
 public interface PublicUrlService {
     
     /**
      * Convert S3 key to public CloudFront URL (no expiration).
-     * 
+     *
      * Example:
      * Input:  "users/1/portfolio/cover/abc-123.jpg"
      * Output: "https://d123abc.cloudfront.net/users/1/portfolio/cover/abc-123.jpg"

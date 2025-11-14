@@ -16,10 +16,10 @@ import java.util.Optional;
 import java.util.Random;
 
 @Component
-@RequiredArgsConstructor // ✅ Use Lombok constructor injection
+@RequiredArgsConstructor
 public class SecurityUtils {
 
-    private final UserRepository userRepository; // ✅ Non-static field
+    private final UserRepository userRepository;
     private static final Random RANDOM = new Random();
 
 
@@ -33,7 +33,6 @@ public class SecurityUtils {
 
         Object principal = authentication.getPrincipal();
 
-        // JWT case (your project)
         if (principal instanceof Jwt jwt) {
             String email = jwt.getSubject();
             User user = userRepository.findByEmail(email)
@@ -41,12 +40,10 @@ public class SecurityUtils {
             return user.getId();
         }
 
-        // User entity case
         if (principal instanceof User user) {
             return user.getId();
         }
 
-        // UserDetails case
         if (principal instanceof UserDetails userDetails) {
             User user = userRepository.findByEmail(userDetails.getUsername())
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -56,7 +53,6 @@ public class SecurityUtils {
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
-    // ✅ Static methods stay static (no repository needed)
     public static Optional<String> getCurrentUserLogin() {
         SecurityContext contextHolder = SecurityContextHolder.getContext();
         return Optional.ofNullable(extractPrincipal(contextHolder.getAuthentication()));

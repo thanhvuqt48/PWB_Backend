@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.configuration.AwsProperties;
+import com.fpt.producerworkbench.dto.response.FileMetaDataResponse;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.FileStorageService;
@@ -23,11 +24,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class S3ServiceImpl implements FileStorageService {
+public class FileStorageServiceImpl implements FileStorageService {
 
     private final S3Client s3Client;
     private final S3TransferManager s3TransferManager;
@@ -65,6 +68,44 @@ public class S3ServiceImpl implements FileStorageService {
                 file.delete();
             }
         }
+    }
+
+    @Override
+    public List<FileMetaDataResponse> uploadFiles(List<MultipartFile> files, String objectKey) {
+        if (files == null || files.isEmpty()) {
+            log.warn("Upload files is null or empty");
+            return new ArrayList<>();
+        }
+
+        List<FileMetaDataResponse> fileMetaData = new ArrayList<>();
+        String bucketName = awsProperties.getS3().getBucketName();
+
+        for (MultipartFile file : files) {
+            File fileConverted = convertMultiPartToFile(file);
+            validateUploadFile(file);
+
+            try {
+                UploadFileRequest uploadRequest = UploadFileRequest.builder()
+                        .putObjectRequest(req -> req
+                                .bucket(bucketName)
+                                .key(objectKey)
+                                .contentType(file.getContentType()))
+                        .source(fileConverted.toPath())
+                        .build();
+
+                FileUpload fileUpload = s3TransferManager.uploadFile(uploadRequest);
+
+                CompletedFileUpload completedUpload = fileUpload.completionFuture().join();
+                log.info("Upload thành công file '{}'. ETag: {}", objectKey, completedUpload.response().eTag());
+            } catch (Exception e){
+                log.error("Lỗi khi tải file '{}': {}", file.getOriginalFilename(), e.getMessage());
+                throw new AppException(ErrorCode.UPLOAD_FAILED);
+            }
+
+        }
+
+
+        return fileMetaData;
     }
 
     @Override
@@ -122,8 +163,6 @@ public class S3ServiceImpl implements FileStorageService {
                 requestBuilder.responseContentDisposition("inline");
             }
 
-            // For view/display: 24 hours expiration (user can stay on page long time)
-            // For download: can use shorter duration if needed
             Duration expiration = forDownload ? Duration.ofMinutes(15) : Duration.ofHours(24);
 
             GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -163,10 +202,6 @@ public class S3ServiceImpl implements FileStorageService {
         }
     }
 
-    /**
-     * Chuyển đổi MultipartFile thành File tạm để S3TransferManager có thể đọc.
-     * Đây là cách hiệu quả để xử lý file mà không tốn nhiều bộ nhớ.
-     */
     private File convertMultiPartToFile(MultipartFile multipartFile) {
         File convFile = new File(System.getProperty("java.io.tmpdir") + "/" + multipartFile.getOriginalFilename());
         try (FileOutputStream fos = new FileOutputStream(convFile)) {
@@ -176,5 +211,17 @@ public class S3ServiceImpl implements FileStorageService {
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
         return convFile;
+    }
+
+    private void validateUploadFile(MultipartFile file) {
+        if (file.isEmpty()) {
+            log.warn("Bỏ qua file rỗng: {}", file.getOriginalFilename());
+            return;
+        }
+
+        if (file.getSize() > awsProperties.getS3().getMaxFileSize()) {
+            log.warn("Kích cỡ file tải lên vượt quá giới hạn: {} > {}", file.getSize(), awsProperties.getS3().getMaxFileSize());
+            throw new RuntimeException("Kích cỡ file tải lên vượt quá giới hạn.");
+        }
     }
 }

@@ -11,6 +11,7 @@ import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
@@ -50,7 +51,7 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @KafkaListener(topics = "notification-delivery", groupId = "my-consumer-group")
-    public void sendEmailByKafka(NotificationEvent event)
+    public void sendEmailByKafka(NotificationEvent event, Acknowledgment acknowledgment)
             throws MessagingException, UnsupportedEncodingException {
         log.info("Received Kafka message to send email: {}", event);
 
@@ -75,6 +76,7 @@ public class EmailServiceImpl implements EmailService {
         helper.setText(htmlContent, true);
 
         mailSender.send(mimeMessage);
+        acknowledgment.acknowledge();
 
         log.info("Email sent to {} successfully!", event.getRecipient());
     }
