@@ -178,6 +178,13 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canUpdateExpense(false)
                         .canDeleteExpense(false)
                         .build())
+                .track(ProjectPermissionResponse.TrackPermissions.builder()
+                        .canUploadTrack(false)
+                        .canViewTrack(false)
+                        .canUpdateTrack(false)
+                        .canDeleteTrack(false)
+                        .canPlayTrack(false)
+                        .build())
                 .reason(reason)
                 .build();
     }
@@ -200,14 +207,15 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         boolean canEnterCustomerRoom = canEnterCustomerRoom(context);
         boolean canEnterInternalRoom = canEnterInternalRoom(context);
 
+        boolean hasApprovedMoneySplit = hasApprovedMoneySplit(context.project, context.userId);
+
         return ProjectPermissionResponse.builder()
-                // Role information
                 .role(ProjectPermissionResponse.RoleInfo.builder()
                         .userRole(context.userRole)
                         .projectRole(context.projectRole)
                         .anonymous(context.isAnonymousMember)
                         .build())
-                
+
                 .project(ProjectPermissionResponse.ProjectPermissions.builder()
                         .canCreateProject(canCreateProject(context.userRole))
                         .canInviteMembers(canInviteMembers(context.userRole, context.isProjectOwner))
@@ -220,13 +228,14 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canManageInvitations(canManageInvitations(context.userRole, context.isProjectOwner))
                         .canAcceptInvitation(true)
                         .canDeclineInvitation(true)
-                        .canViewMyInvitations(true) 
+                        .canViewMyInvitations(true)
                         .build())
+
                 .room(ProjectPermissionResponse.RoomPermissions.builder()
                         .canEnterCustomerRoom(canEnterCustomerRoom)
                         .canEnterInternalRoom(canEnterInternalRoom)
                         .build())
-                
+
                 // Milestone permissions
                 .milestone(ProjectPermissionResponse.MilestonePermissions.builder()
                         .canCreateMilestone(canCreateMilestone(context.userRole, context.projectRole, context.isProjectOwner))
@@ -236,7 +245,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canAddMembersToMilestone(canAddMembersToMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .canRemoveMembersFromMilestone(canRemoveMembersFromMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .build())
-                
+
                 // Contract permissions
                 .contract(ProjectPermissionResponse.ContractPermissions.builder()
                         .canCreateContract(canCreateContract(context.userRole, context.projectRole, context.isProjectOwner))
@@ -245,13 +254,13 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeclineContract(canDeclineContract(context.userRole, context.projectRole, context.isProjectOwner))
                         .canEditContract(canEditContract(context.userRole, context.projectRole, context.isProjectOwner))
                         .build())
-                
+
                 // Payment permissions
                 .payment(ProjectPermissionResponse.PaymentPermissions.builder()
                         .canCreatePayment(canCreatePayment(context.userRole, context.projectRole))
                         .canViewPayment(canViewPayment(context.userRole, context.isProjectOwner, context.projectRole))
                         .build())
-                
+
                 // Money Split permissions
                 .moneySplit(ProjectPermissionResponse.MoneySplitPermissions.builder()
                         .canCreateMoneySplit(canCreateMoneySplit(context.userRole, context.projectRole, context.isProjectOwner))
@@ -261,14 +270,23 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canRejectMoneySplit(canRejectMoneySplit(context.userRole, context.projectRole, context.isProjectMember))
                         .canViewMoneySplit(canViewMoneySplit(context.userRole, context.isProjectOwner, context.projectRole))
                         .build())
-                
+
                 // Expense permissions
                 .expense(ProjectPermissionResponse.ExpensePermissions.builder()
                         .canCreateExpense(canCreateExpense(context.userRole, context.projectRole, context.isProjectOwner))
                         .canUpdateExpense(canUpdateExpense(context.userRole, context.projectRole, context.isProjectOwner))
                         .canDeleteExpense(canDeleteExpense(context.userRole, context.projectRole, context.isProjectOwner))
                         .build())
-                
+
+                // Track permissions - NOW aware of MoneySplit
+                .track(ProjectPermissionResponse.TrackPermissions.builder()
+                        .canUploadTrack(canUploadTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
+                        .canViewTrack(canViewTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
+                        .canUpdateTrack(canUpdateTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
+                        .canDeleteTrack(canDeleteTrack(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canPlayTrack(canPlayTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
+                        .build())
+
                 .reason(getPermissionReason(context.userRole, context.projectRole, context.isProjectOwner, context.isProjectMember))
                 .build();
     }
@@ -594,5 +612,64 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
     private boolean canDeleteExpense(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
         return isProjectOwner;
+    }
+
+    // Track permissions - cho phòng nội bộ, sync với TrackServiceImpl
+
+    /**
+     * Upload track:
+     * - OWNER: luôn được phép
+     * - COLLABORATOR: chỉ khi đã APPROVED Money Split
+     */
+    private boolean canUploadTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner, boolean hasApprovedMoneySplit) {
+        if (isProjectOwner) {
+            return true;
+        }
+        return projectRole == ProjectRole.COLLABORATOR && hasApprovedMoneySplit;
+    }
+
+    /**
+     * View danh sách track:
+     * - OWNER: luôn được phép
+     * - COLLABORATOR: chỉ khi đã APPROVED Money Split
+     */
+    private boolean canViewTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner, boolean hasApprovedMoneySplit) {
+        if (isProjectOwner) {
+            return true;
+        }
+        return projectRole == ProjectRole.COLLABORATOR && hasApprovedMoneySplit;
+    }
+
+    /**
+     * Update track:
+     * - OWNER: luôn được phép
+     * - COLLABORATOR: phải APPROVED Money Split.
+     *   (check "chỉ được sửa track của chính mình" nằm ở TrackServiceImpl)
+     */
+    private boolean canUpdateTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner, boolean hasApprovedMoneySplit) {
+        if (isProjectOwner) {
+            return true;
+        }
+        return projectRole == ProjectRole.COLLABORATOR && hasApprovedMoneySplit;
+    }
+
+    /**
+     * Delete track:
+     * - Chỉ OWNER có thể xóa track
+     */
+    private boolean canDeleteTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        // Chỉ Owner có thể xóa track
+        return isProjectOwner;
+    }
+
+    /**
+     * Play track:
+     * - SAME logic với view track, vì backend cũng dùng checkViewPermission
+     */
+    private boolean canPlayTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner, boolean hasApprovedMoneySplit) {
+        if (isProjectOwner) {
+            return true;
+        }
+        return projectRole == ProjectRole.COLLABORATOR && hasApprovedMoneySplit;
     }
 }

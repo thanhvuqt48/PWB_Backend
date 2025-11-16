@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "evident-scion-478408-h8",
+  "private_key_id": "69f18b3f7f6c4041256e57ad5c1174354f119e96",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCpK6UToBLocWnN\ngZci3e07okzcsj5Es3yWJEqnsjqHil2mDMWZ7pqxSnHakr0S87ryBZ6Kaw/dQ8z3\n7yx+zCb85/fr0YJIr8D+nq0U3Dqw79crxtUsdTZTyr8OuzzTTVHkrrkAH6Z41qyy\nF2F3+4oxrzVNwLEBQVsXCFFKh9GxeO10aFPCnS3o19izke7bqSPHAkBtQ29+W23x\njw5YhHGb8LZ3ccWPwnJg6ln27ya+1OdzUJI365RXa5YI4ewlw3Kj4wjsoAn3KecN\nl9W5OwvlOyQ8WgHG7kpnX2XtHQdRmk+G/aK5CjH923wsHqY1zWj2oKWOyCTXq0zn\nS+mtc27XAgMBAAECggEACRmVQlOqBgw+ahTpJwb+a+bJxlVljsHY7HqnSWiyR/g5\ncWUz0UP0g5+YNZm5x1CKYy/KMh1FjTFzJSMd0Z70ZJurH771XdOWc3E1qO7vzp9t\ng6f+b5XJMQNcTlPkFw8MXgYdYtRRBXmxcHhcKzLCDEolzo4+90JSFBBuea6J/nHc\na8YyKNwJUZDWRMEaEA27WODLi67AzJUcr+nUuAAHjQB8Ok9WVXtKS5DWBWaMKYGh\nHAPWHioKccBj7eAu4j2lIN+jYhTM0Qa19WgP7g7zoylbajhCVt82K4asJw/5pTW3\npRlUYQrtxNRUhOTdxYQ3RjcEY8JE3ZuTm8S/++dtAQKBgQDYwnFc2mG1a+SGeAFx\njHEUQjipqqiC/nqXGgDWM9lJBAB4rYY1m7n2ZzXkgfOkj5AtiIxPqb7GKHwbwIVN\nhDTnq4m9Z9ybqQmNL/nZ0Ir7kW8S+qrT4EtB6VvlaPSdJm+xuKBmdBtBXD/m+mtp\nTITOUYkFjqNuLTV1s3bGkl9VfwKBgQDHy7kl1oxBqrAjWgM2vQf7rJJFr0RtCCnA\nZsR9uQs9VecM+wp/uW8iA1p96WtSizeP35A1Pf561XV0mWT89E1UeDJBtiE8Twg4\nEOIlreaMfp4VQc4GddJ/Yr7H8USiuVlR4tHliYjH+7HBEBlKGY0AIeyj3ZQDvvRl\nlG+WeKcCqQKBgBCM6DL6ybMchdpul02gN5IgbEsoKK232IxpA99XHiQhFhggx7qY\nJV7XCppkAcJy48NWRcBfaZ2fwbosvQDqM0/tHRtFLucDxSLuotkqvzHuLNj6IskC\nuzxRIR8nIGZPZP/g5P5tpxcagBaW0FS97vYB68Bs37Wt5gMSrOMEkhrpAoGBAIx9\nCRS9N2SZZD+HdMkRxMJIh5YudvwACHO9D5+j9W5MsColgC1ts+KD3ya4cnnZYNlv\nB5UYoY+3915k2mkwVAv4dMZWDiq9G/doj8yU6o+SHRCvc/KA+OIQCjzHv0547ICy\n8Irp2d9dcZFjA5ViQA5+zEoxbXnw1SN0a76v2if5AoGADaMH79i8EoHHOkmJUp77\nACNaa0puF3My/4wGPqqTqOYkZzghR8DJrCpzbHiMtaHt5vekFCAz6NGRJ2geIsuX\n1q/FdDyvkU6XwlPSyTXG/YF1Kz17PjOBkF3ZgayKXGCcv0SScQ2WIfSGLUBfNkmS\nzXLasDYCMsWdJJrKYWg4y3s=\n-----END PRIVATE KEY-----\n",
+  "client_email": "pwb-tts-sa@evident-scion-478408-h8.iam.gserviceaccount.com",
+  "client_id": "108465381682708637716",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/pwb-tts-sa%40evident-scion-478408-h8.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

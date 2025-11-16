@@ -143,3 +143,23 @@ payos:
 subscription:
   grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
   renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}
+
+ffmpeg:
+  path: ${FFMPEG_PATH:ffmpeg}
+  timeout-seconds: ${FFMPEG_TIMEOUT_SECONDS:600}
+  voice-tag:
+    max-repeats: ${FFMPEG_VOICE_TAG_MAX_REPEATS:20}
+    initial-delay-seconds: ${FFMPEG_VOICE_TAG_INITIAL_DELAY_SECONDS:25}
+    interval-seconds: ${FFMPEG_VOICE_TAG_INTERVAL_SECONDS:25}
+    volume-boost: ${FFMPEG_VOICE_TAG_VOLUME_BOOST:5}
+
+ffprobe:
+  path: ${FFPROBE_PATH:ffprobe}
+
+gcp:
+  tts:
+    language-code: vi-VN
+    voice-name: vi-VN-Wavenet-A
+    speaking-rate: 1.0
+    pitch: 0.0
+    volume-gain-db: 6.0

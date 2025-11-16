@@ -55,6 +55,21 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
         return String.format("conversations/%s/files/%s%s", conversationId, uuid, getFileExtension(originalFilename));
     }
 
+    @Override
+    public String generateTrackMasterKey(Long trackId, String originalFilename) {
+        return String.format("audio/original/%d/master%s", trackId, getFileExtension(originalFilename));
+    }
+
+    @Override
+    public String generateTrackHlsPrefix(Long trackId) {
+        return String.format("audio/hls/%d/", trackId);
+    }
+
+    @Override
+    public String generateTrackVoiceTagKey(Long trackId) {
+        return String.format("audio/voice-tag/%d/tag.mp3", trackId);
+    }
+
     private String getFileExtension(String filename) {
         if (!StringUtils.hasText(filename) || !filename.contains(".")) {
             return "";

@@ -179,6 +179,14 @@
             <version>2.25.40</version>
         </dependency>
 
+        <!-- Google Cloud Text-to-Speech -->
+        <!-- Google Cloud Text-to-Speech cho voice tag tiếng Việt -->
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-texttospeech</artifactId>
+            <version>2.50.0</version>
+        </dependency>
+
         <dependency>
             <groupId>vn.payos</groupId>
             <artifactId>payos-java</artifactId>

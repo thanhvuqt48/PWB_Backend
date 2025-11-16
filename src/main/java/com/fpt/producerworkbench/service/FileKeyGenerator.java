@@ -15,4 +15,26 @@ public interface FileKeyGenerator {
     String generatePersonalProjectImageKey(Long userId, Long personalProjectId, String originalFilename);
 
     String generateChatMessageFileKey(String conversationId, String originalFilename);
+
+    /**
+     * Sinh key cho file master audio của track
+     * @param trackId ID của track
+     * @param originalFilename Tên file gốc
+     * @return S3 key cho file master
+     */
+    String generateTrackMasterKey(Long trackId, String originalFilename);
+
+    /**
+     * Sinh prefix cho thư mục HLS của track
+     * @param trackId ID của track
+     * @return S3 prefix cho thư mục HLS
+     */
+    String generateTrackHlsPrefix(Long trackId);
+
+    /**
+     * Sinh key cho file voice tag audio của track
+     * @param trackId ID của track
+     * @return S3 key cho file voice tag
+     */
+    String generateTrackVoiceTagKey(Long trackId);
 }

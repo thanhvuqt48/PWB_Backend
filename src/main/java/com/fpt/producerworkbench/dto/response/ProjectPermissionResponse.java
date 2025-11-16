@@ -37,6 +37,9 @@ public class ProjectPermissionResponse {
     // Expense permissions (chi phí milestone)
     private ExpensePermissions expense;
     
+    // Track permissions (sản phẩm nhạc trong phòng nội bộ)
+    private TrackPermissions track;
+    
     private String reason;
     
     // Nested classes for grouped permissions
@@ -133,5 +136,17 @@ public class ProjectPermissionResponse {
         private boolean canCreateExpense;
         private boolean canUpdateExpense;
         private boolean canDeleteExpense;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TrackPermissions {
+        private boolean canUploadTrack;
+        private boolean canViewTrack;
+        private boolean canUpdateTrack;
+        private boolean canDeleteTrack;
+        private boolean canPlayTrack;
     }
 }
