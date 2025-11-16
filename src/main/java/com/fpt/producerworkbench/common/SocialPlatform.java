@@ -5,5 +5,7 @@ public enum SocialPlatform {
     INSTAGRAM,
     SOUNDCLOUD,
     SPOTIFY,
-    YOUTUBE
+    YOUTUBE,
+    TIKTOK,
+    TWITTER,
 }

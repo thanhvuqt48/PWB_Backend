@@ -83,16 +83,31 @@ public class WebSocketSessionRedisService {
             Set<Object> sessionIds = redisTemplate.opsForSet().members(userIdKey);
 
             if(sessionIds != null && !sessionIds.isEmpty()) {
+                log.debug("Found {} session IDs for user {}: {}", sessionIds.size(), userId, sessionIds);
                 sessionIds.forEach(sessionId -> {
-                    WebSocketSession session = WebSocketSession.builder()
-                            .socketSessionId(sessionId.toString())
-                            .userId(userId)
-                            .build();
-                    sessions.add(session);
+                    // Verify that the session actually exists in Redis
+                    String sessionKey = SESSION_KEY_PREFIX + sessionId.toString();
+                    Object sessionUserId = redisTemplate.opsForValue().get(sessionKey);
+
+                    if(sessionUserId != null) {
+                        WebSocketSession session = WebSocketSession.builder()
+                                .socketSessionId(sessionId.toString())
+                                .userId(userId)
+                                .build();
+                        sessions.add(session);
+                        log.debug("Valid session found: {} for user {}", sessionId, userId);
+                    } else {
+                        // Session key doesn't exist, clean up the orphaned entry
+                        log.warn("Orphaned session ID {} found for user {}, cleaning up", sessionId, userId);
+                        redisTemplate.opsForSet().remove(userIdKey, sessionId);
+                    }
                 });
+            } else {
+                log.debug("No sessions found for user {}", userId);
             }
         });
 
+        log.info("Retrieved {} active sessions for {} users", sessions.size(), userIds.size());
         return sessions;
     }
 

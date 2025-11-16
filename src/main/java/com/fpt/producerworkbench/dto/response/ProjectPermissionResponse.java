@@ -13,49 +13,125 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ProjectPermissionResponse {
     
-    private boolean canCreateProject;
-    private boolean canInviteMembers;
-    private boolean canViewProject;
-    private boolean canEditProject;
-    private boolean canDeleteProject;
-    private boolean canViewMembers;
-    private boolean canManageInvitations;
-    private boolean canAcceptInvitation;
-    private boolean canDeclineInvitation;
-    private boolean canViewMyInvitations;
+    // Role information
+    private RoleInfo role;
     
-    private UserRole userRole;
-    private ProjectRole projectRole;
-    private boolean isProjectOwner;
-    private boolean isProjectMember;
-    private String reason; // Lý do không được phép (nếu có)
+    // Project permissions
+    private ProjectPermissions project;
     
-    // Helper methods for FE
-    public boolean isProducer() {
-        return userRole == UserRole.PRODUCER;
+    // Room permissions
+    private RoomPermissions room;
+    
+    // Milestone permissions
+    private MilestonePermissions milestone;
+    
+    // Contract permissions
+    private ContractPermissions contract;
+    
+    // Payment permissions (thanh toán theo hợp đồng)
+    private PaymentPermissions payment;
+    
+    // Money Split permissions (phân chia tiền milestone)
+    private MoneySplitPermissions moneySplit;
+    
+    // Expense permissions (chi phí milestone)
+    private ExpensePermissions expense;
+    
+    private String reason;
+    
+    // Nested classes for grouped permissions
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RoleInfo {
+        private UserRole userRole;
+        private ProjectRole projectRole;
+        private boolean anonymous;
     }
     
-    public boolean isAdmin() {
-        return userRole == UserRole.ADMIN;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ProjectPermissions {
+        private boolean canCreateProject;
+        private boolean canInviteMembers;
+        private boolean canRemoveMembers;
+        private boolean canUpdateMemberRole;
+        private boolean canViewProject;
+        private boolean canEditProject;
+        private boolean canDeleteProject;
+        private boolean canViewMembers;
+        private boolean canManageInvitations;
+        private boolean canAcceptInvitation;
+        private boolean canDeclineInvitation;
+        private boolean canViewMyInvitations;
     }
     
-    public boolean isCustomer() {
-        return userRole == UserRole.CUSTOMER;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RoomPermissions {
+        private boolean canEnterCustomerRoom;
+        private boolean canEnterInternalRoom;
     }
     
-    public boolean isOwner() {
-        return isProjectOwner;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MilestonePermissions {
+        private boolean canCreateMilestone;
+        private boolean canViewMilestones;
+        private boolean canEditMilestone;
+        private boolean canDeleteMilestone;
+        private boolean canAddMembersToMilestone;
+        private boolean canRemoveMembersFromMilestone;
     }
     
-    public boolean isClient() {
-        return projectRole == ProjectRole.CLIENT;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ContractPermissions {
+        private boolean canCreateContract;
+        private boolean canViewContract;
+        private boolean canInviteToSign;
+        private boolean canDeclineContract;
+        private boolean canEditContract;
     }
     
-    public boolean isCollaborator() {
-        return projectRole == ProjectRole.COLLABORATOR;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PaymentPermissions {
+        private boolean canCreatePayment;
+        private boolean canViewPayment;
     }
     
-    public boolean isObserver() {
-        return projectRole == ProjectRole.OBSERVER;
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MoneySplitPermissions {
+        private boolean canCreateMoneySplit;
+        private boolean canUpdateMoneySplit;
+        private boolean canDeleteMoneySplit;
+        private boolean canApproveMoneySplit;
+        private boolean canRejectMoneySplit;
+        private boolean canViewMoneySplit;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ExpensePermissions {
+        private boolean canCreateExpense;
+        private boolean canUpdateExpense;
+        private boolean canDeleteExpense;
     }
 }

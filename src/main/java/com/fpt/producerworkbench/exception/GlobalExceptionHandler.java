@@ -3,13 +3,17 @@ package com.fpt.producerworkbench.exception;
 import java.util.Date;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -86,6 +90,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(fallback);
     }
 
+    @ExceptionHandler(value = ConstraintViolationException.class)
+    ResponseEntity<ApiResponse> handleConstraintViolationException(ConstraintViolationException e) {
+        Set<ConstraintViolation<?>> violations = e.getConstraintViolations();
+
+        String errorMessage = violations.stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.joining(", "));
+
+        log.warn("Constraint violation: {}", errorMessage);
+
+        ApiResponse response = ApiResponse.builder()
+                .code(ErrorCode.VALIDATION_FAILED.getCode())
+                .message(errorMessage)
+                .build();
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
         Throwable cause = e.getCause();
@@ -129,9 +151,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(fallback);
     }
 
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    ResponseEntity<ErrorResponse> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.BAD_REQUEST.getCode())
+                .timestamp(new Date())
+                .error(ErrorCode.BAD_REQUEST.getHttpStatus().getReasonPhrase())
+                .message("Thiếu tham số yêu cầu: " + e.getParameterName())
+                .build();
+
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+
     private String mapAttribute(String message, Map<String, Object> attributes) {
         String minValue = String.valueOf(attributes.get(MIN_ATTRIBUTE));
 
         return message.replace("{" + MIN_ATTRIBUTE + "}", minValue);
     }
+
+
 }

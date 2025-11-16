@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Bạn có tin nhắn mới từ Producer Workbench</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Space+Grotesk', Arial, sans-serif; 
+            line-height: 1.55; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
+            color: #E3E1FA;
+        }
+        .container { 
+            max-width: 600px;
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
+        }
+        
+        .header { padding: 24px 24px 16px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 55px; 
+            height: 55px; 
+            border-radius: 6px; 
+            display: block; 
+        }
+        .brand-name { text-align: center; font-size: 14px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 11px; color: #B891FF; margin-top: 2px; }
+
+        .content { 
+            padding: 8px 30px 30px;
+        }
+        .greeting { 
+            margin: 16px 0 10px; 
+            font-size: 24px; 
+            font-weight: 700;
+            color: #FFFFFF;
+            text-align: center;
+        }
+        .content p { 
+            margin: 0 0 16px; 
+            font-size: 15px; 
+            color: #D5D2F3; 
+            text-align: center;
+        }
+
+        .message-box {
+            background: rgba(0,0,0,0.35);
+            border: 1px solid #3a2c5f;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .sender-info {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .sender-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            margin-right: 12px;
+            border: 2px solid #C058F5;
+        }
+        
+        .sender-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #FFFFFF;
+            margin: 0;
+        }
+        
+        .message-time {
+            font-size: 12px;
+            color: #9B95AF;
+            margin: 0;
+        }
+        
+        .message-content {
+            background: rgba(192, 88, 245, 0.1);
+            border-left: 3px solid #C058F5;
+            padding: 15px;
+            border-radius: 6px;
+            color: #E3E1FA;
+            font-size: 14px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #C058F5, #8B3FD9);
+            color: #FFFFFF;
+            padding: 14px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 15px;
+            margin: 20px auto;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(192, 88, 245, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .cta-button:hover {
+            background: linear-gradient(135deg, #D070FF, #9B4FE9);
+            box-shadow: 0 6px 20px rgba(192, 88, 245, 0.5);
+        }
+        
+        .button-container {
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .divider { 
+            border: 0; 
+            height: 1px; 
+            margin: 24px 0; 
+            background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); 
+        }
+        
+        .footer { 
+            padding: 0 16px 24px; 
+            color: #9B95AF; 
+            font-size: 12px; 
+            text-align: center; 
+        }
+        
+        .footer p { 
+            margin: 0 0 4px; 
+            text-align: center; 
+        }
+        
+        .footer a {
+            color: #B891FF;
+            text-decoration: none;
+        }
+
+        @media (max-width: 600px) {
+            .greeting { font-size: 22px; }
+            .content { padding: 8px 20px 20px; }
+            .message-box { padding: 15px; }
+            .cta-button { padding: 12px 24px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:55px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="content">
+        <h3 class="greeting">💬 Tin nhắn mới từ [[${senderName}]]</h3>
+        <p>Xin chào [[${recipientName}]],</p>
+        <p>Bạn có một tin nhắn mới trong cuộc trò chuyện của mình!</p>
+
+        <div class="message-box">
+            <div class="sender-info" style="display: table; width: 100%;">
+                <div style="display: table-cell; vertical-align: middle; width: 60px;">
+                    <img th:src="${senderAvatar}" 
+                         src="https://via.placeholder.com/48" 
+                         alt="Avatar" 
+                         class="sender-avatar" 
+                         style="width: 48px; height: 48px; border-radius: 50%; border: 2px solid #C058F5;"/>
+                </div>
+                <div style="display: table-cell; vertical-align: middle;">
+                    <p class="sender-name" style="margin: 0; font-size: 16px; font-weight: 700; color: #FFFFFF;">[[${senderName}]]</p>
+                    <p class="message-time" style="margin: 0; font-size: 12px; color: #9B95AF;">[[${messageTime}]]</p>
+                </div>
+            </div>
+            
+            <div class="message-content">
+                [[${messageContent}]]
+            </div>
+        </div>
+
+        <div class="button-container">
+            <a th:href="${conversationLink}" href="#" class="cta-button">
+                Xem tin nhắn
+            </a>
+        </div>
+
+        <p style="text-align: center; font-size: 13px; color: #9B95AF;">
+            Đăng nhập vào Producer Workbench để trả lời và tiếp tục cuộc trò chuyện.
+        </p>
+    </div>
+
+    <hr class="divider">
+    <div class="footer">
+        <p>Trung tâm Điều khiển PWB &copy; 2025</p>
+        <p><a href="#">Cài đặt thông báo</a> | <a href="#">Chính sách Bảo mật</a></p>
+    </div>
+</div>
+</body>
+</html>
+

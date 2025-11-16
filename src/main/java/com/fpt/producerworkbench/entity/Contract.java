@@ -50,6 +50,9 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "fp_edit_amount")
     private Integer fpEditAmount;
 
+    @Column(name = "product_count")
+    private Integer productCount;
+
     // ====== Bổ sung cho SignNow / ký điện tử ======
     @Column(name = "signnow_template_id", length = 128)
     private String signnowTemplateId;
@@ -77,6 +80,12 @@ public class Contract extends AbstractEntity<Long> {
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "expires_at")
     private Date expiresAt;
+
+    @Column(name = "pit_tax", precision = 15, scale = 2)
+    private BigDecimal pitTax;
+
+    @Column(name = "vat_tax", precision = 15, scale = 2)
+    private BigDecimal vatTax;
 
     /** Ghi lỗi cuối cùng khi gọi API ký (nếu có) */
     @Lob

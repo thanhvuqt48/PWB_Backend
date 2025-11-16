@@ -48,6 +48,8 @@ public class ConversationService {
             throw new AppException(ErrorCode.PARTICIPANT_INVALID);
         }
 
+        participantIds.sort(Long::compareTo);
+
         String participantHash = participantIds.size() > 1
                 ? String.join("_", participantIds.toString())
                 : participantIds.getFirst().toString();
