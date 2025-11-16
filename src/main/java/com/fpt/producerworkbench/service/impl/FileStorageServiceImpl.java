@@ -42,9 +42,12 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String uploadFile(MultipartFile multipartFile, String objectKey) {
+
+        validateUploadFile(multipartFile);
         File file = convertMultiPartToFile(multipartFile);
 
         try {
+
             UploadFileRequest uploadRequest = UploadFileRequest.builder()
                     .putObjectRequest(req -> req
                             .bucket(awsProperties.getS3().getBucketName())
@@ -97,13 +100,12 @@ public class FileStorageServiceImpl implements FileStorageService {
 
                 CompletedFileUpload completedUpload = fileUpload.completionFuture().join();
                 log.info("Upload thành công file '{}'. ETag: {}", objectKey, completedUpload.response().eTag());
-            } catch (Exception e){
+            } catch (Exception e) {
                 log.error("Lỗi khi tải file '{}': {}", file.getOriginalFilename(), e.getMessage());
                 throw new AppException(ErrorCode.UPLOAD_FAILED);
             }
 
         }
-
 
         return fileMetaData;
     }
@@ -185,6 +187,51 @@ public class FileStorageServiceImpl implements FileStorageService {
 
         } catch (Exception e) {
             log.error("Lỗi khi tạo presigned URL cho file '{}': {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.URL_GENERATION_FAILED);
+        }
+    }
+
+    @Override
+    public String generatePermanentUrl(String objectKey) {
+        try {
+
+            if (objectKey == null || objectKey.isBlank()) {
+                log.error("Lỗi generatePermanentUrl(): objectKey bị null hoặc rỗng.");
+                throw new AppException(ErrorCode.INVALID_FILE_KEY);
+            }
+
+            String normalizedKey = objectKey.startsWith("/")
+                    ? objectKey.substring(1)
+                    : objectKey;
+
+            if (cloudfrontDomain != null && !cloudfrontDomain.isBlank()) {
+                String permanentUrl = cloudfrontDomain.replaceAll("/+$", "")
+                        + "/" + normalizedKey;
+
+                log.debug("Tạo permanent URL bằng CloudFront thành công: {}", permanentUrl);
+                return permanentUrl;
+            }
+
+            String permanentUrl = String.format(
+                    "https://%s.s3.%s.amazonaws.com/%s",
+                    awsProperties.getS3().getBucketName(),
+                    awsProperties.getRegion(),
+                    normalizedKey
+            );
+
+            log.debug("Tạo permanent URL bằng S3 thành công: {}", permanentUrl);
+            return permanentUrl;
+
+        } catch (AppException e) {
+            log.error("Lỗi nghiệp vụ trong generatePermanentUrl(): {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error(
+                    "Lỗi không mong muốn khi tạo permanent URL cho key '{}': {}",
+                    objectKey,
+                    e.getMessage(),
+                    e
+            );
             throw new AppException(ErrorCode.URL_GENERATION_FAILED);
         }
     }

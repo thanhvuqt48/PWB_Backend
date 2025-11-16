@@ -1,8 +1,10 @@
 package com.fpt.producerworkbench.service;
 
+import com.fpt.producerworkbench.dto.response.FileMetaDataResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public interface FileService {
 
@@ -22,5 +24,5 @@ public interface FileService {
     String getDownloadUrl(String objectKey, String originalFileName);
     void deleteFile(String objectKey);
 
-    List<String> uploadChatMessageFile(String conversationId, List<MultipartFile> files);
+    CompletableFuture<List<FileMetaDataResponse>> uploadChatMessageFile(String conversationId, List<MultipartFile> files);
 }

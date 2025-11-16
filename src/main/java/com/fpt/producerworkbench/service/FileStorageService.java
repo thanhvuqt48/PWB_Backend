@@ -10,6 +10,7 @@ public interface FileStorageService {
     List<FileMetaDataResponse> uploadFiles(List<MultipartFile> files, String objectKey);
     void deleteFile(String objectKey);
     String generatePresignedUrl(String objectKey, boolean forDownload, String fileName);
+    String generatePermanentUrl(String objectKey);
     String uploadBytes(byte[] bytes, String objectKey, String contentType);
     byte[] downloadBytes(String objectKey);
 }
