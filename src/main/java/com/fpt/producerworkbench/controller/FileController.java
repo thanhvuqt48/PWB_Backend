@@ -1,15 +1,19 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.dto.response.FileMetaDataResponse;
 import com.fpt.producerworkbench.service.FileService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequiredArgsConstructor
@@ -97,13 +101,33 @@ public class FileController {
     }
 
     @PostMapping("/upload/chat-message-files")
-    public ApiResponse<List<String>> uploadChatMessageFiles(
+    public DeferredResult<ApiResponse<List<FileMetaDataResponse>>> uploadChatMessageFiles(
             @RequestParam String conversationId,
             @RequestParam("files") List<MultipartFile> files) {
-        List<String> keys = fileService.uploadChatMessageFile(conversationId, files);
-        return ApiResponse.<List<String>>builder()
-                .result(keys)
-                .message(String.format("Upload thành công %d file.", keys.size()))
-                .build();
+
+        DeferredResult<ApiResponse<List<FileMetaDataResponse>>> deferredResult = new DeferredResult<>();
+
+        fileService.uploadChatMessageFile(conversationId, files)
+                .whenComplete((result, throwable) -> {
+                    if (throwable != null) {
+                        deferredResult.setErrorResult(
+                                ApiResponse.<List<FileMetaDataResponse>>builder()
+                                        .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                                        .message("Upload failed: " + throwable.getMessage())
+                                        .build()
+                        );
+                    } else {
+                        deferredResult.setResult(
+                                ApiResponse.<List<FileMetaDataResponse>>builder()
+                                        .code(HttpStatus.OK.value())
+                                        .result(result)
+                                        .message(String.format("Upload thành công %d file.", result.size()))
+                                        .build()
+                        );
+                    }
+                });
+
+        return deferredResult;
     }
+
 }

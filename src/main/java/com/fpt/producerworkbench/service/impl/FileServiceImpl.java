@@ -1,14 +1,17 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.dto.response.FileMetaDataResponse;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileService;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.PublicUrlService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -17,6 +20,7 @@ public class FileServiceImpl implements FileService {
 
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
+    private final PublicUrlService publicUrlService;
 
     @Override
     public String uploadUserAvatar(Long userId, MultipartFile file) {
@@ -91,20 +95,31 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public List<String> uploadChatMessageFile(String conversationId, List<MultipartFile> files) {
-        List<CompletableFuture<String>> futures = files.stream().map(file ->
+    public CompletableFuture<List<FileMetaDataResponse>> uploadChatMessageFile(String conversationId, List<MultipartFile> files) {
+        AtomicInteger orderCounter = new AtomicInteger(0);
+
+        List<CompletableFuture<FileMetaDataResponse>> futures = files.stream()
+                .filter(file -> !file.isEmpty())
+                .map(file ->
                 CompletableFuture.supplyAsync(() -> {
+                    int displayOrder = orderCounter.incrementAndGet();
                     String key = fileKeyGenerator.generateChatMessageFileKey(conversationId, file.getOriginalFilename());
                     fileStorageService.uploadFile(file, key);
-                    return key;
+
+                    return FileMetaDataResponse.builder()
+                            .url(fileStorageService.generatePermanentUrl(key))
+                            .name(file.getOriginalFilename())
+                            .contentType(file.getContentType())
+                            .size(file.getSize())
+                            .displayOrder(displayOrder)
+                            .build();
                 })
         ).toList();
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-
-        return futures.stream()
+        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenApply(v -> futures.stream()
                 .map(CompletableFuture::join)
-                .collect(Collectors.toList());
+                .toList());
     }
 
     @Override
@@ -115,12 +130,12 @@ public class FileServiceImpl implements FileService {
                     fileStorageService.uploadFile(file, key);
                     return key;
                 })
-        ).collect(Collectors.toList());
+        ).toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
         return futures.stream()
                 .map(CompletableFuture::join)
-                .collect(Collectors.toList());
+                .toList();
     }
 }

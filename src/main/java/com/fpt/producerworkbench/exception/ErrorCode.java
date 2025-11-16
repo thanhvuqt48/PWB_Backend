@@ -206,6 +206,8 @@ public enum ErrorCode {
     DUPLICATE_JOIN_REQUEST(5203, "Bạn đã có yêu cầu tham gia đang chờ xử lý", HttpStatus.CONFLICT),
     REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
     OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
+
+    INVALID_FILE_KEY(1011, "Key của file không hợp lệ.", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;
