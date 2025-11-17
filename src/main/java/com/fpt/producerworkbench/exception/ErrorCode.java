@@ -207,7 +207,9 @@ public enum ErrorCode {
     REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
     OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
 
-    INVALID_FILE_KEY(1011, "Key của file không hợp lệ.", HttpStatus.BAD_REQUEST)
+    INVALID_FILE_KEY(1011, "Key của file không hợp lệ.", HttpStatus.BAD_REQUEST),
+    DUPLICATE_SECTION_TYPE(4001, "Không thể có nhiều hơn một section cùng loại.", HttpStatus.BAD_REQUEST),
+    DUPLICATE_SOCIAL_PLATFORM(4002, "Không thể có nhiều hơn một liên kết cùng nền tảng.", HttpStatus.BAD_REQUEST)
     ;
 
     private final int code;
