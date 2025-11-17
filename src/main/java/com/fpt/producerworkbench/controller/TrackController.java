@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
+import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
@@ -22,7 +23,8 @@ import java.util.Map;
  * Controller cho quản lý tracks (sản phẩm nhạc) trong phòng nội bộ
  * 
  * Endpoints:
- * - POST /api/v1/projects/{projectId}/milestones/{milestoneId}/tracks - Tạo track mới
+ * - POST /api/v1/projects/{projectId}/milestones/{milestoneId}/tracks - Tạo track mới (version 1 mặc định)
+ * - POST /api/v1/tracks/{trackId}/versions - Upload version mới của track
  * - POST /api/v1/tracks/{trackId}/finalize - Hoàn tất upload
  * - GET /api/v1/milestones/{milestoneId}/tracks - Lấy danh sách tracks
  * - GET /api/v1/tracks/{trackId} - Lấy chi tiết track
@@ -59,6 +61,29 @@ public class TrackController {
         return ApiResponse.<TrackUploadUrlResponse>builder()
                 .code(HttpStatus.CREATED.value())
                 .message("Đã tạo track thành công. Vui lòng upload file master.")
+                .result(response)
+                .build();
+    }
+
+    /**
+     * Upload version mới của một track hiện có
+     * Version sẽ tự động tăng dựa trên các version hiện có
+     */
+    @PostMapping("/tracks/{trackId}/versions")
+    public ApiResponse<TrackUploadUrlResponse> uploadNewVersion(
+            @PathVariable Long trackId,
+            @Valid @RequestBody TrackVersionUploadRequest request,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        TrackUploadUrlResponse response = trackService.uploadNewVersion(authentication, trackId, request);
+
+        return ApiResponse.<TrackUploadUrlResponse>builder()
+                .code(HttpStatus.CREATED.value())
+                .message("Đã tạo version mới thành công. Vui lòng upload file master.")
                 .result(response)
                 .build();
     }

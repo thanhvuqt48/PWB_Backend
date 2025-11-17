@@ -598,7 +598,16 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
     }
 
     private boolean canViewMoneySplit(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole) {
-        return userRole == UserRole.ADMIN || isProjectOwner || projectRole != null;
+        // ADMIN và Owner luôn được xem
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+        // CLIENT không được xem phần phân chia tiền
+        if (projectRole == ProjectRole.CLIENT) {
+            return false;
+        }
+        // COLLABORATOR và OBSERVER được xem (nhưng sẽ chỉ thấy của mình nếu là milestone member)
+        return projectRole == ProjectRole.COLLABORATOR || projectRole == ProjectRole.OBSERVER;
     }
 
     // Thêm các methods mới cho expense permissions

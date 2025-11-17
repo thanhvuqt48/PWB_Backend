@@ -30,6 +30,12 @@ public class TrackResponse {
     @JsonProperty("version")
     private String version;
 
+    @JsonProperty("rootTrackId")
+    private Long rootTrackId;
+
+    @JsonProperty("parentTrackId")
+    private Long parentTrackId;
+
     @JsonProperty("milestoneId")
     private Long milestoneId;
 

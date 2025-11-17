@@ -6,6 +6,7 @@ import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
+import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
 import com.fpt.producerworkbench.entity.Milestone;
@@ -75,11 +76,18 @@ public class TrackServiceImpl implements TrackService {
             }
         }
 
+        // Tự động xác định version: nếu không có trong request, tự động tính version tiếp theo
+        String version = request.getVersion();
+        if (version == null || version.isBlank()) {
+            version = calculateNextVersion(request.getName(), milestoneId);
+            log.info("Tự động set version = {} cho track mới", version);
+        }
+
         // Tạo track entity
         Track track = Track.builder()
                 .name(request.getName())
                 .description(request.getDescription())
-                .version(request.getVersion())
+                .version(version)
                 .milestone(milestone)
                 .user(currentUser)
                 .voiceTagEnabled(request.getVoiceTagEnabled())
@@ -92,6 +100,12 @@ public class TrackServiceImpl implements TrackService {
 
         track = trackRepository.save(track);
         log.info("Đã tạo track với ID: {}", track.getId());
+
+        // Set rootTrackId = chính ID của nó (đây là track version đầu tiên)
+        // parentTrackId = null (không có parent)
+        track.setRootTrackId(track.getId());
+        track.setParentTrackId(null);
+        track = trackRepository.save(track);
 
         String masterKey = fileKeyGenerator.generateTrackMasterKey(
                 track.getId(),
@@ -317,6 +331,84 @@ public class TrackServiceImpl implements TrackService {
         return playbackUrl;
     }
 
+    @Override
+    @Transactional
+    public TrackUploadUrlResponse uploadNewVersion(Authentication auth, Long trackId, TrackVersionUploadRequest request) {
+        log.info("Upload version mới cho track {}", trackId);
+
+        // Kiểm tra authentication
+        User currentUser = loadUser(auth);
+
+        // Tìm track gốc
+        Track originalTrack = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Kiểm tra quyền: phải là Owner hoặc COLLABORATOR
+        Project project = originalTrack.getMilestone().getContract().getProject();
+        checkUploadPermission(currentUser, project);
+
+        // Validate voice tag
+        if (Boolean.TRUE.equals(request.getVoiceTagEnabled())) {
+            if (request.getVoiceTagText() == null || request.getVoiceTagText().isBlank()) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Voice tag text không được để trống khi bật voice tag");
+            }
+        }
+
+        // Tính version tiếp theo dựa trên track gốc
+        String nextVersion = calculateNextVersion(originalTrack.getName(), originalTrack.getMilestone().getId());
+        log.info("Tự động tạo version {} cho track {}", nextVersion, originalTrack.getName());
+
+        // Xác định rootTrackId: nếu originalTrack có rootTrackId thì dùng, nếu không thì dùng chính ID của originalTrack
+        // (trường hợp track cũ chưa có rootTrackId)
+        Long rootTrackId = originalTrack.getRootTrackId();
+        if (rootTrackId == null) {
+            rootTrackId = originalTrack.getId();
+        }
+
+        // Tạo track mới với version mới
+        Track newVersionTrack = Track.builder()
+                .name(originalTrack.getName()) // Giữ nguyên tên
+                .description(request.getDescription() != null ? request.getDescription() : originalTrack.getDescription())
+                .version(nextVersion)
+                .milestone(originalTrack.getMilestone())
+                .user(currentUser)
+                .voiceTagEnabled(request.getVoiceTagEnabled())
+                .voiceTagText(request.getVoiceTagText())
+                .contentType(request.getContentType())
+                .fileSize(request.getFileSize())
+                .status(TrackStatus.INTERNAL_DRAFT)
+                .processingStatus(ProcessingStatus.UPLOADING)
+                .rootTrackId(rootTrackId) // Set rootTrackId để FE có thể group các version
+                .parentTrackId(originalTrack.getId()) // Set parentTrackId = id của track gốc để xây dựng cây phân cấp
+                .build();
+
+        newVersionTrack = trackRepository.save(newVersionTrack);
+        log.info("Đã tạo track version mới với ID: {} và version: {}", newVersionTrack.getId(), nextVersion);
+
+        String masterKey = fileKeyGenerator.generateTrackMasterKey(
+                newVersionTrack.getId(),
+                newVersionTrack.getName() + getExtensionFromContentType(request.getContentType())
+        );
+        newVersionTrack.setS3OriginalKey(masterKey);
+        trackRepository.save(newVersionTrack);
+
+        // Tạo presigned URL để upload (15 phút)
+        String uploadUrl = fileStorageService.generateUploadPresignedUrl(
+                masterKey,
+                request.getContentType(),
+                900L // 15 minutes
+        );
+
+        log.info("Đã tạo presigned UPLOAD URL cho track version mới {}", newVersionTrack.getId());
+
+        return TrackUploadUrlResponse.builder()
+                .trackId(newVersionTrack.getId())
+                .uploadUrl(uploadUrl)
+                .s3Key(masterKey)
+                .expiresIn(900L) // 15 minutes
+                .build();
+    }
+
     // ========== Helper Methods ==========
 
     private User loadUser(Authentication auth) {
@@ -465,6 +557,8 @@ public class TrackServiceImpl implements TrackService {
                 .name(track.getName())
                 .description(track.getDescription())
                 .version(track.getVersion())
+                .rootTrackId(track.getRootTrackId())
+                .parentTrackId(track.getParentTrackId())
                 .milestoneId(track.getMilestone().getId())
                 .userId(track.getUser().getId())
                 .userName(track.getUser().getFirstName() + " " + track.getUser().getLastName())
@@ -494,6 +588,54 @@ public class TrackServiceImpl implements TrackService {
             case "audio/ogg" -> ".ogg";
             default -> ".wav";
         };
+    }
+
+    /**
+     * Tính version tiếp theo dựa trên các tracks cùng tên trong milestone
+     * Nếu không có track nào cùng tên, trả về "1"
+     * Nếu có, tìm version cao nhất và tăng lên 1
+     */
+    private String calculateNextVersion(String trackName, Long milestoneId) {
+        List<Track> existingTracks = trackRepository.findByNameAndMilestoneId(trackName, milestoneId);
+        
+        if (existingTracks.isEmpty()) {
+            return "1";
+        }
+
+        // Tìm version số cao nhất
+        int maxVersion = 0;
+        for (Track track : existingTracks) {
+            int versionNum = parseVersionNumber(track.getVersion());
+            if (versionNum > maxVersion) {
+                maxVersion = versionNum;
+            }
+        }
+
+        // Trả về version tiếp theo
+        return String.valueOf(maxVersion + 1);
+    }
+
+    /**
+     * Parse version string thành số (hỗ trợ "1", "v1", "version 1", ...)
+     * Trả về 0 nếu không parse được
+     */
+    private int parseVersionNumber(String version) {
+        if (version == null || version.isBlank()) {
+            return 0;
+        }
+
+        // Loại bỏ các ký tự không phải số
+        String cleaned = version.replaceAll("[^0-9]", "");
+        if (cleaned.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            return Integer.parseInt(cleaned);
+        } catch (NumberFormatException e) {
+            log.warn("Không thể parse version: {}", version);
+            return 0;
+        }
     }
 }
 

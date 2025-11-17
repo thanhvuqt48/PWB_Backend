@@ -286,34 +286,75 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         boolean isClient = clientId != null && currentUser.getId().equals(clientId);
         boolean isMilestoneMember = milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId, currentUser.getId());
 
-        if (!isOwner && !isClient && !isMilestoneMember) {
+        // Khách hàng không được xem phần phân chia tiền
+        if (isClient) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        if (!isOwner && !isMilestoneMember) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
         Long currentUserId = currentUser.getId();
 
+        List<MilestoneMoneySplit> allMoneySplits = moneySplitRepository.findByMilestoneId(milestoneId);
+        List<MilestoneExpense> allExpenses = expenseRepository.findByMilestoneId(milestoneId);
+
+        // Nếu là owner: xem tất cả
+        // Nếu là milestone member: chỉ xem money splits của chính họ
+        List<MilestoneMoneySplit> visibleMoneySplits;
+        List<MilestoneExpense> visibleExpenses;
+        BigDecimal totalSplitAmount;
+        BigDecimal totalExpenseAmount;
+        BigDecimal totalAllocated;
+        BigDecimal remainingAmount;
+
+        if (isOwner) {
+            // Owner xem tất cả
+            visibleMoneySplits = allMoneySplits;
+            visibleExpenses = allExpenses;
+            
+            totalSplitAmount = allMoneySplits.stream()
+                    .map(MilestoneMoneySplit::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            totalExpenseAmount = allExpenses.stream()
+                    .map(MilestoneExpense::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            totalAllocated = totalSplitAmount.add(totalExpenseAmount);
+            remainingAmount = milestone.getAmount().subtract(totalAllocated);
+        } else {
+            // Milestone member chỉ xem money splits của chính họ
+            visibleMoneySplits = allMoneySplits.stream()
+                    .filter(ms -> ms.getUser() != null && ms.getUser().getId().equals(currentUserId))
+                    .collect(Collectors.toList());
+            
+            // Không xem expenses
+            visibleExpenses = List.of();
+            
+            // Chỉ tính tổng số tiền phân chia của chính họ
+            totalSplitAmount = visibleMoneySplits.stream()
+                    .map(MilestoneMoneySplit::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            
+            totalExpenseAmount = BigDecimal.ZERO;
+            totalAllocated = totalSplitAmount;
+            
+            // Không hiển thị remaining amount vì không biết tổng expenses
+            remainingAmount = null;
+        }
+
         final Long finalCurrentUserId = currentUserId;
-        List<MilestoneMoneySplit> moneySplits = moneySplitRepository.findByMilestoneId(milestoneId);
-        List<MilestoneMoneySplitResponse> moneySplitResponses = moneySplits.stream()
+        List<MilestoneMoneySplitResponse> moneySplitResponses = visibleMoneySplits.stream()
                 .map(ms -> mapToMoneySplitResponse(ms, finalCurrentUserId))
                 .collect(Collectors.toList());
 
-        List<MilestoneExpense> expenses = expenseRepository.findByMilestoneId(milestoneId);
-        List<MilestoneExpenseResponse> expenseResponses = expenses.stream()
+        List<MilestoneExpenseResponse> expenseResponses = visibleExpenses.stream()
                 .map(this::mapToExpenseResponse)
                 .collect(Collectors.toList());
 
-        BigDecimal totalSplitAmount = moneySplits.stream()
-                .map(MilestoneMoneySplit::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalExpenseAmount = expenses.stream()
-                .map(MilestoneExpense::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal totalAllocated = totalSplitAmount.add(totalExpenseAmount);
         BigDecimal milestoneAmount = milestone.getAmount();
-        BigDecimal remainingAmount = milestoneAmount.subtract(totalAllocated);
 
         return MilestoneMoneySplitDetailResponse.builder()
                 .moneySplits(moneySplitResponses)

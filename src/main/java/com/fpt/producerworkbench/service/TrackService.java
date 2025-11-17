@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
+import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
 import org.springframework.security.core.Authentication;
@@ -76,6 +77,17 @@ public interface TrackService {
      * @return HLS playback URL (presigned)
      */
     String getPlaybackUrl(Authentication auth, Long trackId);
+
+    /**
+     * Upload version mới của một track hiện có
+     * Version sẽ tự động tăng dựa trên các version hiện có của track đó
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track gốc (version đầu tiên)
+     * @param request Thông tin version mới
+     * @return TrackUploadUrlResponse chứa trackId và presigned URL
+     */
+    TrackUploadUrlResponse uploadNewVersion(Authentication auth, Long trackId, TrackVersionUploadRequest request);
 }
 
 

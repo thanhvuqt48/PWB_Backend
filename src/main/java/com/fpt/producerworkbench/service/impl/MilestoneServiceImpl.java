@@ -346,6 +346,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .sequence(milestone.getSequence())
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
+                .isFunded(project != null ? project.getIsFunded() : null)
                 .members(members)
                 .build();
     }

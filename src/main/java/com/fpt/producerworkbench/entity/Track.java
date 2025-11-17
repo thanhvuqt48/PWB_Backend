@@ -124,5 +124,22 @@ public class Track extends AbstractEntity<Long> {
      */
     @Column(name = "duration")
     private Integer duration;
+
+    /**
+     * ID của track version đầu tiên (root track)
+     * Track version đầu tiên có rootTrackId = null hoặc chính ID của nó
+     * Tất cả các version sau sẽ có cùng rootTrackId để FE có thể group và hiển thị dạng cây
+     */
+    @Column(name = "root_track_id")
+    private Long rootTrackId;
+
+    /**
+     * ID của track cha trực tiếp (parent track)
+     * Track version đầu tiên có parentTrackId = null
+     * Các version sau có parentTrackId = id của track mà nó được tạo từ đó
+     * Dùng để xây dựng cây phân cấp chi tiết (Track 1 -> Track 2 -> Track 3)
+     */
+    @Column(name = "parent_track_id")
+    private Long parentTrackId;
 }
 

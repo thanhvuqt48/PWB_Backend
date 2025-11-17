@@ -38,6 +38,12 @@ public interface TrackRepository extends JpaRepository<Track, Long> {
 
     @Query("SELECT t FROM Track t WHERE t.processingStatus = :processingStatus")
     List<Track> findByProcessingStatus(@Param("processingStatus") ProcessingStatus processingStatus);
+
+    /**
+     * Tìm tất cả tracks cùng tên trong một milestone
+     */
+    @Query("SELECT t FROM Track t WHERE t.milestone.id = :milestoneId AND t.name = :name ORDER BY t.createdAt ASC")
+    List<Track> findByNameAndMilestoneId(@Param("name") String name, @Param("milestoneId") Long milestoneId);
 }
 
 
