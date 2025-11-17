@@ -57,10 +57,14 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
     }
 
     @Override
-    public String generateTrackAudioKey(Long projectId, String originalFilename) {
-        String uuid = java.util.UUID.randomUUID().toString();
-        String ext = getFileExtension(originalFilename);
-        return String.format("projects/%d/tracks/%s%s", projectId, uuid, ext);
+    public String generateInspirationAudioKey(Long projectId, String fileName) {
+        return "projects/" + projectId + "/Inspiration/" + UUID.randomUUID() + extOf(fileName);
+    }
+
+    private String extOf(String name) {
+        if (name == null) return "";
+        int dot = name.lastIndexOf('.');
+        return (dot >= 0 ? name.substring(dot) : "");
     }
 
     private String getFileExtension(String filename) {

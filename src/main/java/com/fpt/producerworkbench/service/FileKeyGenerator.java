@@ -16,5 +16,5 @@ public interface FileKeyGenerator {
 
     String generateInspirationAssetKey(Long projectId, String originalFilename);
 
-    String generateTrackAudioKey(Long projectId, String originalFilename);
+    String generateInspirationAudioKey(Long projectId, String fileName);
 }
