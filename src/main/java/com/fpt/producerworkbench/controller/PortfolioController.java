@@ -1,12 +1,16 @@
 package com.fpt.producerworkbench.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fpt.producerworkbench.dto.request.PortfolioRequest;
 import com.fpt.producerworkbench.dto.request.PortfolioUpdateRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.PortfolioResponse;
+import com.fpt.producerworkbench.exception.AppException;
+import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.PortfolioService;
 import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Valid;
 import jakarta.validation.Validator;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -35,30 +39,16 @@ public class PortfolioController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<PortfolioResponse> create(
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @RequestPart("data") String dataJson) {
+            @Valid @RequestPart("data") PortfolioRequest request) {
 
-        log.info("Creating new portfolio");
+        PortfolioResponse result = portfolioService.create(request, coverImage);
 
-        try {
-            PortfolioRequest request = objectMapper.readValue(dataJson, PortfolioRequest.class);
-
-            validateRequest(request);
-
-            PortfolioResponse result = portfolioService.create(request, coverImage);
-
-            log.info("Portfolio created successfully with ID: {}", result.getId());
-
-            return ApiResponse.<PortfolioResponse>builder()
-                    .message("Tạo portfolio thành công")
-                    .code(HttpStatus.CREATED.value())
-                    .result(result)
-                    .build();
-        } catch (Exception e) {
-            log.error("Error parsing portfolio request JSON", e);
-            throw new RuntimeException("Lỗi parse JSON request: " + e.getMessage(), e);
-        }
+        return ApiResponse.<PortfolioResponse>builder()
+                .message("Tạo portfolio thành công")
+                .code(HttpStatus.CREATED.value())
+                .result(result)
+                .build();
     }
-
 
     @GetMapping("/{id}")
     public ApiResponse<PortfolioResponse> getById(@PathVariable Long id) {
@@ -81,25 +71,19 @@ public class PortfolioController {
 
         log.info("Updating personal portfolio");
 
-        try {
-            PortfolioUpdateRequest request = objectMapper.readValue(dataJson, PortfolioUpdateRequest.class);
+        PortfolioUpdateRequest request = parseJson(dataJson, PortfolioUpdateRequest.class);
 
-            // Validate request
-            validateRequest(request);
+        validateRequest(request);
 
-            PortfolioResponse result = portfolioService.updatePersonalPortfolio(request, coverImage);
+        PortfolioResponse result = portfolioService.updatePersonalPortfolio(request, coverImage);
 
-            log.info("Portfolio updated successfully");
+        log.info("Portfolio updated successfully");
 
-            return ApiResponse.<PortfolioResponse>builder()
-                    .message("Cập nhật portfolio thành công")
-                    .code(HttpStatus.OK.value())
-                    .result(result)
-                    .build();
-        } catch (Exception e) {
-            log.error("Error parsing portfolio update request JSON", e);
-            throw new RuntimeException("Lỗi parse JSON request: " + e.getMessage(), e);
-        }
+        return ApiResponse.<PortfolioResponse>builder()
+                .message("Cập nhật portfolio thành công")
+                .code(HttpStatus.OK.value())
+                .result(result)
+                .build();
     }
 
     @GetMapping("/personal")
@@ -128,11 +112,33 @@ public class PortfolioController {
                 .build();
     }
 
+    @GetMapping("/slug/{slug}")
+    public ApiResponse<PortfolioResponse> getPortfolioByUserId(@PathVariable String slug) {
+        log.info("Getting portfolio by slug: {}", slug);
+
+        PortfolioResponse result = portfolioService.getPortfolioByCustomUrlSlug(slug);
+
+        return ApiResponse.<PortfolioResponse>builder()
+                .message("Lấy portfolio thành công")
+                .code(HttpStatus.OK.value())
+                .result(result)
+                .build();
+    }
+
     private <T> void validateRequest(T request) {
         Set<ConstraintViolation<T>> violations = validator.validate(request);
         if (!violations.isEmpty()) {
             log.error("Validation failed: {} violations found", violations.size());
             throw new jakarta.validation.ConstraintViolationException(violations);
+        }
+    }
+
+    private <T> T parseJson(String json, Class<T> clazz) {
+        try {
+            return objectMapper.readValue(json, clazz);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to parse JSON for class {}: {}", clazz.getSimpleName(), e.getMessage());
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         }
     }
 

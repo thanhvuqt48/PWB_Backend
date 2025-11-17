@@ -1,5 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.PortfolioSectionType;
+import com.fpt.producerworkbench.common.SocialPlatform;
 import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.PortfolioResponse;
 import com.fpt.producerworkbench.entity.*;
@@ -93,7 +95,7 @@ public class PortfolioServiceImpl implements PortfolioService {
                 .user(user)
                 .customUrlSlug(request.getCustomUrlSlug())
                 .headline(request.getHeadline())
-                .coverImageUrl(coverImageKey)
+                .coverImageUrl(fileStorageService.generatePermanentUrl(coverImageKey))
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
                 .isPublic(true)
@@ -103,7 +105,11 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         Set<PortfolioSection> sections = new HashSet<>();
         if (request.getSections() != null && !request.getSections().isEmpty()) {
+            Set<PortfolioSectionType> sectionTypes = new HashSet<>();
             for (PortfolioSectionRequest sectionReq : request.getSections()) {
+                if (!sectionTypes.add(sectionReq.getSectionType())) {
+                    throw new AppException(ErrorCode.DUPLICATE_SECTION_TYPE);
+                }
                 PortfolioSection section = PortfolioSection.builder()
                         .portfolio(portfolio)
                         .title(sectionReq.getTitle())
@@ -134,7 +140,11 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         Set<SocialLink> socialLinks = new HashSet<>();
         if (request.getSocialLinks() != null && !request.getSocialLinks().isEmpty()) {
+            Set<SocialPlatform> platforms = new HashSet<>();
             for (SocialLinkRequest linkReq : request.getSocialLinks()) {
+                if (!platforms.add(linkReq.getPlatform())) {
+                    throw new AppException(ErrorCode.DUPLICATE_SOCIAL_PLATFORM);
+                }
                 SocialLink link = SocialLink.builder()
                         .portfolio(portfolio)
                         .platform(linkReq.getPlatform())
@@ -150,35 +160,7 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(savedPortfolio);
 
-        convertS3KeysToUrls(response);
-
         return response;
-    }
-
-    private void convertS3KeysToUrls(PortfolioResponse response) {
-        if (response.getCoverImageUrl() != null && !response.getCoverImageUrl().isEmpty()) {
-            String url = publicUrlService.toUrl(response.getCoverImageUrl());
-            response.setCoverImageUrl(url);
-            log.debug("Converted cover image key to URL: {}", url);
-        }
-
-        if (response.getAvatarUrl() != null && !response.getAvatarUrl().isEmpty()
-                && !response.getAvatarUrl().startsWith("http")) {
-            String url = publicUrlService.toUrl(response.getAvatarUrl());
-            response.setAvatarUrl(url);
-            log.debug("Converted avatar key to URL: {}", url);
-        }
-
-        if (response.getPersonalProjects() != null) {
-            response.getPersonalProjects().forEach(project -> {
-                if (project.getCoverImageUrl() != null && !project.getCoverImageUrl().isEmpty()
-                        && !project.getCoverImageUrl().startsWith("http")) {
-                    String url = publicUrlService.toUrl(project.getCoverImageUrl());
-                    project.setCoverImageUrl(url);
-                    log.debug("Converted project cover image key to URL: {}", url);
-                }
-            });
-        }
     }
 
     @Override
@@ -189,8 +171,6 @@ public class PortfolioServiceImpl implements PortfolioService {
                 .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
-
-        convertS3KeysToUrls(response);
 
         log.info("Portfolio found successfully. ID: {}", id);
         return response;
@@ -223,7 +203,7 @@ public class PortfolioServiceImpl implements PortfolioService {
 
             String coverImageKey = fileKeyGenerator.generatePortfolioCoverImageKey(user.getId(), coverImage.getOriginalFilename());
             fileStorageService.uploadFile(coverImage, coverImageKey);
-            portfolio.setCoverImageUrl(coverImageKey);
+            portfolio.setCoverImageUrl(fileStorageService.generatePermanentUrl(coverImageKey));
             log.info("Uploaded new cover image: {}", coverImageKey);
         }
 
@@ -271,36 +251,7 @@ public class PortfolioServiceImpl implements PortfolioService {
         }
 
         if (request.getSections() != null) {
-
-            for (PortfolioSectionUpdateRequest sectionReq : request.getSections()) {
-                if (sectionReq.getId() != null) {
-                    PortfolioSection existingSection = portfolioSectionRepository.findById(sectionReq.getId())
-                            .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
-
-                    if (!existingSection.getPortfolio().getId().equals(portfolio.getId())) {
-                        throw new AppException(ErrorCode.UNAUTHORIZED);
-                    }
-
-                    existingSection.setTitle(sectionReq.getTitle());
-                    existingSection.setContent(sectionReq.getContent());
-                    existingSection.setDisplayOrder(sectionReq.getDisplayOrder());
-                    existingSection.setSectionType(sectionReq.getSectionType());
-                    portfolioSectionRepository.save(existingSection);
-                    log.debug("Updated section ID: {}", sectionReq.getId());
-                } else {
-                    // Create new section
-                    PortfolioSection newSection = PortfolioSection.builder()
-                            .portfolio(portfolio)
-                            .title(sectionReq.getTitle())
-                            .content(sectionReq.getContent())
-                            .displayOrder(sectionReq.getDisplayOrder())
-                            .sectionType(sectionReq.getSectionType())
-                            .build();
-                    portfolio.getSections().add(newSection);
-                    portfolioSectionRepository.save(newSection);
-                    log.debug("Created new section: {}", sectionReq.getTitle());
-                }
-            }
+            syncPortfolioSections(portfolio, request.getSections());
         }
 
         if (request.getPersonalProjects() != null) {
@@ -322,7 +273,6 @@ public class PortfolioServiceImpl implements PortfolioService {
                     personalProjectRepository.save(existingProject);
                     log.debug("Updated personal project ID: {}", projectReq.getId());
                 } else {
-                    // Create new project
                     PersonalProject newProject = PersonalProject.builder()
                             .portfolio(portfolio)
                             .title(projectReq.getTitle())
@@ -339,37 +289,12 @@ public class PortfolioServiceImpl implements PortfolioService {
         }
 
         if (request.getSocialLinks() != null) {
-            for (SocialLinkUpdateRequest linkReq : request.getSocialLinks()) {
-                if (linkReq.getId() != null) {
-                    SocialLink existingLink = socialLinkRepository.findById(linkReq.getId())
-                            .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
-
-                    if (!existingLink.getPortfolio().getId().equals(portfolio.getId())) {
-                        throw new AppException(ErrorCode.UNAUTHORIZED);
-                    }
-
-                    existingLink.setPlatform(linkReq.getPlatform());
-                    existingLink.setUrl(linkReq.getUrl());
-                    socialLinkRepository.save(existingLink);
-                    log.debug("Updated social link ID: {}", linkReq.getId());
-                } else {
-                    SocialLink newLink = SocialLink.builder()
-                            .portfolio(portfolio)
-                            .platform(linkReq.getPlatform())
-                            .url(linkReq.getUrl())
-                            .build();
-                    portfolio.getSocialLinks().add(newLink);
-                    socialLinkRepository.save(newLink);
-                    log.debug("Created new social link: {}", linkReq.getPlatform());
-                }
-            }
+            syncSocialLinks(portfolio, request.getSocialLinks());
         }
 
         Portfolio updatedPortfolio = portfolioRepository.save(portfolio);
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(updatedPortfolio);
-
-        convertS3KeysToUrls(response);
 
         return response;
     }
@@ -386,8 +311,6 @@ public class PortfolioServiceImpl implements PortfolioService {
                 .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
-
-        convertS3KeysToUrls(response);
 
         log.info("Portfolio found successfully for user email: {}", user.getEmail());
         return response;
@@ -406,9 +329,82 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
 
-        convertS3KeysToUrls(response);
-
         log.info("Portfolio found successfully for user ID: {}", userId);
         return response;
     }
+
+    @Override
+    public PortfolioResponse getPortfolioByCustomUrlSlug(String slug) {
+        log.info("Finding portfolio by custom URL slug: {}", slug);
+
+        Portfolio portfolio = portfolioRepository.findByCustomUrlSlug(slug)
+                .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
+
+        PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
+
+        log.info("Portfolio found successfully for custom URL slug: {}", slug);
+        return response;
+    }
+
+    private void syncPortfolioSections(
+            Portfolio portfolio,
+            List<PortfolioSectionUpdateRequest> sectionRequests
+    ) {
+
+        Set<PortfolioSectionType> types = new HashSet<>();
+        for (PortfolioSectionUpdateRequest req : sectionRequests) {
+            if (!types.add(req.getSectionType())) {
+                throw new AppException(ErrorCode.DUPLICATE_SECTION_TYPE);
+            }
+        }
+
+        List<PortfolioSection> existing = portfolioSectionRepository
+                .findAllByPortfolioId(portfolio.getId());
+
+        if (!existing.isEmpty()) {
+            portfolioSectionRepository.deleteAll(existing);
+        }
+        portfolio.getSections().clear();
+
+        List<PortfolioSection> newSections = sectionRequests.stream()
+                .map(req -> PortfolioSection.builder()
+                        .portfolio(portfolio)
+                        .title(req.getTitle())
+                        .content(req.getContent())
+                        .displayOrder(req.getDisplayOrder())
+                        .sectionType(req.getSectionType())
+                        .build())
+                .toList();
+
+        portfolioSectionRepository.saveAll(newSections);
+        portfolio.getSections().addAll(newSections);
+    }
+
+    private void syncSocialLinks(Portfolio portfolio,
+                                 List<SocialLinkUpdateRequest> socialLinkRequests) {
+
+        Set<SocialPlatform> platforms = new HashSet<>();
+        for (SocialLinkUpdateRequest linkReq : socialLinkRequests) {
+            if (!platforms.add(linkReq.getPlatform())) {
+                throw new AppException(ErrorCode.DUPLICATE_SOCIAL_PLATFORM);
+            }
+        }
+
+        List<SocialLink> existingLinks =
+                socialLinkRepository.findAllByPortfolioId(portfolio.getId());
+        socialLinkRepository.deleteAll(existingLinks);
+        portfolio.getSocialLinks().clear();
+
+        List<SocialLink> newLinks = socialLinkRequests.stream()
+                .map(req -> SocialLink.builder()
+                        .portfolio(portfolio)
+                        .platform(req.getPlatform())
+                        .url(req.getUrl())
+                        .build())
+                .toList();
+
+        socialLinkRepository.saveAll(newLinks);
+        portfolio.getSocialLinks().addAll(newLinks);
+    }
+
 }

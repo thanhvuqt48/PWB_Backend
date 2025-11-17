@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface PortfolioSectionRepository extends JpaRepository<PortfolioSection, Long> {
-    List<PortfolioSection> findByPortfolioId(Long portfolioId);
+    List<PortfolioSection> findAllByPortfolioId(Long portfolioId);
 }
