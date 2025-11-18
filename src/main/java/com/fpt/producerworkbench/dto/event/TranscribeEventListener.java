@@ -1,6 +1,6 @@
 package com.fpt.producerworkbench.dto.event;
 
-import com.fpt.producerworkbench.service.TranscribeService;
+import com.fpt.producerworkbench.service.TranscribeGcpService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class TranscribeEventListener {
 
-    private final TranscribeService transcribeService;
+    private final TranscribeGcpService transcribeService;
 
     @EventListener
     public void onAudioUploaded(AudioUploadedEvent evt) {
