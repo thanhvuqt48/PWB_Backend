@@ -61,13 +61,21 @@ admin:
   username: ${ADMIN_USERNAME}
   password: ${ADMIN_PASSWORD}
 
-customer:
-  username: ${CUSTOMER_USERNAME}
-  password: ${CUSTOMER_PASSWORD}
-  
-producer:
-  username: ${PRODUCER_USERNAME}
-  password: ${PRODUCER_PASSWORD}
+producer1:
+  username: ${PRODUCER1_USERNAME}
+  password: ${PRODUCER1_PASSWORD}
+
+producer2:
+  username: ${PRODUCER2_USERNAME}
+  password: ${PRODUCER2_PASSWORD}
+
+customer1:
+  username: ${CUSTOMER1_USERNAME}
+  password: ${CUSTOMER1_PASSWORD}
+
+customer2:
+  username: ${CUSTOMER2_USERNAME}
+  password: ${CUSTOMER2_PASSWORD}
 
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}

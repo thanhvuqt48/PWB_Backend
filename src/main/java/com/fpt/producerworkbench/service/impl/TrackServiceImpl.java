@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProcessingStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
@@ -109,6 +110,16 @@ public class TrackServiceImpl implements TrackService {
         track = trackRepository.save(track);
         log.info("Đã tạo track với ID: {}", track.getId());
 
+        // Chuyển milestone sang IN_PROGRESS nếu đây là track đầu tiên
+        if (milestone.getStatus() == MilestoneStatus.PENDING) {
+            long existingTrackCount = trackRepository.countByMilestoneId(milestoneId);
+            if (existingTrackCount == 1) { // Track vừa tạo là track đầu tiên
+                milestone.setStatus(MilestoneStatus.IN_PROGRESS);
+                milestoneRepository.save(milestone);
+                log.info("Đã chuyển milestone {} sang IN_PROGRESS vì có track đầu tiên", milestoneId);
+            }
+        }
+
         // Set rootTrackId = chính ID của nó (đây là track version đầu tiên)
         // parentTrackId = null (không có parent)
         track.setRootTrackId(track.getId());
@@ -165,6 +176,10 @@ public class TrackServiceImpl implements TrackService {
 
         // Trigger xử lý audio bất đồng bộ theo trackId
         audioProcessingService.processTrackAudio(track.getId());
+
+        // Gửi email thông báo cho project creator nếu người upload là COLLABORATOR
+        Project project = track.getMilestone().getContract().getProject();
+        sendTrackUploadNotificationEmail(track, project, currentUser);
 
         log.info("Đã trigger xử lý audio cho track {}", trackId);
     }
@@ -598,6 +613,62 @@ public class TrackServiceImpl implements TrackService {
             
             audioProcessingService.processTrackAudio(track.getId());
             log.info("Voice tag thay đổi. Đã trigger re-process audio cho track {}", track.getId());
+        }
+    }
+
+    /**
+     * Gửi email thông báo cho project creator khi track được upload
+     * Chỉ gửi nếu người upload là COLLABORATOR (không phải project creator)
+     */
+    private void sendTrackUploadNotificationEmail(Track track, Project project, User uploader) {
+        try {
+            User projectCreator = project.getCreator();
+            
+            // Không gửi email nếu người upload chính là project creator
+            if (projectCreator.getId().equals(uploader.getId())) {
+                log.debug("Người upload là project creator, không cần gửi thông báo");
+                return;
+            }
+
+            // Kiểm tra email của project creator
+            if (projectCreator.getEmail() == null || projectCreator.getEmail().isBlank()) {
+                log.warn("Không thể gửi email thông báo: project creator {} không có email", projectCreator.getId());
+                return;
+            }
+
+            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
+                    project.getId(), track.getMilestone().getId());
+
+            Map<String, Object> params = new HashMap<>();
+            String recipientName = projectCreator.getFullName();
+            if (recipientName == null || recipientName.trim().isEmpty()) {
+                recipientName = projectCreator.getEmail();
+            }
+            params.put("recipientName", recipientName);
+            params.put("uploaderName", uploader.getFullName() != null ? uploader.getFullName() : uploader.getEmail());
+            params.put("uploaderAvatar", uploader.getAvatarUrl() != null ? 
+                      uploader.getAvatarUrl() : "https://via.placeholder.com/48");
+            params.put("projectName", project.getTitle());
+            params.put("milestoneTitle", track.getMilestone().getTitle());
+            params.put("trackName", track.getName());
+            params.put("trackVersion", track.getVersion());
+            params.put("projectUrl", projectUrl);
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .channel("EMAIL")
+                    .recipient(projectCreator.getEmail())
+                    .templateCode("track-upload-notification")
+                    .subject("🎵 Sản phẩm mới đã được tải lên: " + track.getName())
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo upload track cho project creator: trackId={}, projectCreatorId={}", 
+                    track.getId(), projectCreator.getId());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email thông báo upload track: trackId={}", 
+                    track.getId(), e);
         }
     }
 

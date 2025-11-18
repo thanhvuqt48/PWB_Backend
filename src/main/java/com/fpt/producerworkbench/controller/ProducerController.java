@@ -3,11 +3,12 @@ package com.fpt.producerworkbench.controller;
 import com.fpt.producerworkbench.dto.request.RecommendationRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ProducerSummaryResponse;
+import com.fpt.producerworkbench.dto.response.SpotifyLinkInfoResponse;
+import com.fpt.producerworkbench.dto.response.SpotifyRecommendationResponse;
 import com.fpt.producerworkbench.service.ProducerService;
 import com.fpt.producerworkbench.service.SpotifyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -41,15 +42,25 @@ public class ProducerController {
     }
 
     @PostMapping("/recommend-by-spotify")
-    public ResponseEntity<ApiResponse<Page<ProducerSummaryResponse>>> recommendProducersBySpotify(
+    public ResponseEntity<ApiResponse<SpotifyRecommendationResponse>> recommendProducersBySpotify(
             @RequestBody RecommendationRequest request, Pageable pageable) {
 
+        // Lấy thông tin về link Spotify (type và genres)
+        SpotifyLinkInfoResponse linkInfo = spotifyService.getSpotifyLinkInfo(request.getLink());
+        
+        // Lấy danh sách producers được đề xuất
         Page<ProducerSummaryResponse> results = producerService.recommendBySpotifyTrack(request.getLink(), pageable);
 
-        ApiResponse<Page<ProducerSummaryResponse>> apiResponse = ApiResponse.<Page<ProducerSummaryResponse>>builder()
+        // Tạo response kết hợp
+        SpotifyRecommendationResponse recommendationResponse = SpotifyRecommendationResponse.builder()
+                .linkInfo(linkInfo)
+                .producers(results)
+                .build();
+
+        ApiResponse<SpotifyRecommendationResponse> apiResponse = ApiResponse.<SpotifyRecommendationResponse>builder()
                 .code(200)
                 .message("Đã lấy được đề xuất của nhà sản xuất thành công.")
-                .result(results)
+                .result(recommendationResponse)
                 .build();
 
         return ResponseEntity.ok(apiResponse);

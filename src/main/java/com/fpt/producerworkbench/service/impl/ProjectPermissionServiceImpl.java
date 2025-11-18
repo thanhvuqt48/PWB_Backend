@@ -153,6 +153,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeleteMilestone(false)
                         .canAddMembersToMilestone(false)
                         .canRemoveMembersFromMilestone(false)
+                        .canCompleteMilestone(false)
                         .build())
                 .contract(ProjectPermissionResponse.ContractPermissions.builder()
                         .canCreateContract(false)
@@ -259,6 +260,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeleteMilestone(canDeleteMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .canAddMembersToMilestone(canAddMembersToMilestone(context.userRole, context.projectRole, context.isProjectOwner))
                         .canRemoveMembersFromMilestone(canRemoveMembersFromMilestone(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canCompleteMilestone(canCompleteMilestone(context.projectRole, context.project))
                         .build())
 
                 // Contract permissions
@@ -599,6 +601,21 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
     private boolean canRemoveMembersFromMilestone(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
         return userRole == UserRole.PRODUCER && isProjectOwner;
+    }
+
+    /**
+     * Chấp nhận hoàn thành cột mốc:
+     * - Chỉ CLIENT mới có quyền chấp nhận hoàn thành cột mốc
+     * - Phải là project đã funded
+     */
+    private boolean canCompleteMilestone(ProjectRole projectRole, Project project) {
+        // Chỉ CLIENT có quyền chấp nhận hoàn thành cột mốc
+        if (projectRole != ProjectRole.CLIENT) {
+            return false;
+        }
+
+        // Phải là project đã funded
+        return project != null && Boolean.TRUE.equals(project.getIsFunded());
     }
 
     private boolean canCreatePayment(UserRole userRole, ProjectRole projectRole) {

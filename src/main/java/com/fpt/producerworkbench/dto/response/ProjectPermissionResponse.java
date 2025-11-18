@@ -95,6 +95,7 @@ public class ProjectPermissionResponse {
         private boolean canDeleteMilestone;
         private boolean canAddMembersToMilestone;
         private boolean canRemoveMembersFromMilestone;
+        private boolean canCompleteMilestone; // Chỉ CLIENT mới có quyền chấp nhận hoàn thành cột mốc
     }
     
     @Data

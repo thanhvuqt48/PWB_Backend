@@ -27,5 +27,12 @@ public interface MilestoneService {
     void deleteMilestone(Long projectId, Long milestoneId, Authentication auth);
 
     MilestoneDetailResponse removeMemberFromMilestone(Long projectId, Long milestoneId, Long userId, Authentication auth);
+
+    MilestoneResponse completeMilestone(Long projectId, Long milestoneId, Authentication auth);
+
+    com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse downloadOriginalTracksZip(
+            Long projectId, Long milestoneId, 
+            com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest request, 
+            Authentication auth);
 }
 

@@ -41,7 +41,7 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
-    @Column(name = "avatar_url")
+    @Column(name = "avatar_url", length = 1000)
     private String avatarUrl;
 
     @Column(name = "location")

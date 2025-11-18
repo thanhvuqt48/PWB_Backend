@@ -2,11 +2,13 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.AddMilestoneMemberRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
+import com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
+import com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.MilestoneService;
@@ -172,6 +174,49 @@ public class MilestoneController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Xóa cột mốc thành công")
+                .build();
+    }
+
+    @PostMapping("/{projectId}/milestones/{milestoneId}/complete")
+    public ApiResponse<MilestoneResponse> completeMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneResponse milestone = milestoneService.completeMilestone(projectId, milestoneId, authentication);
+
+        return ApiResponse.<MilestoneResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Chấp nhận hoàn thành cột mốc thành công")
+                .result(milestone)
+                .build();
+    }
+
+    @PostMapping("/{projectId}/milestones/{milestoneId}/download-original-tracks-zip")
+    public ApiResponse<DownloadOriginalTracksZipResponse> downloadOriginalTracksZip(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @Valid @RequestBody(required = false) DownloadOriginalTracksZipRequest request,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        // Nếu request null, tạo request rỗng (tải tất cả tracks)
+        if (request == null) {
+            request = DownloadOriginalTracksZipRequest.builder().build();
+        }
+
+        DownloadOriginalTracksZipResponse response = milestoneService.downloadOriginalTracksZip(
+                projectId, milestoneId, request, authentication);
+
+        return ApiResponse.<DownloadOriginalTracksZipResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Tạo file ZIP các track bản gốc thành công")
+                .result(response)
                 .build();
     }
 }
