@@ -4,7 +4,9 @@ import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProcessingStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.TrackStatus;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
+import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
@@ -27,11 +29,14 @@ import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.TrackService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +52,9 @@ public class TrackServiceImpl implements TrackService {
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
     private final AudioProcessingService audioProcessingService;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
     @Override
     @Transactional
@@ -409,6 +417,53 @@ public class TrackServiceImpl implements TrackService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public TrackResponse updateTrackStatus(Authentication auth, Long trackId, TrackStatusUpdateRequest request) {
+        log.info("Cập nhật trạng thái track {} thành {}", trackId, request.getStatus());
+
+        // Kiểm tra authentication
+        User currentUser = loadUser(auth);
+
+        // Tìm track
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Lấy project từ track
+        Project project = track.getMilestone().getContract().getProject();
+
+        // Kiểm tra quyền: chỉ chủ dự án mới được phê duyệt/từ chối track
+        checkOwnerPermission(currentUser, project);
+
+        // Validate status transition
+        TrackStatus oldStatus = track.getStatus();
+        TrackStatus newStatus = request.getStatus();
+
+        // Cho phép chuyển đổi tự do giữa các status
+        if (newStatus == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Trạng thái không được để trống");
+        }
+
+        // Nếu status không đổi thì không cần làm gì
+        if (oldStatus == newStatus) {
+            log.info("Trạng thái track {} đã là {}, không cần cập nhật", trackId, newStatus);
+            return mapToResponse(track);
+        }
+
+        // Cập nhật trạng thái và lý do
+        track.setStatus(newStatus);
+        if (request.getReason() != null) {
+            track.setReason(request.getReason());
+        }
+        track = trackRepository.save(track);
+        log.info("Đã cập nhật trạng thái track {} từ {} sang {}", trackId, oldStatus, newStatus);
+
+        // Gửi email thông báo cho người chủ track
+        sendTrackStatusNotificationEmail(track, project, oldStatus, newStatus, request.getReason());
+
+        return mapToResponse(track);
+    }
+
     // ========== Helper Methods ==========
 
     private User loadUser(Authentication auth) {
@@ -494,6 +549,13 @@ public class TrackServiceImpl implements TrackService {
         }
     }
 
+    private void checkOwnerPermission(User user, Project project) {
+        boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
+        if (!isOwner) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ chủ dự án mới có thể phê duyệt/từ chối trạng thái track");
+        }
+    }
+
     private void checkPlayPermission(User user, Project project) {
         // Same as view permission
         checkViewPermission(user, project);
@@ -539,6 +601,71 @@ public class TrackServiceImpl implements TrackService {
         }
     }
 
+    /**
+     * Gửi email thông báo khi trạng thái track thay đổi
+     */
+    private void sendTrackStatusNotificationEmail(Track track, Project project, 
+                                                   TrackStatus oldStatus, TrackStatus newStatus, 
+                                                   String reason) {
+        try {
+            User trackOwner = track.getUser();
+            if (trackOwner.getEmail() == null || trackOwner.getEmail().isBlank()) {
+                log.warn("Không thể gửi email thông báo: user {} không có email", trackOwner.getId());
+                return;
+            }
+
+            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
+                    project.getId(), track.getMilestone().getId());
+
+            Map<String, Object> params = new HashMap<>();
+            String recipientName = trackOwner.getFullName();
+            if (recipientName == null || recipientName.trim().isEmpty()) {
+                recipientName = trackOwner.getEmail();
+            }
+            params.put("recipientName", recipientName);
+            params.put("projectName", project.getTitle());
+            params.put("milestoneTitle", track.getMilestone().getTitle());
+            params.put("trackName", track.getName());
+            params.put("trackVersion", track.getVersion());
+            params.put("oldStatus", oldStatus.name());
+            params.put("newStatus", newStatus.name());
+            params.put("projectUrl", projectUrl);
+            
+            if (reason != null && !reason.trim().isEmpty()) {
+                params.put("reason", reason);
+            }
+
+            String subject;
+            String templateCode;
+
+            if (newStatus == TrackStatus.INTERNAL_APPROVED) {
+                subject = String.format("Track '%s' đã được phê duyệt", track.getName());
+                templateCode = "track-status-approved-template";
+            } else if (newStatus == TrackStatus.INTERNAL_REJECTED) {
+                subject = String.format("Track '%s' đã bị từ chối", track.getName());
+                templateCode = "track-status-rejected-template";
+            } else {
+                log.warn("Trạng thái không hợp lệ để gửi email: {}", newStatus);
+                return;
+            }
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(trackOwner.getEmail())
+                    .subject(subject)
+                    .templateCode(templateCode)
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo trạng thái track qua Kafka: trackId={}, userId={}, newStatus={}", 
+                    track.getId(), trackOwner.getId(), newStatus);
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email thông báo trạng thái track qua Kafka: trackId={}", 
+                    track.getId(), e);
+        }
+    }
+
     private TrackResponse mapToResponse(Track track) {
         String hlsPlaybackUrl = null;
         if (track.getProcessingStatus() == ProcessingStatus.READY && track.getHlsPrefix() != null) {
@@ -565,6 +692,7 @@ public class TrackServiceImpl implements TrackService {
                 .voiceTagEnabled(track.getVoiceTagEnabled())
                 .voiceTagText(track.getVoiceTagText())
                 .status(track.getStatus())
+                .reason(track.getReason())
                 .processingStatus(track.getProcessingStatus())
                 .errorMessage(track.getErrorMessage())
                 .contentType(track.getContentType())

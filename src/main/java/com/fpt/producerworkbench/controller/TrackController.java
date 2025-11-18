@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
+import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
@@ -29,6 +30,7 @@ import java.util.Map;
  * - GET /api/v1/milestones/{milestoneId}/tracks - Lấy danh sách tracks
  * - GET /api/v1/tracks/{trackId} - Lấy chi tiết track
  * - PUT /api/v1/tracks/{trackId} - Cập nhật track
+ * - PUT /api/v1/tracks/{trackId}/status - Chủ dự án phê duyệt/từ chối trạng thái track
  * - DELETE /api/v1/tracks/{trackId} - Xóa track
  * - GET /api/v1/tracks/{trackId}/playback-url - Lấy HLS playback URL
  */
@@ -168,6 +170,29 @@ public class TrackController {
         return ApiResponse.<TrackResponse>builder()
                 .code(HttpStatus.OK.value())
                 .message("Cập nhật track thành công")
+                .result(track)
+                .build();
+    }
+
+    /**
+     * Chủ dự án cập nhật trạng thái track (có thể chuyển đổi tự do giữa các status)
+     * Khi đổi trạng thái sẽ gửi email thông báo cho người chủ track
+     */
+    @PutMapping("/tracks/{trackId}/status")
+    public ApiResponse<TrackResponse> updateTrackStatus(
+            @PathVariable Long trackId,
+            @Valid @RequestBody TrackStatusUpdateRequest request,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        TrackResponse track = trackService.updateTrackStatus(authentication, trackId, request);
+
+        return ApiResponse.<TrackResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Đã cập nhật trạng thái track thành công")
                 .result(track)
                 .build();
     }

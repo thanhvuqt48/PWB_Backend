@@ -40,6 +40,9 @@ public class ProjectPermissionResponse {
     // Track permissions (sản phẩm nhạc trong phòng nội bộ)
     private TrackPermissions track;
     
+    // Client Delivery permissions (gửi sản phẩm cho khách hàng)
+    private ClientDeliveryPermissions clientDelivery;
+    
     private String reason;
     
     // Nested classes for grouped permissions
@@ -148,5 +151,26 @@ public class ProjectPermissionResponse {
         private boolean canUpdateTrack;
         private boolean canDeleteTrack;
         private boolean canPlayTrack;
+        private boolean canApproveTrackStatus; // Chỉ chủ dự án mới có quyền phê duyệt/từ chối trạng thái track
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ClientDeliveryPermissions {
+        private boolean canSendTrackToClient;           // Gửi track cho client (Owner only)
+        private boolean canViewClientTracks;            // Xem tracks trong Client Room (Owner, Admin, Client, Observer nếu funded)
+        private boolean canAcceptDelivery;               // Chấp nhận sản phẩm - status = ACCEPTED (Client, Observer, Owner nếu funded)
+        private boolean canRejectDelivery;              // Từ chối sản phẩm - status = REJECTED (Client, Observer nếu funded)
+        private boolean canRequestEditDelivery;         // Yêu cầu chỉnh sửa - status = REQUEST_EDIT (Client, Observer nếu funded)
+        private boolean canViewProductCountRemaining;   // Xem số lượt gửi còn lại (Owner, Admin, Client, Observer nếu funded)
+        private boolean canCancelDelivery;              // Hủy delivery (Owner only)
+        // Client Room Comment permissions
+        private boolean canCreateClientRoomComment;     // Tạo comment trong Client Room (Owner, Admin, Client, Observer nếu funded)
+        private boolean canViewClientRoomComments;      // Xem comment trong Client Room (Owner, Admin, Client, Observer nếu funded)
+        private boolean canUpdateClientRoomComment;     // Sửa comment trong Client Room (chỉ comment owner, Owner, Admin, Client, Observer nếu funded)
+        private boolean canDeleteClientRoomComment;     // Xóa comment trong Client Room (comment owner hoặc track owner, Owner, Admin, Client, Observer nếu funded)
+        private boolean canUpdateClientRoomCommentStatus; // Cập nhật status comment trong Client Room (chỉ Owner)
     }
 }

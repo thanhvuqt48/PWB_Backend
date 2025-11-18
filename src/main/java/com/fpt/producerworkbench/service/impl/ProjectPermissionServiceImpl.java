@@ -184,6 +184,21 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canUpdateTrack(false)
                         .canDeleteTrack(false)
                         .canPlayTrack(false)
+                        .canApproveTrackStatus(false)
+                        .build())
+                .clientDelivery(ProjectPermissionResponse.ClientDeliveryPermissions.builder()
+                        .canSendTrackToClient(false)
+                        .canViewClientTracks(false)
+                        .canAcceptDelivery(false)
+                        .canRejectDelivery(false)
+                        .canRequestEditDelivery(false)
+                        .canViewProductCountRemaining(false)
+                        .canCancelDelivery(false)
+                        .canCreateClientRoomComment(false)
+                        .canViewClientRoomComments(false)
+                        .canUpdateClientRoomComment(false)
+                        .canDeleteClientRoomComment(false)
+                        .canUpdateClientRoomCommentStatus(false)
                         .build())
                 .reason(reason)
                 .build();
@@ -285,6 +300,23 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canUpdateTrack(canUpdateTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canDeleteTrack(canDeleteTrack(context.userRole, context.projectRole, context.isProjectOwner))
                         .canPlayTrack(canPlayTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
+                        .canApproveTrackStatus(canApproveTrackStatus(context.isProjectOwner))
+                        .build())
+
+                // Client Delivery permissions
+                .clientDelivery(ProjectPermissionResponse.ClientDeliveryPermissions.builder()
+                        .canSendTrackToClient(canSendTrackToClient(context.isProjectOwner))
+                        .canViewClientTracks(canViewClientTracks(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canAcceptDelivery(canAcceptDelivery(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canRejectDelivery(canRejectDelivery(context.projectRole, context.project))
+                        .canRequestEditDelivery(canRequestEditDelivery(context.projectRole, context.project))
+                        .canViewProductCountRemaining(canViewProductCountRemaining(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canCancelDelivery(canCancelDelivery(context.isProjectOwner))
+                        .canCreateClientRoomComment(canCreateClientRoomComment(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canViewClientRoomComments(canViewClientRoomComments(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canUpdateClientRoomComment(canUpdateClientRoomComment(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canDeleteClientRoomComment(canDeleteClientRoomComment(context.userRole, context.isProjectOwner, context.projectRole, context.project))
+                        .canUpdateClientRoomCommentStatus(canUpdateClientRoomCommentStatus(context.isProjectOwner))
                         .build())
 
                 .reason(getPermissionReason(context.userRole, context.projectRole, context.isProjectOwner, context.isProjectMember))
@@ -680,5 +712,215 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
             return true;
         }
         return projectRole == ProjectRole.COLLABORATOR && hasApprovedMoneySplit;
+    }
+
+    /**
+     * Approve/Reject track status:
+     * - Chỉ chủ dự án (OWNER) mới có quyền phê duyệt/từ chối trạng thái track
+     */
+    private boolean canApproveTrackStatus(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    // ==================== Client Delivery Permissions ====================
+
+    /**
+     * Gửi track cho client:
+     * - Chỉ Owner được gửi
+     */
+    private boolean canSendTrackToClient(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    /**
+     * Xem tracks trong Client Room:
+     * - Owner: luôn được xem
+     * - Admin: luôn được xem
+     * - Client/Observer: chỉ khi project đã funded (type = COLLABORATIVE)
+     */
+    private boolean canViewClientTracks(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn xem được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+
+        // Client và Observer chỉ xem được khi project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+
+        return false;
+    }
+
+    /**
+     * Chấp nhận sản phẩm (ACCEPTED):
+     * - Owner: luôn được chấp nhận
+     * - Admin: luôn được chấp nhận
+     * - Client/Observer: chỉ khi project đã funded (giống như canViewClientTracks)
+     */
+    private boolean canAcceptDelivery(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn chấp nhận được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+
+        // Client và Observer chỉ chấp nhận được khi project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+
+        return false;
+    }
+
+    /**
+     * Từ chối sản phẩm (REJECTED):
+     * - Chỉ Client/Observer được từ chối
+     * - Phải là project đã funded
+     */
+    private boolean canRejectDelivery(ProjectRole projectRole, Project project) {
+        // Chỉ Client và Observer có quyền từ chối
+        if (projectRole != ProjectRole.CLIENT && projectRole != ProjectRole.OBSERVER) {
+            return false;
+        }
+
+        // Phải là project đã funded
+        return project != null && Boolean.TRUE.equals(project.getIsFunded());
+    }
+
+    /**
+     * Yêu cầu chỉnh sửa (REQUEST_EDIT):
+     * - Chỉ Client/Observer được yêu cầu
+     * - Phải là project đã funded
+     */
+    private boolean canRequestEditDelivery(ProjectRole projectRole, Project project) {
+        // Chỉ Client và Observer có quyền yêu cầu chỉnh sửa
+        if (projectRole != ProjectRole.CLIENT && projectRole != ProjectRole.OBSERVER) {
+            return false;
+        }
+
+        // Phải là project đã funded
+        return project != null && Boolean.TRUE.equals(project.getIsFunded());
+    }
+
+    /**
+     * Xem số lượt gửi còn lại và số lượt chỉnh sửa:
+     * - Owner: luôn xem được
+     * - Admin: luôn xem được
+     * - Client/Observer: xem được nếu project đã funded (để biết họ còn bao nhiêu quyền yêu cầu)
+     */
+    private boolean canViewProductCountRemaining(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn xem được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+        
+        // Client và Observer xem được nếu project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+        
+        return false;
+    }
+
+    /**
+     * Hủy delivery (rollback):
+     * - Chỉ Owner được hủy
+     */
+    private boolean canCancelDelivery(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    // ==================== Client Room Comment Permissions ====================
+
+    /**
+     * Tạo comment trong Client Room:
+     * - Owner: luôn được tạo
+     * - Admin: luôn được tạo
+     * - Client/Observer: chỉ khi project đã funded (giống như canViewClientTracks)
+     */
+    private boolean canCreateClientRoomComment(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn tạo được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+
+        // Client và Observer chỉ tạo được khi project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+
+        return false;
+    }
+
+    /**
+     * Xem comment trong Client Room:
+     * - Owner: luôn được xem
+     * - Admin: luôn được xem
+     * - Client/Observer: chỉ khi project đã funded (giống như canViewClientTracks)
+     */
+    private boolean canViewClientRoomComments(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn xem được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+
+        // Client và Observer chỉ xem được khi project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+
+        return false;
+    }
+
+    /**
+     * Sửa comment trong Client Room:
+     * - Owner: luôn được sửa (nhưng chỉ sửa được comment của mình trong business logic)
+     * - Admin: luôn được sửa
+     * - Client/Observer: chỉ khi project đã funded (nhưng chỉ sửa được comment của mình trong business logic)
+     * 
+     * Note: Business logic check "chỉ được sửa comment của mình" nằm ở TrackCommentServiceImpl
+     */
+    private boolean canUpdateClientRoomComment(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn sửa được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+
+        // Client và Observer chỉ sửa được khi project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+
+        return false;
+    }
+
+    /**
+     * Xóa comment trong Client Room:
+     * - Owner: luôn được xóa (có thể xóa comment của bất kỳ ai)
+     * - Admin: luôn được xóa
+     * - Client/Observer: chỉ khi project đã funded (nhưng chỉ xóa được comment của mình hoặc track owner trong business logic)
+     * 
+     * Note: Business logic check "chỉ được xóa comment của mình hoặc track owner" nằm ở TrackCommentServiceImpl
+     */
+    private boolean canDeleteClientRoomComment(UserRole userRole, boolean isProjectOwner, ProjectRole projectRole, Project project) {
+        // Admin và Owner luôn xóa được
+        if (userRole == UserRole.ADMIN || isProjectOwner) {
+            return true;
+        }
+
+        // Client và Observer chỉ xóa được khi project đã funded
+        if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
+            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        }
+
+        return false;
+    }
+
+    /**
+     * Cập nhật status comment trong Client Room:
+     * - Chỉ Owner được cập nhật status (giống như Internal Room)
+     */
+    private boolean canUpdateClientRoomCommentStatus(boolean isProjectOwner) {
+        return isProjectOwner;
     }
 }

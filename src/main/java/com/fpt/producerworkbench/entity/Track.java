@@ -94,6 +94,12 @@ public class Track extends AbstractEntity<Long> {
     private TrackStatus status = TrackStatus.INTERNAL_DRAFT;
 
     /**
+     * Lý do phê duyệt/từ chối (được lưu khi chủ dự án cập nhật trạng thái)
+     */
+    @Column(columnDefinition = "TEXT")
+    private String reason;
+
+    /**
      * Trạng thái xử lý file kỹ thuật
      */
     @Enumerated(EnumType.STRING)

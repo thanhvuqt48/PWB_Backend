@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
+import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
@@ -88,6 +89,17 @@ public interface TrackService {
      * @return TrackUploadUrlResponse chứa trackId và presigned URL
      */
     TrackUploadUrlResponse uploadNewVersion(Authentication auth, Long trackId, TrackVersionUploadRequest request);
+
+    /**
+     * Chủ dự án phê duyệt/từ chối trạng thái track
+     * Khi đổi trạng thái sẽ gửi email thông báo cho người chủ track
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track
+     * @param request Thông tin trạng thái mới và lý do (nếu có)
+     * @return Track đã cập nhật
+     */
+    TrackResponse updateTrackStatus(Authentication auth, Long trackId, TrackStatusUpdateRequest request);
 }
 
 

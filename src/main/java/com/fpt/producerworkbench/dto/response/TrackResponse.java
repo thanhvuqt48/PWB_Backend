@@ -54,6 +54,9 @@ public class TrackResponse {
     @JsonProperty("status")
     private TrackStatus status;
 
+    @JsonProperty("reason")
+    private String reason;
+
     @JsonProperty("processingStatus")
     private ProcessingStatus processingStatus;
 
