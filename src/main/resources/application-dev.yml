@@ -136,7 +136,7 @@ aws:
 
 gcp:
   project-id: ${GCP_PROJECT_ID}
-  credentials-file: ${GCP_CREDENTIALS_FILE}
+  credentials-file: classpath:google-cloud/producer-workbench-478512-048275ebbad8.json
   gcs:
     bucket: ${GCS_BUCKET}
     delete-after-finish: true
