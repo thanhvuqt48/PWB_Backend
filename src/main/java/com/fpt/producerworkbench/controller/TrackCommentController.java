@@ -20,6 +20,11 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Controller quản lý các thao tác comment trên track và trong Client Room.
+ * Bao gồm: tạo, xem, cập nhật, xóa comment; quản lý reply; lấy thống kê comment;
+ * và lấy comment theo timestamp. Hỗ trợ cả comment trên track thông thường và comment trong Client Room.
+ */
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor

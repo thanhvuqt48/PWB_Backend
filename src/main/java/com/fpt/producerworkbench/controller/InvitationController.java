@@ -33,6 +33,10 @@ public class InvitationController {
     private final UserRepository userRepository;
     private final ProjectPermissionService projectPermissionService;
 
+    /**
+     * Tạo lời mời mới cho người dùng tham gia project.
+     * Tạo liên kết lời mời và gửi đến email của người được mời.
+     */
     @PostMapping
     public ResponseEntity<ApiResponse<Map<String, String>>> inviteToProject(
             @PathVariable Long projectId,
@@ -58,6 +62,10 @@ public class InvitationController {
                 .build());
     }
 
+    /**
+     * Lấy danh sách các lời mời đang chờ xử lý (pending) của project.
+     * Chỉ những người có quyền quản lý lời mời mới có thể xem.
+     */
     @GetMapping
     public ResponseEntity<ApiResponse<List<InvitationResponse>>> getPendingInvitations(@PathVariable Long projectId, @AuthenticationPrincipal Jwt jwt, Authentication auth) {
         var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
@@ -72,6 +80,10 @@ public class InvitationController {
                 .build());
     }
 
+    /**
+     * Lấy tất cả các lời mời mà người dùng hiện tại đã tạo.
+     * Hỗ trợ lọc theo trạng thái lời mời và phân trang kết quả.
+     */
     @GetMapping("/my-owned")
     public ResponseEntity<ApiResponse<PageResponse<InvitationResponse>>> getAllOwnedInvitations(
             @AuthenticationPrincipal Jwt jwt,
@@ -90,6 +102,10 @@ public class InvitationController {
                 .build());
     }
 
+    /**
+     * Hủy một lời mời đã được tạo.
+     * Chỉ người có quyền quản lý lời mời của project mới có thể hủy.
+     */
     @DeleteMapping("/{invitationId}")
     public ResponseEntity<ApiResponse<Void>> cancelInvitation(@PathVariable Long projectId, @PathVariable Long invitationId, @AuthenticationPrincipal Jwt jwt, Authentication auth) {
         // Check permissions using service

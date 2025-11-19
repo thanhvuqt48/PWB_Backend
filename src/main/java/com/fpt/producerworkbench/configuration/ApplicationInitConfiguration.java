@@ -6,7 +6,6 @@ import com.fpt.producerworkbench.entity.Genre;
 import com.fpt.producerworkbench.entity.ProPackage;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.repository.GenreRepository;
-import com.fpt.producerworkbench.repository.PortfolioRepository;
 import com.fpt.producerworkbench.repository.ProPackageRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import lombok.AccessLevel;
@@ -21,13 +20,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 @Configuration
 @RequiredArgsConstructor
@@ -37,9 +33,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ApplicationInitConfiguration {
 
     PasswordEncoder passwordEncoder;
-
-    @PersistenceContext
-    EntityManager entityManager;
 
     @NonFinal
     @Value("${admin.username}")
@@ -88,48 +81,12 @@ public class ApplicationInitConfiguration {
             value = "datasource.driver-class-name",
             havingValue = "com.mysql.cj.jdbc.Driver")
     @org.springframework.core.annotation.Order(1) // Run before ProducerDataInitializer
-    ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, PortfolioRepository portfolioRepository, ProPackageRepository proPackageRepository) {
+    ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, ProPackageRepository proPackageRepository) {
         log.info("Initializing application.....");
 
         return args -> {
 
-            // Delete existing admin and customer accounts
-            // Note: Only delete specific accounts, not all producers (to preserve sample data)
-            AtomicBoolean hasDeletedUsers = new AtomicBoolean(false);
-            userRepository.findAll().forEach(user -> {
-                if (user.getRole() == UserRole.ADMIN || user.getRole() == UserRole.CUSTOMER) {
-                    // Delete portfolio first if exists (to avoid foreign key constraint)
-                    portfolioRepository.findByUserId(user.getId()).ifPresent(portfolio -> {
-                        portfolioRepository.delete(portfolio);
-                        log.debug("Deleted portfolio for user: {}", user.getEmail());
-                    });
-                    userRepository.delete(user);
-                    log.info("Deleted existing {} account: {}", user.getRole(), user.getEmail());
-                    hasDeletedUsers.set(true);
-                }
-                // Delete only specific producer accounts (producer1 and producer2) if they exist
-                else if (user.getRole() == UserRole.PRODUCER && 
-                         (PRODUCER1_USERNAME.equals(user.getEmail()) || PRODUCER2_USERNAME.equals(user.getEmail()))) {
-                    portfolioRepository.findByUserId(user.getId()).ifPresent(portfolio -> {
-                        portfolioRepository.delete(portfolio);
-                        log.debug("Deleted portfolio for user: {}", user.getEmail());
-                    });
-                    userRepository.delete(user);
-                    log.info("Deleted existing {} account: {}", user.getRole(), user.getEmail());
-                    hasDeletedUsers.set(true);
-                }
-            });
-
-            // Reset AUTO_INCREMENT to 1 if we deleted users and table is now empty
-            if (hasDeletedUsers.get() && userRepository.count() == 0) {
-                try {
-                    entityManager.createNativeQuery("ALTER TABLE users AUTO_INCREMENT = 1").executeUpdate();
-                    log.info("Reset users table AUTO_INCREMENT to 1");
-                } catch (Exception e) {
-                    log.warn("Failed to reset AUTO_INCREMENT: {}", e.getMessage());
-                }
-            }
-
+            // Initialize data only if database is empty (first time running)
             // Create Admin account: Nguyen Xuan Long
             if (userRepository.findByEmail(ADMIN_USERNAME).isEmpty()) {
                 User admin = User.builder()
@@ -224,7 +181,7 @@ public class ApplicationInitConfiguration {
                         .passwordHash(passwordEncoder.encode(CUSTOMER2_PASSWORD))
                         .role(UserRole.CUSTOMER)
                         .status(UserStatus.ACTIVE)
-                        .avatarUrl("https://yt3.googleusercontent.com/HIvoRu7hyBWaXQh0YPpHk6L_ZVzazs4WTff3WZVEpJ0Yxib8hA-AStVyDVp6EWiS0Jwh_tlCmIM=s900-c-k-c0x00ffffff-no-rj")
+                        .avatarUrl("https://i.scdn.co/image/ab67616d0000b273bb9527c1b12d606df71b4aa5")
                         .build();
                 userRepository.save(customer2);
                 log.info("Customer account created: {} ({})", CUSTOMER2_USERNAME, customer2.getFullName());

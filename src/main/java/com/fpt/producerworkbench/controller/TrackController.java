@@ -21,18 +21,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Controller cho quản lý tracks (sản phẩm nhạc) trong phòng nội bộ
- * 
- * Endpoints:
- * - POST /api/v1/projects/{projectId}/milestones/{milestoneId}/tracks - Tạo track mới (version 1 mặc định)
- * - POST /api/v1/tracks/{trackId}/versions - Upload version mới của track
- * - POST /api/v1/tracks/{trackId}/finalize - Hoàn tất upload
- * - GET /api/v1/milestones/{milestoneId}/tracks - Lấy danh sách tracks
- * - GET /api/v1/tracks/{trackId} - Lấy chi tiết track
- * - PUT /api/v1/tracks/{trackId} - Cập nhật track
- * - PUT /api/v1/tracks/{trackId}/status - Chủ dự án phê duyệt/từ chối trạng thái track
- * - DELETE /api/v1/tracks/{trackId} - Xóa track
- * - GET /api/v1/tracks/{trackId}/playback-url - Lấy HLS playback URL
+ * Controller quản lý tracks (sản phẩm nhạc) trong phòng nội bộ.
+ * Bao gồm: tạo track mới với presigned URL upload, upload version mới, hoàn tất upload và xử lý audio,
+ * xem danh sách và chi tiết track, cập nhật thông tin và trạng thái track, xóa track,
+ * và lấy HLS playback URL để phát track preview.
  */
 @RestController
 @RequestMapping("/api/v1")

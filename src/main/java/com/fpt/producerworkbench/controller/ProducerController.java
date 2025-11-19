@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Controller quản lý các thao tác liên quan đến nhà sản xuất.
+ * Bao gồm: tìm kiếm và lọc nhà sản xuất, đề xuất nhà sản xuất dựa trên track Spotify.
+ */
 @RestController
 @RequestMapping("/api/v1/producers")
 @RequiredArgsConstructor
