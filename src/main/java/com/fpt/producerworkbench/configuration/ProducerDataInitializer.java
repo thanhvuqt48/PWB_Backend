@@ -121,6 +121,20 @@ public class ProducerDataInitializer {
                     continue;
                 }
 
+                // Central Vietnam location names (matching coordinates array)
+                String[] centralVietnamLocationNames = {
+                        "Da Nang, Vietnam",
+                        "Hue, Vietnam",
+                        "Hoi An, Vietnam",
+                        "Tam Ky, Vietnam",
+                        "Da Nang, Vietnam",
+                        "Da Nang, Vietnam",
+                        "Da Nang, Vietnam",
+                        "Hue, Vietnam",
+                        "Hoi An, Vietnam",
+                        "Da Nang, Vietnam"
+                };
+
                 // Create User
                 User user = User.builder()
                         .email(data.email)
@@ -130,7 +144,6 @@ public class ProducerDataInitializer {
                         .role(UserRole.PRODUCER)
                         .status(UserStatus.ACTIVE)
                         .avatarUrl(AVATAR_URLS[i % AVATAR_URLS.length])
-                        .location("Ho Chi Minh City, Vietnam")
                         .build();
 
                 User savedUser = userRepository.save(user);
@@ -160,6 +173,38 @@ public class ProducerDataInitializer {
                     producerTags.add(tag);
                 }
 
+                // Central Vietnam locations (Da Nang, Hue, Hoi An, etc.)
+                // Da Nang: 16.0544, 108.2022
+                // Hue: 16.4637, 107.5909
+                // Hoi An: 15.8801, 108.3380
+                // Tam Ky: 15.5736, 108.4740
+                double[][] centralVietnamLocations = {
+                        {16.0544, 108.2022},  // Da Nang center
+                        {16.4637, 107.5909},  // Hue center
+                        {15.8801, 108.3380},  // Hoi An
+                        {15.5736, 108.4740},  // Tam Ky
+                        {16.0678, 108.2208},  // Da Nang - Hai Chau
+                        {16.0514, 108.2267},  // Da Nang - Thanh Khe
+                        {16.0700, 108.1500},  // Da Nang - Son Tra
+                        {16.5000, 107.6000},  // Hue - Phu Vang
+                        {15.9000, 108.3000},  // Hoi An area
+                        {16.0000, 108.2000}   // Between Da Nang and Hue
+                };
+                
+                // Pick a random location from central Vietnam (same index for name and coordinates)
+                int locationIndex = random.nextInt(centralVietnamLocations.length);
+                String location = centralVietnamLocationNames[locationIndex];
+                double baseLat = centralVietnamLocations[locationIndex][0];
+                double baseLon = centralVietnamLocations[locationIndex][1];
+                
+                // Add small random offset (within ~5km radius)
+                double lat = baseLat + (random.nextDouble() - 0.5) * 0.05;
+                double lon = baseLon + (random.nextDouble() - 0.5) * 0.05;
+                
+                // Update user location
+                savedUser.setLocation(location);
+                userRepository.save(savedUser);
+
                 // Create Portfolio
                 Portfolio portfolio = Portfolio.builder()
                         .user(savedUser)
@@ -167,8 +212,8 @@ public class ProducerDataInitializer {
                         .isPublic(true)
                         .genres(producerGenres)
                         .tags(producerTags)
-                        .latitude(10.762622 + (random.nextDouble() - 0.5) * 0.1) // Random location in HCMC
-                        .longitude(106.660172 + (random.nextDouble() - 0.5) * 0.1)
+                        .latitude(lat)
+                        .longitude(lon)
                         .build();
 
                 portfolioRepository.save(portfolio);
