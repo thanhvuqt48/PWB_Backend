@@ -110,6 +110,9 @@ signnow:
     connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
 
+bedrock:
+  region: ap-southeast-1
+  modelId: anthropic.claude-3-haiku-20240307-v1:0
 
 pwb:
   contract:
@@ -133,8 +136,35 @@ aws:
   region: ${AWS_REGION}
   access-key-id: ${AWS_ACCESS_KEY_ID}
   secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  ai:
+    suggestion-mode: BY_SONG
+    song:
+      baseline:
+        temperature: 0.8
+        max-sections: 8
+        per-section-min: 4
+        min-per-line-ratio: 0.85
+        min-total-increase-ratio: 0.05
+        min-total-increase-chars: 12
+        max-rewrite-retries: 2
   s3:
     bucket-name: ${S3_BUCKET_NAME}
+    max-upload-mb: 25
+
+gcp:
+  project-id: ${GCP_PROJECT_ID}
+  credentials-file: classpath:google-cloud/producer-workbench-478512-048275ebbad8.json
+  gcs:
+    bucket: ${GCS_BUCKET}
+    delete-after-finish: true
+  speech:
+    location: global
+    languageCode: vi-VN
+    model: latest_long
+    gcs-output-bucket: ${GCS_OUT_BUCKET}
+    gcs-output-prefix: pwb/stt/
+    enablePunctuation: true
+    timeoutSeconds: 1200
 
 logging:
   charset:
