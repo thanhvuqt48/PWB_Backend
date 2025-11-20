@@ -95,6 +95,7 @@ public class WebSocketEventListener {
         String userEmail = user != null ? user.getName() : null;
 
         sessionRedisService.deleteWebsocketSession(wsSessionId);
+
         Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
         if (sessionAttributes == null) {
             log.warn("⚠️ Session attributes null for wsSession: {}", wsSessionId);
