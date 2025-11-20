@@ -166,6 +166,8 @@ public enum ErrorCode {
     CHAT_MESSAGE_NOT_FOUND(9001, "Không tìm thấy tin nhắn chat", HttpStatus.NOT_FOUND),
     CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),
     MESSAGE_TOO_LONG(9003, "Tin nhắn vượt quá độ dài tối đa", HttpStatus.BAD_REQUEST),
+    CONVERSATION_NOT_GROUP(9004, "Chỉ có thể thêm thành viên vào cuộc trò chuyện nhóm.", HttpStatus.BAD_REQUEST),
+    CONVERSATION_MEMBER_ALREADY_EXISTS(9005, "Người dùng đã là thành viên của cuộc trò chuyện.", HttpStatus.BAD_REQUEST),
 
     SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
     SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
