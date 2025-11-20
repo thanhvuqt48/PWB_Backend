@@ -4,12 +4,15 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import lombok.*;
 
 import java.time.LocalDate;
 
-@Setter @Getter @AllArgsConstructor @NoArgsConstructor @Builder
+@Setter
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class MilestoneRequest {
 
     @JsonProperty("title")
@@ -18,7 +21,6 @@ public class MilestoneRequest {
 
     @JsonProperty("description")
     private String description;
-
 
     @JsonProperty("amount")
     @NotBlank(message = "Milestone amount is required")
@@ -35,4 +37,16 @@ public class MilestoneRequest {
     @NotNull
     @JsonProperty("productCount")
     Integer productCount;
+
+    @JsonProperty("createInternalGroupChat")
+    private Boolean createInternalGroupChat;
+
+    @JsonProperty("internalGroupChatName")
+    private String internalGroupChatName;
+
+    @JsonProperty("createClientGroupChat")
+    private Boolean createClientGroupChat;
+
+    @JsonProperty("clientGroupChatName")
+    private String clientGroupChatName;
 }
