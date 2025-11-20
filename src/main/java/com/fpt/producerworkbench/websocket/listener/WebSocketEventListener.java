@@ -70,6 +70,7 @@ public class WebSocketEventListener {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(disconnectEvent.getMessage());
         String wsSessionId = accessor.getSessionId();
         sessionRedisService.deleteWebsocketSession(wsSessionId);
+
         Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
         if (sessionAttributes == null) {
             log.warn("⚠️ Session attributes null for wsSession: {}", wsSessionId);

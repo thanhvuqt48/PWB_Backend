@@ -159,6 +159,17 @@ public enum ErrorCode {
     CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),
     MESSAGE_TOO_LONG(9003, "Tin nhắn vượt quá độ dài tối đa", HttpStatus.BAD_REQUEST),
 
+    // ========== AI & Vector Database (10xxx) ==========
+    VECTOR_DB_CONNECTION_FAILED(10001, "Không thể kết nối tới vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    VECTOR_DB_INDEXING_FAILED(10002, "Lỗi khi indexing dữ liệu vào vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    VECTOR_DB_SEARCH_FAILED(10003, "Lỗi khi tìm kiếm trong vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    GEMINI_API_ERROR(10004, "Lỗi khi gọi Gemini API", HttpStatus.BAD_GATEWAY),
+    GEMINI_API_RATE_LIMIT(10005, "Vượt quá giới hạn request Gemini API", HttpStatus.TOO_MANY_REQUESTS),
+    TERM_NOT_FOUND(10006, "Không tìm thấy thuật ngữ âm nhạc", HttpStatus.NOT_FOUND),
+    EMBEDDING_GENERATION_FAILED(10007, "Lỗi khi tạo embedding vector", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_EXPLANATION_REQUEST(10008, "Yêu cầu giải thích không hợp lệ", HttpStatus.BAD_REQUEST),
+    AI_SERVICE_UNAVAILABLE(10009, "Dịch vụ AI tạm thời không khả dụng", HttpStatus.SERVICE_UNAVAILABLE),
+
     SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
     SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ACTIVE(5012, "Phiên đã hoạt động", HttpStatus.BAD_REQUEST),

@@ -52,6 +52,23 @@ spring:
     time-zone: Asia/Ho_Chi_Minh
     date-format: yyyy-MM-dd
 
+  # Gemini REST API Configuration
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+    model: gemini-2.5-flash  # Stable: 15 req/min, 1M tokens context
+    base-url: https://generativelanguage.googleapis.com/v1beta
+
+  # Spring AI Configuration
+  ai:
+    vectorstore:
+      pinecone:
+        apiKey: ${PINECONE_API_KEY}
+        indexName: ${PINECONE_INDEX_NAME:music-terms-index}
+        namespace: ${PINECONE_NAMESPACE:music-terms}
+        projectName: ${PINECONE_PROJECT_ID:nxzaj2y}
+        environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
+        # Using default transformer embeddings (384 dimensions)
+
 jwt:
   secret-key: ${SECRET_KEY}
   valid-duration: 24
@@ -143,3 +160,20 @@ payos:
 subscription:
   grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
   renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}
+
+# Gemini AI Configuration (for direct API calls)
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: ${GEMINI_MODEL:gemini-1.5-flash}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+  max-tokens: ${GEMINI_MAX_TOKENS:2048}
+  temperature: ${GEMINI_TEMPERATURE:0.3}
+  
+# Pinecone Vector Database Configuration
+pinecone:
+  api-key: ${PINECONE_API_KEY}
+  index-name: ${PINECONE_INDEX_NAME:music-terms-index}
+  environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
+  namespace: ${PINECONE_NAMESPACE:music-terms}
+  project-id: ${PINECONE_PROJECT_ID:nxzaj2y}
+  host: ${PINECONE_HOST:music-terms-index-nxzaj2y.svc.aped-4627-b74a.pinecone.io}
