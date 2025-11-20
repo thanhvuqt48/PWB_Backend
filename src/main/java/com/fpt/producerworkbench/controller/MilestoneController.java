@@ -1,14 +1,12 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.AddMilestoneMemberRequest;
+import com.fpt.producerworkbench.dto.request.MilestoneBriefUpsertRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
-import com.fpt.producerworkbench.dto.response.ApiResponse;
-import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.service.MilestoneBriefService;
 import com.fpt.producerworkbench.service.MilestoneService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +22,7 @@ import java.util.List;
 public class MilestoneController {
 
     private final MilestoneService milestoneService;
+    private final MilestoneBriefService milestoneBriefService;
 
     @GetMapping("/{projectId}/milestones")
     public ApiResponse<List<MilestoneListResponse>> getAllMilestonesByProject(
@@ -172,6 +171,88 @@ public class MilestoneController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Xóa cột mốc thành công")
+                .build();
+    }
+
+    @GetMapping("/{projectId}/milestones/{milestoneId}/brief")
+    public ApiResponse<MilestoneBriefDetailResponse> getMilestoneBrief(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefDetailResponse brief =
+                milestoneBriefService.getMilestoneBrief(projectId, milestoneId, authentication);
+
+        return ApiResponse.<MilestoneBriefDetailResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy miêu tả cột mốc thành công")
+                .result(brief)
+                .build();
+    }
+
+    @PutMapping("/{projectId}/milestones/{milestoneId}/brief")
+    public ApiResponse<MilestoneBriefDetailResponse> upsertMilestoneBrief(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @Valid @RequestBody MilestoneBriefUpsertRequest request,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefDetailResponse brief =
+                milestoneBriefService.upsertMilestoneBrief(projectId, milestoneId, request, authentication);
+
+        return ApiResponse.<MilestoneBriefDetailResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lưu miêu tả cột mốc thành công")
+                .result(brief)
+                .build();
+    }
+
+    @GetMapping("/{projectId}/milestones/{milestoneId}/brief/internal")
+    public ApiResponse<MilestoneBriefDetailResponse> getInternalMilestoneBrief(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefDetailResponse brief =
+                milestoneBriefService.getInternalMilestoneBrief(projectId, milestoneId, authentication);
+
+        return ApiResponse.<MilestoneBriefDetailResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy miêu tả cột mốc INTERNAL thành công")
+                .result(brief)
+                .build();
+    }
+
+    @PutMapping("/{projectId}/milestones/{milestoneId}/brief/internal")
+    public ApiResponse<MilestoneBriefDetailResponse> upsertInternalMilestoneBrief(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @Valid @RequestBody MilestoneBriefUpsertRequest request,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefDetailResponse brief =
+                milestoneBriefService.upsertInternalMilestoneBrief(projectId, milestoneId, request, authentication);
+
+        return ApiResponse.<MilestoneBriefDetailResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lưu miêu tả cột mốc INTERNAL thành công")
+                .result(brief)
                 .build();
     }
 }
