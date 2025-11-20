@@ -8,5 +8,5 @@ import java.util.List;
 
 @Repository
 public interface SocialLinkRepository extends JpaRepository<SocialLink, Long> {
-    List<SocialLink> findByPortfolioId(Long portfolioId);
+    List<SocialLink> findAllByPortfolioId(Long portfolioId);
 }

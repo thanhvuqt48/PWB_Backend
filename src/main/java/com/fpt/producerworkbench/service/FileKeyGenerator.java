@@ -17,4 +17,7 @@ public interface FileKeyGenerator {
     String generateInspirationAssetKey(Long projectId, String originalFilename);
 
     String generateInspirationAudioKey(Long projectId, String fileName);
+
+    String generateChatMessageFileKey(String conversationId, String originalFilename);
+
 }

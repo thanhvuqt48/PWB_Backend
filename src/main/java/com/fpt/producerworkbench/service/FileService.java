@@ -1,13 +1,12 @@
 package com.fpt.producerworkbench.service;
 
+import com.fpt.producerworkbench.dto.response.FileMetaDataResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
-/**
- * Interface cho dịch vụ test các chức năng S3.
- */
-public interface S3TestService {
+public interface FileService {
 
     String uploadUserAvatar(Long userId, MultipartFile file);
     String uploadProjectMusic(Long projectId, MultipartFile file);
@@ -25,5 +24,5 @@ public interface S3TestService {
     String getDownloadUrl(String objectKey, String originalFileName);
     void deleteFile(String objectKey);
 
-
+    CompletableFuture<List<FileMetaDataResponse>> uploadChatMessageFile(String conversationId, List<MultipartFile> files);
 }

@@ -49,7 +49,11 @@ public class SecurityConfiguration {
             "/api/v1/payments/webhook",
             "/api/v1/integrations/signnow/webhook/**",
             "/ws-raw/**",
-            "/ws-raw"
+            "/ws-raw",
+            // AI Explanation endpoints - No authentication required
+            "/api/ai/explanation",
+            "/api/ai/explanation/health",
+            "/api/vector-db/**"
     };
 
     @Bean

@@ -17,4 +17,6 @@ public interface PortfolioService {
 
     PortfolioResponse getPortfolioByUserId(Long userId);
 
+    PortfolioResponse getPortfolioByCustomUrlSlug(String slug);
+
 }

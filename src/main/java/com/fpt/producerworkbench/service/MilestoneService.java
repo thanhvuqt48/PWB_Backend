@@ -16,10 +16,16 @@ public interface MilestoneService {
     
     MilestoneResponse createMilestone(Long projectId, MilestoneRequest request, Authentication auth);
 
+    MilestoneResponse updateMilestone(Long projectId, Long milestoneId, MilestoneRequest request, Authentication auth);
+
     MilestoneDetailResponse getMilestoneDetail(Long projectId, Long milestoneId, Authentication auth);
 
     List<AvailableProjectMemberResponse> getAvailableProjectMembers(Long projectId, Long milestoneId, Authentication auth);
 
     MilestoneDetailResponse addMembersToMilestone(Long projectId, Long milestoneId, AddMilestoneMemberRequest request, Authentication auth);
+
+    void deleteMilestone(Long projectId, Long milestoneId, Authentication auth);
+
+    MilestoneDetailResponse removeMemberFromMilestone(Long projectId, Long milestoneId, Long userId, Authentication auth);
 }
 

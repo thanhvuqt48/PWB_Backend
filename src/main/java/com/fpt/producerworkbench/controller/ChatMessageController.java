@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/chat")
@@ -37,6 +39,14 @@ public class ChatMessageController {
         return ApiResponse.<PageResponse<ChatResponse>>builder()
                 .code(HttpStatus.OK.value())
                 .result(chatMessageService.getMessageByConversationId(page, size, conversationId))
+                .build();
+    }
+
+    @GetMapping("/{conversationId}/online-status")
+    ApiResponse<Map<String, Boolean>> getOnlineStatus(@PathVariable String conversationId) {
+        return ApiResponse.<Map<String, Boolean>>builder()
+                .code(HttpStatus.OK.value())
+                .result(chatMessageService.getOnlineStatusForConversation(conversationId))
                 .build();
     }
 

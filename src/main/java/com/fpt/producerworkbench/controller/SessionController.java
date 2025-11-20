@@ -2,10 +2,8 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
-import com.fpt.producerworkbench.dto.response.ApiResponse;
-import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
-import com.fpt.producerworkbench.dto.response.PageResponse;
-import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
+import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.service.LiveSessionService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import jakarta.validation.Valid;
@@ -17,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -47,6 +47,29 @@ public class SessionController {
         return ApiResponse.<LiveSessionResponse>builder()
                 .message("Session retrieved successfully")
                 .result(session)
+                .build();
+    }
+
+    @PutMapping("/{sessionId}")
+    public ApiResponse<LiveSessionResponse> updateSession(
+            @PathVariable String sessionId,
+            @Valid @RequestBody UpdateSessionRequest request) {
+        Long userId = securityUtils.getCurrentUserId();
+        LiveSessionResponse session = sessionService.updateSession(sessionId, request, userId);
+
+        return ApiResponse.<LiveSessionResponse>builder()
+                .message("Session updated successfully")
+                .result(session)
+                .build();
+    }
+
+    @DeleteMapping("/{sessionId}")
+    public ApiResponse<Void> deleteSession(@PathVariable String sessionId) {
+        Long userId = securityUtils.getCurrentUserId();
+        sessionService.deleteSession(sessionId, userId);
+
+        return ApiResponse.<Void>builder()
+                .message("Session deleted successfully")
                 .build();
     }
 
@@ -108,28 +131,6 @@ public class SessionController {
                 .build();
     }
 
-    @PostMapping("/{sessionId}/pause")
-    public ApiResponse<LiveSessionResponse> pauseSession(@PathVariable String sessionId) {
-        Long userId = securityUtils.getCurrentUserId();
-        LiveSessionResponse session = sessionService.pauseSession(sessionId, userId);
-
-        return ApiResponse.<LiveSessionResponse>builder()
-                .message("Session paused successfully")
-                .result(session)
-                .build();
-    }
-
-    @PostMapping("/{sessionId}/resume")
-    public ApiResponse<LiveSessionResponse> resumeSession(@PathVariable String sessionId) {
-        Long userId = securityUtils.getCurrentUserId();
-        LiveSessionResponse session = sessionService.resumeSession(sessionId, userId);
-
-        return ApiResponse.<LiveSessionResponse>builder()
-                .message("Session resumed successfully")
-                .result(session)
-                .build();
-    }
-
     @PostMapping("/{sessionId}/end")
     public ApiResponse<SessionSummaryResponse> endSession(@PathVariable String sessionId) {
         Long userId = securityUtils.getCurrentUserId();
@@ -152,6 +153,34 @@ public class SessionController {
         return ApiResponse.<LiveSessionResponse>builder()
                 .message("Session cancelled successfully")
                 .result(session)
+                .build();
+    }
+
+    @PostMapping("/{sessionId}/invite-more")
+    public ApiResponse<LiveSessionResponse> inviteMoreMembers(
+            @PathVariable String sessionId,
+            @Valid @RequestBody com.fpt.producerworkbench.dto.request.InviteMoreMembersRequest request) {
+
+        Long userId = securityUtils.getCurrentUserId();
+        LiveSessionResponse session = sessionService.inviteMoreMembers(sessionId, request, userId);
+
+        return ApiResponse.<LiveSessionResponse>builder()
+                .message("Members invited successfully")
+                .result(session)
+                .build();
+    }
+
+    @GetMapping("/{sessionId}/available-members")
+    public ApiResponse<List<AvailableMemberResponse>> getAvailableMembers(
+            @PathVariable String sessionId) {
+
+        Long userId = securityUtils.getCurrentUserId();
+        List<com.fpt.producerworkbench.dto.response.AvailableMemberResponse> members = 
+                sessionService.getAvailableMembers(sessionId, userId);
+
+        return ApiResponse.<List<com.fpt.producerworkbench.dto.response.AvailableMemberResponse>>builder()
+                .message("Available members retrieved successfully")
+                .result(members)
                 .build();
     }
 }

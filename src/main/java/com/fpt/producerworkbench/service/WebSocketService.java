@@ -24,4 +24,7 @@ public interface WebSocketService {
 
      //Send session summary to all participants (when session ends)
     void broadcastSessionSummary(String sessionId, Object summary);
+
+     //Broadcast user online/offline status change to conversation participants
+    void broadcastUserStatusChange(String userEmail, boolean isOnline, String conversationId);
 }
