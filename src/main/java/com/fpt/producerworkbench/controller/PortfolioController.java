@@ -63,17 +63,16 @@ public class PortfolioController {
                 .build();
     }
 
-    @PutMapping(value = "/personal", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PutMapping(
+            value = "/personal",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<PortfolioResponse> update(
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @RequestPart("data") String dataJson) {
-
+            @Valid @RequestPart("data") PortfolioUpdateRequest request
+    ) {
         log.info("Updating personal portfolio");
-
-        PortfolioUpdateRequest request = parseJson(dataJson, PortfolioUpdateRequest.class);
-
-        validateRequest(request);
 
         PortfolioResponse result = portfolioService.updatePersonalPortfolio(request, coverImage);
 
@@ -85,6 +84,7 @@ public class PortfolioController {
                 .result(result)
                 .build();
     }
+
 
     @GetMapping("/personal")
     @PreAuthorize("isAuthenticated()")
@@ -123,23 +123,6 @@ public class PortfolioController {
                 .code(HttpStatus.OK.value())
                 .result(result)
                 .build();
-    }
-
-    private <T> void validateRequest(T request) {
-        Set<ConstraintViolation<T>> violations = validator.validate(request);
-        if (!violations.isEmpty()) {
-            log.error("Validation failed: {} violations found", violations.size());
-            throw new jakarta.validation.ConstraintViolationException(violations);
-        }
-    }
-
-    private <T> T parseJson(String json, Class<T> clazz) {
-        try {
-            return objectMapper.readValue(json, clazz);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to parse JSON for class {}: {}", clazz.getSimpleName(), e.getMessage());
-            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
-        }
     }
 
 }
