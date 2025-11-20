@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.LyricsExtractedEvent;
-import com.fpt.producerworkbench.entity.Track;
+import com.fpt.producerworkbench.entity.InspirationTrack;
 import com.fpt.producerworkbench.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +56,7 @@ public class SuggestionServiceBedrockImpl {
 
     @EventListener
     public void onLyricsExtracted(LyricsExtractedEvent evt) {
-        Track track = trackRepo.findById(evt.getTrackId()).orElse(null);
+        InspirationTrack track = trackRepo.findById(evt.getTrackId()).orElse(null);
         if (track == null) return;
 
         try {

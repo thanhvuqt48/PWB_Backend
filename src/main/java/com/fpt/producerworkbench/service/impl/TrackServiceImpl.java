@@ -8,7 +8,7 @@ import com.fpt.producerworkbench.dto.response.TrackSuggestionResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadDirectResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
 import com.fpt.producerworkbench.entity.Project;
-import com.fpt.producerworkbench.entity.Track;
+import com.fpt.producerworkbench.entity.InspirationTrack;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.dto.event.AudioUploadedEvent;
 import com.fpt.producerworkbench.exception.AppException;
@@ -113,7 +113,7 @@ public class TrackServiceImpl implements TrackService {
             throw new AppException(ErrorCode.FILE_LARGE);
         }
 
-        Track track = trackRepo.save(Track.builder()
+        InspirationTrack track = trackRepo.save(InspirationTrack.builder()
                 .project(p)
                 .uploader(u)
                 .fileName(req.getFileName())
@@ -157,7 +157,7 @@ public class TrackServiceImpl implements TrackService {
             throw new AppException(ErrorCode.FILE_STORAGE_NOT_FOUND);
         }
 
-        Track track = trackRepo.save(Track.builder()
+        InspirationTrack track = trackRepo.save(InspirationTrack.builder()
                 .project(p)
                 .uploader(u)
                 .fileName(filename != null ? filename : "upload.bin")
@@ -211,12 +211,12 @@ public class TrackServiceImpl implements TrackService {
             throw new AppException(ErrorCode.FILE_STORAGE_NOT_FOUND);
         }
 
-        Track track = trackRepo.save(Track.builder()
+        InspirationTrack track = trackRepo.save(InspirationTrack.builder()
                 .project(p)
                 .uploader(u)
                 .fileName(fileName)
                 .mimeType(resolvedMime)
-                .sizeBytes(file.getSize()) // long -> Long (autobox) OK
+                .sizeBytes(file.getSize())
                 .s3Key(objectKey)
                 .status(TrackStatus.TRANSCRIBING)
                 .build());
@@ -233,7 +233,7 @@ public class TrackServiceImpl implements TrackService {
 
     @Override
     public TrackSuggestionResponse completeAndSuggest(Long userId, Long trackId, int waitSeconds) {
-        Track t = trackRepo.findById(trackId)
+        InspirationTrack t = trackRepo.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
         ensureMember(t.getProject().getId(), userId);
 
@@ -267,7 +267,7 @@ public class TrackServiceImpl implements TrackService {
 
     @Override
     public TrackSuggestionResponse getSuggestion(Long userId, Long trackId) {
-        Track t = trackRepo.findById(trackId)
+        InspirationTrack t = trackRepo.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
         ensureMember(t.getProject().getId(), userId);
         return toSuggestionResponse(t);
@@ -275,7 +275,7 @@ public class TrackServiceImpl implements TrackService {
 
     @Override
     public void resuggest(Long userId, Long trackId) {
-        Track t = trackRepo.findById(trackId)
+        InspirationTrack t = trackRepo.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
         ensureMember(t.getProject().getId(), userId);
 
@@ -296,7 +296,7 @@ public class TrackServiceImpl implements TrackService {
 
     @Override
     public void deleteTrack(Long userId, Long trackId) {
-        Track t = trackRepo.findById(trackId)
+        InspirationTrack t = trackRepo.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
         ensureMember(t.getProject().getId(), userId);
 
@@ -317,7 +317,7 @@ public class TrackServiceImpl implements TrackService {
         log.info("[Track] Deleted track {}", trackId);
     }
 
-    private TrackSuggestionResponse toSuggestionResponse(Track t) {
+    private TrackSuggestionResponse toSuggestionResponse(InspirationTrack t) {
         return TrackSuggestionResponse.builder()
                 .trackId(t.getId())
                 .status(t.getStatus())

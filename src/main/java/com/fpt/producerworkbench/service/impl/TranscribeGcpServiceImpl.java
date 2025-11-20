@@ -3,7 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.configuration.GcpProperties;
 import com.fpt.producerworkbench.dto.event.LyricsExtractedEvent;
-import com.fpt.producerworkbench.entity.Track;
+import com.fpt.producerworkbench.entity.InspirationTrack;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.TrackRepository;
@@ -96,7 +96,7 @@ public class TranscribeGcpServiceImpl implements TranscribeGcpService {
     @Override
     @Async("taskExecutor")
     public void startAndPollTranscription(Long trackId) {
-        Track track = trackRepository.findById(trackId)
+        InspirationTrack track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
 
         if (!StringUtils.hasText(mediaBucket) || !StringUtils.hasText(track.getS3Key())) {
@@ -401,7 +401,7 @@ public class TranscribeGcpServiceImpl implements TranscribeGcpService {
 
     /* ================= staging S3 -> GCS ================= */
 
-    private String stageS3ToGcs(Track t) throws Exception {
+    private String stageS3ToGcs(InspirationTrack t) throws Exception {
         String gcsBucket = props.getGcs().getBucket();
         if (!StringUtils.hasText(gcsBucket)) {
             throw new IllegalStateException("GCS bucket (staging) is not configured");
@@ -454,7 +454,7 @@ public class TranscribeGcpServiceImpl implements TranscribeGcpService {
         return SpeechClient.create(settings);
     }
 
-    private void markFailed(Track track, String reason) {
+    private void markFailed(InspirationTrack track, String reason) {
         track.setStatus(TrackStatus.FAILED);
         trackRepository.save(track);
         log.warn("[Transcribe v2] FAILED trackId={}, reason={}", track.getId(), reason);

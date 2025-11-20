@@ -5,10 +5,17 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "tracks",
-        indexes = {@Index(name = "idx_track_project_created", columnList = "project_id, created_at")})
+@Table(
+        name = "inspiration_tracks",
+        indexes = {
+                @Index(
+                        name = "idx_inspiration_track_project_created",
+                        columnList = "project_id, created_at"
+                )
+        }
+)
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
-public class Track extends AbstractEntity<Long> {
+public class InspirationTrack extends AbstractEntity<Long> {
 
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "project_id", nullable = false)
     private Project project;
