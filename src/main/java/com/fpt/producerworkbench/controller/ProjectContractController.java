@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
+import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import com.fpt.producerworkbench.entity.Contract;
@@ -13,6 +14,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractInviteService;
+import com.fpt.producerworkbench.service.ContractPdfService;
 import com.fpt.producerworkbench.service.EmailService;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
@@ -24,10 +26,16 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Controller quản lý các thao tác liên quan đến hợp đồng của project.
+ * Bao gồm: xem thông tin hợp đồng, mời ký hợp đồng, từ chối hợp đồng, xem file PDF, và điền thông tin vào template PDF.
+ */
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -38,10 +46,15 @@ public class ProjectContractController {
     private final ContractDocumentRepository contractDocumentRepository;
     private final FileStorageService fileStorageService;
     private final ContractInviteService contractInviteService;
+    private final ContractPdfService contractPdfService;
     private final EmailService emailService;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final ProjectPermissionService projectPermissionService;
 
+    /**
+     * Lấy thông tin hợp đồng của project.
+     * Trả về trạng thái hợp đồng, link tải file PDF (filled hoặc signed), và thông tin tài trợ.
+     */
     @GetMapping("/projects/{projectId}/contract")
     public ApiResponse<Map<String, Object>> getContractByProject(@PathVariable Long projectId) {
         Contract c = contractRepository.findByProjectId(projectId)
@@ -51,6 +64,11 @@ public class ProjectContractController {
         resp.put("id", c.getId());
         resp.put("status", c.getStatus());
         resp.put("signnowStatus", c.getSignnowStatus());
+        
+        // Add isFunded from Project
+        if (c.getProject() != null) {
+            resp.put("isFunded", c.getProject().getIsFunded());
+        }
 
         var signed = contractDocumentRepository
                 .findTopByContract_IdAndTypeOrderByVersionDesc(c.getId(), ContractDocumentType.SIGNED)
@@ -73,6 +91,10 @@ public class ProjectContractController {
         return ApiResponse.<Map<String, Object>>builder().code(200).result(resp).build();
     }
 
+    /**
+     * Mời các bên ký hợp đồng thông qua SignNow.
+     * Hỗ trợ gửi email mời ký hoặc embedded signing. Request body có thể null để sử dụng cấu hình mặc định.
+     */
     @PostMapping("/contracts/{id}/invites")
     public ApiResponse<StartSigningResponse> invite(@PathVariable Long id,
                                                     @RequestBody(required = false) ContractInviteRequest req,
@@ -84,6 +106,10 @@ public class ProjectContractController {
         return ApiResponse.<StartSigningResponse>builder().code(200).result(result).build();
     }
 
+    /**
+     * Từ chối hợp đồng với lý do cụ thể.
+     * Chỉ Admin hoặc Client của project mới có thể từ chối. Tự động gửi thông báo email cho owner.
+     */
     @PostMapping("/contracts/{id}/decline")
     public ApiResponse<String> decline(@PathVariable Long id,
                                        @RequestBody String reason,
@@ -155,6 +181,10 @@ public class ProjectContractController {
         return ApiResponse.<String>builder().code(200).result("DECLINED").build();
     }
 
+    /**
+     * Lấy lý do từ chối hợp đồng.
+     * Chỉ Admin, Owner hoặc Client của project mới có thể xem. Chỉ áp dụng khi hợp đồng đã bị từ chối.
+     */
     @GetMapping("/contracts/{id}/decline-reason")
     public ApiResponse<String> getDeclineReason(@PathVariable Long id, Authentication auth) {
         Contract c = contractRepository.findById(id)
@@ -199,6 +229,10 @@ public class ProjectContractController {
         }
     }
 
+    /**
+     * Xem file PDF hợp đồng đã điền (filled).
+     * Redirect đến presigned URL của file. Yêu cầu quyền xem hợp đồng.
+     */
     @GetMapping("/contracts/{id}/filled/file")
     public ResponseEntity<Void> redirectToFilled(@PathVariable("id") Long id, Authentication auth) {
         ensureCanViewFilled(auth, id);
@@ -211,7 +245,10 @@ public class ProjectContractController {
         return ResponseEntity.status(302).header("Location", url).build();
     }
 
-    // Endpoint từ ContractSigningController
+    /**
+     * Xem file PDF hợp đồng đã ký (signed).
+     * Redirect đến presigned URL của file đã ký.
+     */
     @GetMapping("/contracts/{id}/signed/file")
     public ResponseEntity<Void> viewSignedPdf(@PathVariable Long id) {
         var doc = contractDocumentRepository
@@ -220,6 +257,23 @@ public class ProjectContractController {
 
         String url = fileStorageService.generatePresignedUrl(doc.getStorageUrl(), false, null);
         return ResponseEntity.status(302).header(HttpHeaders.LOCATION, url).build();
+    }
+
+    /**
+     * Điền thông tin vào template PDF hợp đồng và trả về file PDF đã điền.
+     * Trả về file PDF binary với Content-Type: application/pdf.
+     */
+    @PostMapping(value = "/contracts/pdf/{projectId}/fill", produces = "application/pdf")
+    public ResponseEntity<byte[]> fill(
+            Authentication auth,
+            @PathVariable Long projectId,
+            @Valid @RequestBody ContractPdfFillRequest req,
+            HttpServletRequest request
+    ) {
+        byte[] pdf = contractPdfService.fillTemplate(auth, projectId, req);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=contract.pdf")
+                .body(pdf);
     }
 }
 

@@ -74,6 +74,11 @@ public class ProducerServiceImpl implements ProducerService {
             spec = spec.and(ProducerSpecification.hasTags(remainingTags));
         }
 
+        // Áp dụng filter theo bán kính nếu có lat, lon và radius
+        if (lat != null && lon != null && radius != null && radius > 0) {
+            spec = spec.and(ProducerSpecification.isWithinRadius(lat, lon, radius));
+        }
+
         if (lat == null || lon == null) {
             Page<Portfolio> portfolioPage = portfolioRepository.findAll(spec, pageable);
             return portfolioPage.map(p -> portfolioMapper.toProducerSummaryResponse(p, null));

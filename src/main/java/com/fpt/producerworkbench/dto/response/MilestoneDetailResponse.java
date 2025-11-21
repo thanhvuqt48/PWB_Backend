@@ -27,6 +27,7 @@ public class MilestoneDetailResponse {
     private Integer sequence;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Boolean isFunded;
 
     private List<MilestoneMemberResponse> members;
 }

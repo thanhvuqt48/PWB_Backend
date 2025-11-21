@@ -20,6 +20,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Controller quản lý các thao tác liên quan đến thanh toán.
+ * Bao gồm: tạo link thanh toán qua PayOS, xử lý webhook từ PayOS, kiểm tra trạng thái thanh toán,
+ * và lấy thông tin thanh toán mới nhất của contract.
+ */
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
@@ -29,6 +34,10 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final UserRepository userRepository;
 
+    /**
+     * Tạo link thanh toán cho contract thông qua PayOS.
+     * Tạo payment order và trả về link thanh toán để client có thể thanh toán.
+     */
     @PostMapping("/create/projects/{projectId}/contracts/{contractId}")
     public ResponseEntity<ApiResponse<PaymentResponse>> createPayment(
             @AuthenticationPrincipal Jwt jwt,
@@ -57,7 +66,10 @@ public class PaymentController {
                 .build());
     }
 
-
+    /**
+     * Xử lý webhook từ PayOS khi có cập nhật về trạng thái thanh toán.
+     * Endpoint này được PayOS gọi tự động, không cần authentication.
+     */
     @PostMapping("/webhook")
     public ResponseEntity<String> handleWebhook(@RequestBody String body) {
         log.info("Nhận webhook từ PayOS");
@@ -71,6 +83,10 @@ public class PaymentController {
         return ResponseEntity.ok("OK");
     }
 
+    /**
+     * Lấy trạng thái thanh toán theo orderCode.
+     * Không yêu cầu authentication, ai cũng có thể kiểm tra trạng thái thanh toán.
+     */
     @GetMapping("/status/{orderCode}")
     public ResponseEntity<ApiResponse<PaymentStatusResponse>> getPaymentStatus(@PathVariable String orderCode) {
         var result = paymentService.getPaymentStatus(orderCode);
@@ -82,6 +98,10 @@ public class PaymentController {
         );
     }
 
+    /**
+     * Lấy thông tin thanh toán mới nhất của contract.
+     * Yêu cầu đăng nhập và có quyền truy cập contract.
+     */
     @GetMapping("/projects/{projectId}/contracts/{contractId}/latest")
     public ResponseEntity<ApiResponse<PaymentLatestResponse>> getLatestPayment(
             @AuthenticationPrincipal Jwt jwt,

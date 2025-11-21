@@ -8,6 +8,7 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.MilestoneBriefService;
 import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
+import com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
 import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
@@ -15,6 +16,7 @@ import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
 import com.fpt.producerworkbench.common.MilestoneChatType;
+import com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse;
 import com.fpt.producerworkbench.service.MilestoneService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+/**
+ * Controller quản lý các thao tác liên quan đến milestone (cột mốc) của project.
+ * Bao gồm: xem danh sách, chi tiết, tạo, cập nhật, xóa milestone, quản lý thành viên milestone,
+ * hoàn thành milestone, và tải về ZIP các track bản gốc.
+ */
 @RestController
 @RequestMapping("/api/v1/projects")
 @RequiredArgsConstructor
@@ -34,6 +41,10 @@ public class MilestoneController {
     private final MilestoneService milestoneService;
     private final MilestoneBriefService milestoneBriefService;
 
+    /**
+     * Lấy danh sách tất cả milestone của project.-
+     * Yêu cầu đăng nhập và có quyền truy cập project.
+     */
     @GetMapping("/{projectId}/milestones")
     public ApiResponse<List<MilestoneListResponse>> getAllMilestonesByProject(
             @PathVariable Long projectId,
@@ -51,6 +62,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Lấy thông tin chi tiết của milestone.
+     * Yêu cầu đăng nhập và có quyền truy cập project.
+     */
     @GetMapping("/{projectId}/milestones/{milestoneId}")
     public ApiResponse<MilestoneDetailResponse> getMilestoneDetail(
             @PathVariable Long projectId,
@@ -69,6 +84,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Tạo milestone mới cho project.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (thường là Owner).
+     */
     @PostMapping("/{projectId}/milestones")
     public ApiResponse<MilestoneResponse> createMilestone(
             @PathVariable Long projectId,
@@ -87,6 +106,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Cập nhật thông tin milestone.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (thường là Owner).
+     */
     @PutMapping("/{projectId}/milestones/{milestoneId}")
     public ApiResponse<MilestoneResponse> updateMilestone(
             @PathVariable Long projectId,
@@ -106,6 +129,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Lấy danh sách thành viên project có thể thêm vào milestone.
+     * Trả về các thành viên chưa có trong milestone và có role phù hợp (COLLABORATOR hoặc OBSERVER).
+     */
     @GetMapping("/{projectId}/milestones/{milestoneId}/available-members")
     public ApiResponse<List<AvailableProjectMemberResponse>> getAvailableProjectMembers(
             @PathVariable Long projectId,
@@ -125,6 +152,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Thêm thành viên vào milestone.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner). Chỉ có thể thêm COLLABORATOR hoặc OBSERVER.
+     */
     @PostMapping("/{projectId}/milestones/{milestoneId}/members")
     public ApiResponse<MilestoneDetailResponse> addMembersToMilestone(
             @PathVariable Long projectId,
@@ -145,6 +176,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Xóa thành viên khỏi milestone.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner).
+     */
     @DeleteMapping("/{projectId}/milestones/{milestoneId}/members/{userId}")
     public ApiResponse<MilestoneDetailResponse> removeMemberFromMilestone(
             @PathVariable Long projectId,
@@ -167,6 +202,10 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Xóa milestone.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner).
+     */
     @DeleteMapping("/{projectId}/milestones/{milestoneId}")
     public ApiResponse<Void> deleteMilestone(
             @PathVariable Long projectId,
@@ -184,6 +223,7 @@ public class MilestoneController {
                 .build();
     }
 
+
     @GetMapping("/{projectId}/milestones/{milestoneId}/brief")
     public ApiResponse<MilestoneBriefDetailResponse> getMilestoneBrief(
             @PathVariable Long projectId,
@@ -199,6 +239,26 @@ public class MilestoneController {
                 .code(HttpStatus.OK.value())
                 .message("Lấy miêu tả cột mốc thành công")
                 .result(brief)
+                .build();
+    }
+
+    /**
+     * Đánh dấu milestone đã hoàn thành.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner). Tự động gửi email thông báo cho owner.
+     */
+    @PostMapping("/{projectId}/milestones/{milestoneId}/complete")
+    public ApiResponse<MilestoneResponse> completeMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+        MilestoneResponse milestone = milestoneService.completeMilestone(projectId, milestoneId, authentication);
+        return ApiResponse.<MilestoneResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Chấp nhận hoàn thành cột mốc thành công")
+                .result(milestone)
                 .build();
     }
 
@@ -220,7 +280,36 @@ public class MilestoneController {
                 .message("Lấy danh sách group chat của cột mốc thành công")
                 .result(conversations)
                 .build();
+    }
 
+
+    /**
+     * Tải về file ZIP chứa các track bản gốc đã gửi cho client trong milestone.
+     * Yêu cầu milestone đã hoàn thành (COMPLETED) và có quyền truy cập Client Room.
+     * Request body có thể null để tải tất cả tracks, hoặc chỉ định trackIds cụ thể.
+     */
+    @PostMapping("/{projectId}/milestones/{milestoneId}/download-original-tracks-zip")
+    public ApiResponse<DownloadOriginalTracksZipResponse> downloadOriginalTracksZip(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @Valid @RequestBody(required = false) DownloadOriginalTracksZipRequest request,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        if (request == null) {
+            request = DownloadOriginalTracksZipRequest.builder().build();
+        }
+
+        DownloadOriginalTracksZipResponse response = milestoneService.downloadOriginalTracksZip(
+                projectId, milestoneId, request, authentication);
+
+        return ApiResponse.<DownloadOriginalTracksZipResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Tạo file ZIP các track bản gốc thành công")
+                .result(response)
+                .build();
     }
 
     @PutMapping("/{projectId}/milestones/{milestoneId}/brief")

@@ -14,6 +14,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Controller quản lý phân chia tiền và chi phí của milestone.
+ * Bao gồm: tạo, cập nhật, xóa phân chia tiền, chấp nhận/từ chối phân chia tiền,
+ * và quản lý chi phí (expense) của milestone.
+ */
 @RestController
 @RequestMapping("/api/v1/projects")
 @RequiredArgsConstructor
@@ -21,6 +26,10 @@ public class MilestoneMoneySplitController {
 
     private final MilestoneMoneySplitService moneySplitService;
 
+    /**
+     * Tạo phân chia tiền cho thành viên trong milestone.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner). Chỉ có thể phân chia cho thành viên milestone (không phải Owner hoặc Client).
+     */
     @PostMapping("/{projectId}/milestones/{milestoneId}/money-splits")
     public ApiResponse<MilestoneMoneySplitResponse> createMoneySplit(
             @PathVariable Long projectId,
@@ -41,6 +50,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Cập nhật phân chia tiền.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner). Chỉ có thể cập nhật khi status là PENDING.
+     */
     @PutMapping("/{projectId}/milestones/{milestoneId}/money-splits/{moneySplitId}")
     public ApiResponse<MilestoneMoneySplitResponse> updateMoneySplit(
             @PathVariable Long projectId,
@@ -63,6 +76,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Xóa phân chia tiền.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner).
+     */
     @DeleteMapping("/{projectId}/milestones/{milestoneId}/money-splits/{moneySplitId}")
     public ApiResponse<Void> deleteMoneySplit(
             @PathVariable Long projectId,
@@ -82,6 +99,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Chấp nhận phân chia tiền.
+     * Người nhận tiền (recipient) có thể chấp nhận phân chia tiền được đề xuất cho họ.
+     */
     @PostMapping("/{projectId}/milestones/{milestoneId}/money-splits/{moneySplitId}/approve")
     public ApiResponse<MilestoneMoneySplitResponse> approveMoneySplit(
             @PathVariable Long projectId,
@@ -104,6 +125,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Từ chối phân chia tiền.
+     * Người nhận tiền (recipient) có thể từ chối phân chia tiền và cung cấp lý do từ chối.
+     */
     @PostMapping("/{projectId}/milestones/{milestoneId}/money-splits/{moneySplitId}/reject")
     public ApiResponse<MilestoneMoneySplitResponse> rejectMoneySplit(
             @PathVariable Long projectId,
@@ -126,6 +151,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Lấy chi tiết phân chia tiền của milestone.
+     * Trả về tổng quan về các phân chia tiền và chi phí trong milestone.
+     */
     @GetMapping("/{projectId}/milestones/{milestoneId}/money-splits")
     public ApiResponse<MilestoneMoneySplitDetailResponse> getMoneySplitDetail(
             @PathVariable Long projectId,
@@ -145,6 +174,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Tạo chi phí cho milestone.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner). Chi phí được trừ vào số tiền có thể phân chia.
+     */
     @PostMapping("/{projectId}/milestones/{milestoneId}/expenses")
     public ApiResponse<MilestoneExpenseResponse> createExpense(
             @PathVariable Long projectId,
@@ -165,6 +198,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Cập nhật chi phí.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner).
+     */
     @PutMapping("/{projectId}/milestones/{milestoneId}/expenses/{expenseId}")
     public ApiResponse<MilestoneExpenseResponse> updateExpense(
             @PathVariable Long projectId,
@@ -187,6 +224,10 @@ public class MilestoneMoneySplitController {
                 .build();
     }
 
+    /**
+     * Xóa chi phí.
+     * Yêu cầu đăng nhập và có quyền quản lý milestone (chỉ Owner).
+     */
     @DeleteMapping("/{projectId}/milestones/{milestoneId}/expenses/{expenseId}")
     public ApiResponse<Void> deleteExpense(
             @PathVariable Long projectId,
