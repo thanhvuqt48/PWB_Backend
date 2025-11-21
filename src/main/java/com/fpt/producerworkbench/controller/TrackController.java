@@ -17,6 +17,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/tracks")
 @RequiredArgsConstructor
@@ -31,28 +33,6 @@ public class TrackController {
         User u = userRepo.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
         return u.getId();
-    }
-
-    @PostMapping("/generate-upload-url")
-    @PreAuthorize("isAuthenticated()")
-    public ApiResponse<TrackUploadUrlResponse> generatePutUrl(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestBody TrackUploadUrlRequest req) {
-
-        Long userId = resolveUserIdFromJwt(jwt);
-        var res = trackService.generateUploadUrl(userId, req);
-        return ApiResponse.<TrackUploadUrlResponse>builder().result(res).build();
-    }
-
-    @PostMapping("/upload-complete")
-    @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Long> uploadComplete(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestBody TrackUploadCompleteRequest req) {
-
-        Long userId = resolveUserIdFromJwt(jwt);
-        Long trackId = trackService.uploadComplete(userId, req);
-        return ApiResponse.<Long>builder().result(trackId).message("Transcribing...").build();
     }
 
     @PostMapping(
@@ -143,5 +123,18 @@ public class TrackController {
         Long userId = resolveUserIdFromJwt(jwt);
         trackService.deleteTrack(userId, trackId);
         return ApiResponse.<Void>builder().message("Track deleted").build();
+    }
+
+    @GetMapping("/project/{projectId}")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<List<TrackListItemResponse>> getTracksByProject(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long projectId
+    ) {
+        Long userId = resolveUserIdFromJwt(jwt);
+        var list = trackService.getTracksByProject(userId, projectId);
+        return ApiResponse.<List<TrackListItemResponse>>builder()
+                .result(list)
+                .build();
     }
 }

@@ -137,16 +137,13 @@ aws:
   access-key-id: ${AWS_ACCESS_KEY_ID}
   secret-access-key: ${AWS_SECRET_ACCESS_KEY}
   ai:
-    suggestion-mode: BY_SONG
     song:
       baseline:
         temperature: 0.8
-        max-sections: 8
-        per-section-min: 4
-        min-per-line-ratio: 0.85
-        min-total-increase-ratio: 0.05
-        min-total-increase-chars: 12
-        max-rewrite-retries: 2
+      min-per-line-ratio: 0.85
+      min-total-increase-ratio: 0.05
+      min-total-increase-chars: 12
+      max-rewrite-retries: 2
   s3:
     bucket-name: ${S3_BUCKET_NAME}
     max-upload-mb: 25

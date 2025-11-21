@@ -96,7 +96,6 @@ public class GcpProperties {
     public Speech getSpeech() { return speech; }
     public void setSpeech(Speech speech) { this.speech = speech; }
 
-    // -------- GCS staging (input cho STT batch) --------
     public static class Gcs {
         private String bucket;                 // staging bucket (input)
         private boolean deleteAfterFinish = true;
@@ -108,7 +107,6 @@ public class GcpProperties {
         public void setDeleteAfterFinish(boolean deleteAfterFinish) { this.deleteAfterFinish = deleteAfterFinish; }
     }
 
-    // -------- Speech v2 --------
     public static class Speech {
         private String languageCode = "vi-VN";
         private boolean enablePunctuation = true;
@@ -117,15 +115,13 @@ public class GcpProperties {
         private boolean useEnhanced = false; // v2 thường không dùng
         private List<String> alternativeLanguageCodes = new ArrayList<>();
 
-        // NEW
-        private String location = "global";     // endpoint region cho v2
-        private String gcsOutputBucket = "";    // nơi STT v2 ghi kết quả (JSON)
-        private String gcsOutputPrefix = "pwb/stt/"; // folder prefix
+        private String location = "global";
+        private String gcsOutputBucket = "";
+        private String gcsOutputPrefix = "pwb/stt/";
 
         public String getLanguageCode() { return languageCode; }
         public void setLanguageCode(String languageCode) { this.languageCode = languageCode; }
 
-        // NOTE: để tránh lỗi binding, giữ cả is/get
         public boolean isEnablePunctuation() { return enablePunctuation; }
         public Boolean getEnablePunctuation() { return enablePunctuation; }
         public void setEnablePunctuation(boolean enablePunctuation) { this.enablePunctuation = enablePunctuation; }
@@ -144,7 +140,6 @@ public class GcpProperties {
             this.alternativeLanguageCodes = alternativeLanguageCodes;
         }
 
-        // NEW getters/setters
         public String getLocation() { return location; }
         public void setLocation(String location) { this.location = location; }
 
