@@ -60,10 +60,13 @@ public class PortfolioServiceImpl implements PortfolioService {
         }
 
         String coverImageKey = null;
+        String coverImageUrl = null;
         if (coverImage != null && !coverImage.isEmpty()) {
             log.info("Uploading cover image for user ID: {}", user.getId());
-            coverImageKey = fileKeyGenerator.generatePortfolioCoverImageKey(user.getId(), coverImage.getOriginalFilename());
+            coverImageKey = fileKeyGenerator.generatePortfolioCoverImageKey(user.getId(),
+                    coverImage.getOriginalFilename());
             fileStorageService.uploadFile(coverImage, coverImageKey);
+            coverImageUrl = fileStorageService.generatePermanentUrl(coverImageKey);
             log.info("Cover image uploaded successfully. Key: {}", coverImageKey);
         }
 
@@ -95,7 +98,7 @@ public class PortfolioServiceImpl implements PortfolioService {
                 .user(user)
                 .customUrlSlug(request.getCustomUrlSlug())
                 .headline(request.getHeadline())
-                .coverImageUrl(fileStorageService.generatePermanentUrl(coverImageKey))
+                .coverImageUrl(coverImageUrl)
                 .latitude(request.getLatitude())
                 .longitude(request.getLongitude())
                 .isPublic(true)
@@ -201,9 +204,11 @@ public class PortfolioServiceImpl implements PortfolioService {
                 }
             }
 
-            String coverImageKey = fileKeyGenerator.generatePortfolioCoverImageKey(user.getId(), coverImage.getOriginalFilename());
+            String coverImageKey = fileKeyGenerator.generatePortfolioCoverImageKey(user.getId(),
+                    coverImage.getOriginalFilename());
             fileStorageService.uploadFile(coverImage, coverImageKey);
-            portfolio.setCoverImageUrl(fileStorageService.generatePermanentUrl(coverImageKey));
+            String coverImageUrl = fileStorageService.generatePermanentUrl(coverImageKey);
+            portfolio.setCoverImageUrl(coverImageUrl);
             log.info("Uploaded new cover image: {}", coverImageKey);
         }
 
@@ -326,7 +331,6 @@ public class PortfolioServiceImpl implements PortfolioService {
         Portfolio portfolio = portfolioRepository.findByUserId(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));
 
-
         PortfolioResponse response = portfolioMapper.toPortfolioResponse(portfolio);
 
         log.info("Portfolio found successfully for user ID: {}", userId);
@@ -348,8 +352,7 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     private void syncPortfolioSections(
             Portfolio portfolio,
-            List<PortfolioSectionUpdateRequest> sectionRequests
-    ) {
+            List<PortfolioSectionUpdateRequest> sectionRequests) {
 
         Set<PortfolioSectionType> types = new HashSet<>();
         for (PortfolioSectionUpdateRequest req : sectionRequests) {
@@ -381,7 +384,7 @@ public class PortfolioServiceImpl implements PortfolioService {
     }
 
     private void syncSocialLinks(Portfolio portfolio,
-                                 List<SocialLinkUpdateRequest> socialLinkRequests) {
+            List<SocialLinkUpdateRequest> socialLinkRequests) {
 
         Set<SocialPlatform> platforms = new HashSet<>();
         for (SocialLinkUpdateRequest linkReq : socialLinkRequests) {
@@ -390,8 +393,7 @@ public class PortfolioServiceImpl implements PortfolioService {
             }
         }
 
-        List<SocialLink> existingLinks =
-                socialLinkRepository.findAllByPortfolioId(portfolio.getId());
+        List<SocialLink> existingLinks = socialLinkRepository.findAllByPortfolioId(portfolio.getId());
         socialLinkRepository.deleteAll(existingLinks);
         portfolio.getSocialLinks().clear();
 

@@ -55,6 +55,18 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
         return String.format("conversations/%s/files/%s%s", conversationId, uuid, getFileExtension(originalFilename));
     }
 
+    @Override
+    public String generateConversationAvatarKey(String conversationId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("conversations/%s/avatar/%s%s", conversationId, uuid, getFileExtension(originalFilename));
+    }
+
+    @Override
+    public String generateMilestoneConversationAvatarKey(Long milestoneId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("milestones/%d/conversations/avatar/%s%s", milestoneId, uuid, getFileExtension(originalFilename));
+    }
+
     private String getFileExtension(String filename) {
         if (!StringUtils.hasText(filename) || !filename.contains(".")) {
             return "";

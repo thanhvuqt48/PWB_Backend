@@ -37,16 +37,4 @@ public class MilestoneRequest {
     @NotNull
     @JsonProperty("productCount")
     Integer productCount;
-
-    @JsonProperty("createInternalGroupChat")
-    private Boolean createInternalGroupChat;
-
-    @JsonProperty("internalGroupChatName")
-    private String internalGroupChatName;
-
-    @JsonProperty("createClientGroupChat")
-    private Boolean createClientGroupChat;
-
-    @JsonProperty("clientGroupChatName")
-    private String clientGroupChatName;
 }

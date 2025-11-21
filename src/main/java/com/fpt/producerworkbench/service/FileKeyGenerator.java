@@ -15,4 +15,8 @@ public interface FileKeyGenerator {
     String generatePersonalProjectImageKey(Long userId, Long personalProjectId, String originalFilename);
 
     String generateChatMessageFileKey(String conversationId, String originalFilename);
+
+    String generateConversationAvatarKey(String conversationId, String originalFilename);
+
+    String generateMilestoneConversationAvatarKey(Long milestoneId, String originalFilename);
 }

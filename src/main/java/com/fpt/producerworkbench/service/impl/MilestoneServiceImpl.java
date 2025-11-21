@@ -7,13 +7,17 @@ import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.AddMilestoneMemberRequest;
+import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
+import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneMemberResponse;
 import com.fpt.producerworkbench.entity.Contract;
+import com.fpt.producerworkbench.entity.Conversation;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.MilestoneMember;
 import com.fpt.producerworkbench.entity.MilestoneMoneySplit;
@@ -23,6 +27,7 @@ import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractRepository;
+import com.fpt.producerworkbench.repository.ConversationRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.MilestoneMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
@@ -30,10 +35,18 @@ import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.repository.MilestoneMoneySplitRepository;
 import com.fpt.producerworkbench.service.MilestoneService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
+import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.FileKeyGenerator;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.common.ConversationType;
+import com.fpt.producerworkbench.common.MilestoneChatType;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.request.ConversationCreationRequest;
+import com.fpt.producerworkbench.mapper.ConversationMapper;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.multipart.MultipartFile;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -64,6 +77,10 @@ public class MilestoneServiceImpl implements MilestoneService {
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final MilestoneMoneySplitRepository milestoneMoneySplitRepository;
     private final ConversationService conversationService;
+    private final FileStorageService fileStorageService;
+    private final FileKeyGenerator fileKeyGenerator;
+    private final ConversationRepository conversationRepository;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -191,55 +208,6 @@ public class MilestoneServiceImpl implements MilestoneService {
                             .user(client)
                             .build();
                     milestoneMemberRepository.save(clientMember);
-                }
-            }
-
-            if (Boolean.TRUE.equals(request.getCreateInternalGroupChat())) {
-                if (request.getInternalGroupChatName() == null || request.getInternalGroupChatName().trim().isEmpty()) {
-                    throw new AppException(ErrorCode.BAD_REQUEST, "Tên group chat nội bộ không được để trống");
-                }
-                if (owner != null) {
-                    try {
-                        ConversationCreationRequest internalChatRequest = ConversationCreationRequest.builder()
-                                .conversationType(ConversationType.GROUP)
-                                .conversationName(request.getInternalGroupChatName())
-                                .participantIds(List.of(owner.getId()))
-                                .build();
-                        conversationService.create(internalChatRequest);
-                        log.info("Đã tạo group chat nội bộ cho milestone: {}", saved.getId());
-                    } catch (Exception e) {
-                        log.error("Lỗi khi tạo group chat nội bộ cho milestone {}: {}", saved.getId(), e.getMessage());
-                    }
-                }
-            }
-
-            if (Boolean.TRUE.equals(request.getCreateClientGroupChat())) {
-                if (request.getClientGroupChatName() == null || request.getClientGroupChatName().trim().isEmpty()) {
-                    throw new AppException(ErrorCode.BAD_REQUEST, "Tên group chat với khách hàng không được để trống");
-                }
-                if (owner != null && client != null) {
-                    boolean sameAsOwner = owner.getId().equals(client.getId());
-                    if (!sameAsOwner) {
-                        try {
-                            ConversationCreationRequest clientChatRequest = ConversationCreationRequest.builder()
-                                    .conversationType(ConversationType.GROUP)
-                                    .conversationName(request.getClientGroupChatName())
-                                    .participantIds(List.of(owner.getId(), client.getId()))
-                                    .build();
-                            conversationService.create(clientChatRequest);
-                            log.info("Đã tạo group chat với khách hàng cho milestone: {}", saved.getId());
-                        } catch (Exception e) {
-                            log.error("Lỗi khi tạo group chat với khách hàng cho milestone {}: {}", saved.getId(),
-                                    e.getMessage());
-                        }
-                    } else {
-                        log.warn(
-                                "Không thể tạo group chat với khách hàng vì owner và client là cùng một người cho milestone: {}",
-                                saved.getId());
-                    }
-                } else {
-                    log.warn("Không thể tạo group chat với khách hàng vì thiếu owner hoặc client cho milestone: {}",
-                            saved.getId());
                 }
             }
         }
@@ -701,6 +669,27 @@ public class MilestoneServiceImpl implements MilestoneService {
                     milestoneId);
 
             sendMilestoneMemberNotificationEmail(user, project, milestone, description, projectRole);
+
+            try {
+                User currentUser = userRepository.findByEmail(auth.getName())
+                        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(userId)
+                                .type(NotificationType.MILESTONE_INVITATION)
+                                .title("Lời mời tham gia milestone")
+                                .message(String.format("%s đã mời bạn tham gia milestone \"%s\" trong dự án \"%s\"%s",
+                                        currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail(),
+                                        milestone.getTitle(),
+                                        project.getTitle(),
+                                        description != null && !description.isBlank() ? " - " + description : ""))
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(milestoneId)
+                                .actionUrl(String.format("/project-workspace?projectId=%d&milestoneId=%d", projectId, milestoneId))
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho milestone invitation: {}", e.getMessage());
+            }
         }
 
         return getMilestoneDetail(projectId, milestoneId, auth);
@@ -869,6 +858,272 @@ public class MilestoneServiceImpl implements MilestoneService {
             log.error("Lỗi khi gửi email thông báo thêm thành viên vào milestone qua Kafka: userId={}, milestoneId={}",
                     user.getId(), milestone.getId(), e);
         }
+    }
+
+    @Override
+    @Transactional
+    public ConversationCreationResponse createGroupChatForMilestone(Long projectId, Long milestoneId,
+            CreateMilestoneGroupChatRequest request, MultipartFile avatar, Authentication auth) {
+        log.info("Tạo group chat cho milestone: projectId={}, milestoneId={}", projectId, milestoneId);
+
+        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Milestone milestone = milestoneRepository.findById(milestoneId)
+                .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+
+        if (milestone.getContract() == null || milestone.getContract().getProject() == null
+                || !milestone.getContract().getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        Project project = milestone.getContract().getProject();
+        Long ownerId = project.getCreator() != null ? project.getCreator().getId() : null;
+
+        boolean isOwner = ownerId != null && currentUser.getId().equals(ownerId);
+
+        if (!isOwner) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        List<Long> participantIds = request.getParticipantIds();
+        if (participantIds == null || participantIds.isEmpty()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Danh sách người tham gia không được để trống");
+        }
+
+        List<ProjectMember> projectMembers = projectMemberRepository.findByProjectId(projectId);
+        Set<Long> projectMemberUserIds = projectMembers.stream()
+                .filter(pm -> pm.getUser() != null)
+                .map(pm -> pm.getUser().getId())
+                .collect(Collectors.toSet());
+
+        if (ownerId != null) {
+            projectMemberUserIds.add(ownerId);
+        }
+        Long clientId = project.getClient() != null ? project.getClient().getId() : null;
+        if (clientId != null) {
+            projectMemberUserIds.add(clientId);
+        }
+
+        for (Long participantId : participantIds) {
+            if (!projectMemberUserIds.contains(participantId)) {
+                throw new AppException(ErrorCode.USER_NOT_IN_PROJECT,
+                        "Người dùng với ID " + participantId + " không phải là thành viên của dự án");
+            }
+        }
+
+        String avatarKey = null;
+        String avatarUrl = null;
+        if (avatar != null && !avatar.isEmpty()) {
+            log.info("Uploading avatar for milestone conversation: milestoneId={}", milestoneId);
+            avatarKey = fileKeyGenerator.generateMilestoneConversationAvatarKey(milestoneId,
+                    avatar.getOriginalFilename());
+            fileStorageService.uploadFile(avatar, avatarKey);
+            avatarUrl = fileStorageService.generatePermanentUrl(avatarKey);
+            log.info("Avatar uploaded successfully. Key: {}", avatarKey);
+        }
+
+        ConversationCreationRequest conversationRequest = ConversationCreationRequest.builder()
+                .conversationType(ConversationType.GROUP)
+                .conversationName(request.getConversationName())
+                .conversationAvatar(avatarUrl)
+                .participantIds(participantIds)
+                .build();
+
+        ConversationCreationResponse response = conversationService.create(conversationRequest);
+        log.info("Đã tạo group chat thành công cho milestone: milestoneId={}, conversationId={}", milestoneId,
+                response.getId());
+
+        Conversation conversation = conversationRepository.findById(response.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.CONVERSATION_NOT_FOUND));
+        conversation.setMilestone(milestone);
+
+        // Xác định loại chat: nếu có client trong danh sách participants thì là CLIENT,
+        // không thì là INTERNAL
+        boolean hasClient = clientId != null && participantIds.contains(clientId);
+        MilestoneChatType chatType = hasClient ? MilestoneChatType.CLIENT : MilestoneChatType.INTERNAL;
+        conversation.setMilestoneChatType(chatType);
+
+        conversationRepository.save(conversation);
+        log.info("Đã liên kết conversation với milestone: conversationId={}, milestoneId={}, chatType={}",
+                response.getId(), milestoneId, chatType);
+
+        return response;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ConversationCreationResponse> getGroupChatsForMilestone(Long projectId, Long milestoneId,
+            MilestoneChatType type, Authentication auth) {
+        log.info("Lấy danh sách group chat cho milestone: projectId={}, milestoneId={}, type={}", projectId,
+                milestoneId, type);
+
+        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Milestone milestone = milestoneRepository.findById(milestoneId)
+                .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+
+        if (milestone.getContract() == null || milestone.getContract().getProject() == null
+                || !milestone.getContract().getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        Project project = milestone.getContract().getProject();
+        Long ownerId = project.getCreator() != null ? project.getCreator().getId() : null;
+        Long clientId = project.getClient() != null ? project.getClient().getId() : null;
+
+        boolean isOwner = ownerId != null && currentUser.getId().equals(ownerId);
+        boolean isClient = clientId != null && currentUser.getId().equals(clientId);
+        boolean isMilestoneMember = milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId,
+                currentUser.getId());
+
+        if (!isOwner && !isClient && !isMilestoneMember) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        List<Conversation> conversations = conversationRepository.findByMilestoneId(milestoneId);
+
+        // Filter theo type nếu có
+        if (type != null) {
+            conversations = conversations.stream()
+                    .filter(conversation -> type.equals(conversation.getMilestoneChatType()))
+                    .collect(Collectors.toList());
+        }
+
+        return conversations.stream()
+                .map(conversation -> ConversationMapper.mapToConversationResponse(conversation, currentUser.getId()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AvailableProjectMemberResponse> searchUsersForMilestoneChat(Long projectId, Long milestoneId,
+            String keyword, Authentication auth) {
+        log.info("Search users cho milestone chat: projectId={}, milestoneId={}, keyword={}", projectId, milestoneId,
+                keyword);
+
+        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        Milestone milestone = milestoneRepository.findById(milestoneId)
+                .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+
+        if (milestone.getContract() == null || milestone.getContract().getProject() == null
+                || !milestone.getContract().getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        Project project = milestone.getContract().getProject();
+        Long ownerId = project.getCreator() != null ? project.getCreator().getId() : null;
+        Long clientId = project.getClient() != null ? project.getClient().getId() : null;
+
+        boolean isOwner = ownerId != null && currentUser.getId().equals(ownerId);
+        boolean isClient = clientId != null && currentUser.getId().equals(clientId);
+        boolean isMilestoneMember = milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId,
+                currentUser.getId());
+
+        if (!isOwner && !isClient && !isMilestoneMember) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // Lấy tất cả users trong project và milestone
+        Set<Long> userIds = new java.util.HashSet<>();
+
+        // Thêm owner
+        if (ownerId != null) {
+            userIds.add(ownerId);
+        }
+
+        // Thêm client
+        if (clientId != null) {
+            userIds.add(clientId);
+        }
+
+        // Thêm project members
+        List<ProjectMember> projectMembers = projectMemberRepository.findByProjectId(projectId);
+        projectMembers.stream()
+                .filter(pm -> pm.getUser() != null)
+                .forEach(pm -> userIds.add(pm.getUser().getId()));
+
+        // Thêm milestone members
+        List<MilestoneMember> milestoneMembers = milestoneMemberRepository.findByMilestoneId(milestoneId);
+        milestoneMembers.stream()
+                .filter(mm -> mm.getUser() != null)
+                .forEach(mm -> userIds.add(mm.getUser().getId()));
+
+        // Lấy tất cả users
+        List<User> users = userRepository.findAllById(userIds);
+
+        // Filter và search theo keyword
+        String searchKeyword = (keyword != null && !keyword.isBlank()) ? keyword.toLowerCase().trim() : null;
+
+        return users.stream()
+                .filter(user -> {
+                    // Search theo keyword nếu có
+                    if (searchKeyword != null) {
+                        String fullName = user.getFullName() != null ? user.getFullName().toLowerCase() : "";
+                        String email = user.getEmail() != null ? user.getEmail().toLowerCase() : "";
+                        String username = user.getUsername() != null ? user.getUsername().toLowerCase() : "";
+
+                        return fullName.contains(searchKeyword) || email.contains(searchKeyword)
+                                || username.contains(searchKeyword);
+                    }
+
+                    return true;
+                })
+                .map(user -> {
+                    String role = determineUserProjectRole(user.getId(), ownerId, clientId, projectMembers,
+                            milestoneMembers);
+                    return AvailableProjectMemberResponse.builder()
+                            .userId(user.getId())
+                            .userName(user.getFullName())
+                            .userEmail(user.getEmail())
+                            .projectRole(role)
+                            .build();
+                })
+                .collect(Collectors.toList());
+    }
+
+    private String determineUserProjectRole(Long userId, Long ownerId, Long clientId,
+            List<ProjectMember> projectMembers, List<MilestoneMember> milestoneMembers) {
+        if (ownerId != null && userId.equals(ownerId)) {
+            return ProjectRole.OWNER.name();
+        }
+        if (clientId != null && userId.equals(clientId)) {
+            return ProjectRole.CLIENT.name();
+        }
+
+        // Kiểm tra trong project members
+        Optional<ProjectMember> projectMember = projectMembers.stream()
+                .filter(pm -> pm.getUser() != null && pm.getUser().getId().equals(userId))
+                .findFirst();
+
+        if (projectMember.isPresent() && projectMember.get().getProjectRole() != null) {
+            return projectMember.get().getProjectRole().name();
+        }
+
+        // Nếu không có trong project members nhưng có trong milestone members
+        boolean isMilestoneMember = milestoneMembers.stream()
+                .anyMatch(mm -> mm.getUser() != null && mm.getUser().getId().equals(userId));
+
+        if (isMilestoneMember) {
+            return "MILESTONE_MEMBER";
+        }
+
+        return null;
     }
 
     private void sendMilestoneMemberRemovalEmail(User removedUser, Project project, Milestone milestone) {
