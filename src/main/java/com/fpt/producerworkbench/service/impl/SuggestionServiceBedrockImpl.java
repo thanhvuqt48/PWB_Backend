@@ -18,7 +18,6 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -32,27 +31,8 @@ public class SuggestionServiceBedrockImpl {
     @Value("${bedrock.modelId:anthropic.claude-3-haiku-20240307-v1:0}")
     private String modelId;
 
-    @Value("${aws.ai.song.max-sections:8}")
-    private int maxSections;
-
-    @Value("${aws.ai.song.per-section-min:4}")
-    private int perSectionMin;
-
     @Value("${aws.ai.song.baseline.temperature:0.8}")
     private double temperature;
-
-    @Value("${aws.ai.song.min-per-line-ratio:0.85}")
-    private double minPerLineRatio;
-
-    @Value("${aws.ai.song.min-total-increase-ratio:0.05}")
-    private double minTotalIncreaseRatio;
-
-    @Value("${aws.ai.song.min-total-increase-chars:12}")
-    private int minTotalIncreaseChars;
-
-    @Value("${aws.ai.song.max-rewrite-retries:2}")
-    private int maxRewriteRetries;
-
 
     @EventListener
     public void onLyricsExtracted(LyricsExtractedEvent evt) {
@@ -64,33 +44,55 @@ public class SuggestionServiceBedrockImpl {
             trackRepo.save(track);
 
             final String original = Optional.ofNullable(evt.getLyricsText()).orElse("").trim();
-            final LyricsShape shape = analyzeLyricsShape(original);
-            final List<String> origFlat = flatten(shape.sections);
+            List<String> originalSections = splitSections(original);
 
-            SuggestionResult suggestion = rewriteSongLineByLine(original, shape, temperature);
+            SongSuggestion suggestion = rewriteWholeSong(originalSections, temperature);
 
-            List<Map<String, Object>> rows = compareLines(origFlat, suggestion.flat);
+            List<String> origFlat = originalSections;
+
+            List<String> suggFlat = new ArrayList<>();
+            for (Section sec : suggestion.sections) {
+                if (sec.lines != null && !sec.lines.isEmpty()) {
+                    for (String line : sec.lines) {
+                        if (line != null && !line.isBlank()) {
+                            suggFlat.add(line.trim());
+                        }
+                    }
+                }
+            }
+
+            List<Map<String, Object>> rows = compareLines(origFlat, suggFlat);
             Map<String, Object> summary = summarize(rows);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("mood", firstNonBlank(suggestion.mood, "gentle"));
 
+            List<Map<String, Object>> origSectionDtos = new ArrayList<>();
+            for (int i = 0; i < originalSections.size(); i++) {
+                String label = "Section " + (i + 1);
+                origSectionDtos.add(Map.of(
+                        "label", label,
+                        "lines", List.of(originalSections.get(i))
+                ));
+            }
             result.put("original", Map.of(
                     "lineCount", origFlat.size(),
-                    "sections", toSectionDto(shape.sections),
+                    "sections", origSectionDtos,
                     "flat", origFlat
             ));
 
-            result.put("suggestion", Map.of(
-                    "mood", suggestion.mood,
-                    // targetLines = số dòng gốc (vì rewrite 1-1)
-                    "targetLines", origFlat.size(),
-                    "temperature", suggestion.temperature,
-                    "sections", toSectionDto(suggestion.sections),
-                    "flat", suggestion.flat,
-                    "lineCount", suggestion.flat.size(),
-                    "totalChars", suggestion.flat.stream().mapToInt(this::charCount).sum()
-            ));
+            List<Map<String, Object>> suggSectionDtos = toSectionDto(suggestion.sections);
+            int totalChars = suggFlat.stream().mapToInt(this::charCount).sum();
+
+            Map<String, Object> suggObj = new LinkedHashMap<>();
+            suggObj.put("mood", suggestion.mood);
+            suggObj.put("temperature", suggestion.temperature);
+            suggObj.put("sections", suggSectionDtos);
+            suggObj.put("flat", suggFlat);
+            suggObj.put("lineCount", suggFlat.size());
+            suggObj.put("totalChars", totalChars);
+
+            result.put("suggestion", suggObj);
 
             result.put("comparison", Map.of(
                     "lines", rows,
@@ -98,27 +100,27 @@ public class SuggestionServiceBedrockImpl {
             ));
 
             String finalJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(result);
-
             track.setAiSuggestions(finalJson);
             track.setStatus(TrackStatus.COMPLETED);
             trackRepo.save(track);
 
-            log.info("[Bedrock] Rewrite-by-line done for track {}. (origLines={}, editedLines={})",
-                    track.getId(), origFlat.size(), suggestion.flat.size());
+            log.info("[Bedrock][whole-song] done for track {} (origSections={}, suggSections={})",
+                    track.getId(), origFlat.size(), suggFlat.size());
 
         } catch (Exception e) {
             log.error("[Bedrock] Suggestion error: {}", e.getMessage(), e);
-            if (track != null) {
-                track.setStatus(TrackStatus.FAILED);
-                trackRepo.save(track);
-            }
+            track.setStatus(TrackStatus.FAILED);
+            trackRepo.save(track);
         }
     }
 
-    private SuggestionResult rewriteSongLineByLine(String original, LyricsShape shape, double temperature) throws Exception {
-        String prompt = buildRewritePrompt(original, shape);
 
-        int origChars = original.replace("\r", "").length();
+    private SongSuggestion rewriteWholeSong(List<String> originalSections, double temperature) throws Exception {
+        String prompt = buildStructureAwarePrompt(originalSections);
+
+        int origChars = originalSections.stream()
+                .mapToInt(s -> s != null ? s.length() : 0)
+                .sum();
         int maxTokens = Math.max(1024, Math.min(6000, origChars / 3 + 512));
 
         String body = buildAnthropicMessagesBody(prompt, maxTokens, temperature);
@@ -130,269 +132,117 @@ public class SuggestionServiceBedrockImpl {
                 .body(SdkBytes.fromString(body, StandardCharsets.UTF_8))
                 .build();
 
-        log.info("[Bedrock] [rewrite-1-1] invoking modelId={}, maxTokens={}", modelId, maxTokens);
+        log.info("[Bedrock][whole-song] invoking modelId={}, maxTokens={}", modelId, maxTokens);
         InvokeModelResponse response = bedrock.invokeModel(request);
         String contentText = extractAnthropicContentText(response.body().asUtf8String());
 
         SongJson sj = parseSongJson(contentText);
 
-        List<String> origFlat = flatten(shape.sections);
-        List<String> editedFlat = flatten(sj.sections);
-
-        if (editedFlat.size() != origFlat.size()) {
-            editedFlat = normalizeEditedToOriginal(origFlat, editedFlat);
-            sj.sections = rebuildSectionsFromFlat(shape.sections, editedFlat);
-        }
-
-        int attempt = 0;
-        while (!meetsLengthPolicy_RequireLongerTotal(origFlat, editedFlat, minPerLineRatio) && attempt < maxRewriteRetries) {
-            attempt++;
-            log.info("[Bedrock] Length policy not met (attempt {}/{}). Expanding...", attempt, maxRewriteRetries);
-
-            SuggestionResult expanded = expandSongToMeetLength(shape, origFlat, editedFlat, Math.max(0.6, temperature - 0.1));
-            List<String> expandedFlat = flatten(expanded.sections);
-
-            if (expandedFlat.size() != origFlat.size()) {
-                expandedFlat = normalizeEditedToOriginal(origFlat, expandedFlat);
-                expanded.sections = rebuildSectionsFromFlat(shape.sections, expandedFlat);
-            }
-            editedFlat = expandedFlat;
-            sj.sections = expanded.sections; // giữ section đã rebuild
-        }
-
-        SuggestionResult rs = new SuggestionResult();
+        SongSuggestion rs = new SongSuggestion();
         rs.mood = sj.mood;
         rs.sections = sj.sections;
-        rs.flat = editedFlat;
         rs.temperature = temperature;
         return rs;
     }
 
-    private String buildRewritePrompt(String lyrics, LyricsShape shape) {
-        List<String> outline = new ArrayList<>();
-        for (Section s : shape.sections) {
-            outline.add("- " + s.label + ": " + s.lines.size() + " dòng (viết lại từng dòng, giữ số lượng & thứ tự)");
+    private String buildStructureAwarePrompt(List<String> originalSections) {
+        int sectionCount = originalSections.size();
+        StringBuilder sectionsText = new StringBuilder();
+        for (int i = 0; i < sectionCount; i++) {
+            sectionsText.append("[Section ").append(i + 1).append("]\n");
+            sectionsText.append(originalSections.get(i)).append("\n\n");
         }
-        if (outline.isEmpty()) {
-            outline.add("- Verse 1: tuỳ số dòng như gốc (viết lại từng dòng)");
-        }
-
-        StringBuilder originalBySection = new StringBuilder();
-        for (Section s : shape.sections) {
-            originalBySection.append("[").append(s.label).append("]\n");
-            for (int i = 0; i < s.lines.size(); i++) {
-                originalBySection.append(i + 1).append(". ").append(s.lines.get(i)).append("\n");
-            }
-        }
-        if (originalBySection.length() == 0) originalBySection.append(lyrics);
-
-        // Tính ngưỡng tăng tổng ký tự
-        int origTotal = flatten(shape.sections).stream().mapToInt(this::charCount).sum();
-        int minIncrease = Math.max(1, Math.max(minTotalIncreaseChars, (int) Math.ceil(origTotal * minTotalIncreaseRatio)));
 
         return """
-                Bạn là nhạc sĩ/biên tập lời. Hãy **VIẾT LẠI TỪNG DÒNG** của lời gốc cho mượt mà, nhạc tính, hiện đại hơn,
-                nhưng **không thay đổi ý chính**. BẮT BUỘC:
-                - Giữ nguyên **số dòng** và **thứ tự dòng** trong mỗi section (1-1).
-                - Không gộp, không tách dòng; mỗi dòng gốc tương ứng đúng 1 dòng đã sửa.
-                - **TỔNG SỐ KÝ TỰ** của toàn bài đã sửa **PHẢI LỚN HƠN** tổng ký tự bản gốc **tối thiểu %d ký tự** (hoặc ≥ gốc + %.2f%%, lấy giá trị lớn hơn).
-                - Nên tăng độ giàu hình ảnh/nhạc tính bằng tính từ, phép so sánh, liên từ mềm mại — nhưng không lan man.
-                - Trả về **DUY NHẤT JSON** theo schema:
-                  {
-                    "mood": "string",
-                    "sections": [
-                      { "label": "Verse 1", "lines": ["câu 1 đã sửa", "câu 2 đã sửa", "..."] },
-                      { "label": "Chorus",  "lines": ["..."] }
-                    ]
-                  }
+            You are a Vietnamese lyricist and editor.
 
-                Bố cục & ràng buộc dòng (tham chiếu):
-                %s
+            TASK:
+            - Rewrite the entire original song lyrics in Vietnamese so they sound smoother, more musical and modern,
+              but keep the core meaning and emotional tone of each part.
+            - Preserve the overall structure of the song:
+              * Keep the SAME NUMBER of sections: %d sections in total.
+              * Section i in the new version should correspond to section i in the original
+                (Section 1 -> new Section 1, Section 2 -> new Section 2, etc.).
+              * If the original uses repeated lines or patterns (like a hook/chorus), it is GOOD to keep a similar
+                repetition pattern or a slightly varied repetition in your rewrite.
+            - Do NOT aggressively compress the song into just a few very short lines. It is fine if the rewrite is
+              a bit shorter or longer, but it should still feel like a full song with similar overall length and structure.
+            - IMPORTANT: Do NOT output each line separately. Treat each section as one text block and write it into
+              a single \"text\" field. You can include line breaks inside the text if you want, but DO NOT create a
+              \"lines\" array in the JSON.
+            - Language: natural, emotionally rich Vietnamese, suitable for song lyrics.
 
-                LỜI GỐC THEO SECTION (đánh số từng dòng):
-                ---
-                %s
-                ---
-                """.formatted(minIncrease, (minTotalIncreaseRatio * 100.0), String.join("\n", outline), originalBySection.toString());
-    }
+            OUTPUT FORMAT:
+            Return ONLY ONE JSON OBJECT, with NO extra text, exactly in this schema:
 
-    private boolean meetsLengthPolicy_RequireLongerTotal(List<String> orig, List<String> edited, double minPerLineRatio) {
-        int origTotal = orig.stream().mapToInt(this::charCount).sum();
-        int editTotal = edited.stream().mapToInt(this::charCount).sum();
-
-        int minIncrease = Math.max(1, Math.max(minTotalIncreaseChars, (int) Math.ceil(origTotal * minTotalIncreaseRatio)));
-        if (editTotal < origTotal + minIncrease) return false; // BẮT BUỘC dài hơn
-
-        if (minPerLineRatio > 0) {
-            for (int i = 0; i < Math.min(orig.size(), edited.size()); i++) {
-                int oc = charCount(orig.get(i));
-                int sc = charCount(edited.get(i));
-                // Cho phép bỏ qua ràng buộc cho dòng gốc quá ngắn
-                if (oc >= 6 && sc + 0.0 < Math.ceil(oc * minPerLineRatio)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private List<String> normalizeEditedToOriginal(List<String> origFlat, List<String> editedFlat) {
-        List<String> out = new ArrayList<>(editedFlat);
-        if (out.size() > origFlat.size()) {
-            return new ArrayList<>(out.subList(0, origFlat.size()));
-        }
-        while (out.size() < origFlat.size()) {
-            out.add("");
-        }
-        return out;
-    }
-
-    private List<Section> rebuildSectionsFromFlat(List<Section> originalSections, List<String> editedFlat) {
-        List<Section> rebuilt = new ArrayList<>();
-        int cursor = 0;
-        for (Section os : originalSections) {
-            Section ns = new Section(os.label);
-            for (int i = 0; i < os.lines.size() && cursor < editedFlat.size(); i++) {
-                ns.lines.add(editedFlat.get(cursor++));
-            }
-            rebuilt.add(ns);
-        }
-        return rebuilt;
-    }
-
-    private SuggestionResult expandSongToMeetLength(
-            LyricsShape shape,
-            List<String> origFlat,
-            List<String> editedFlat,
-            double temperature
-    ) throws Exception {
-
-        List<Integer> minChars = new ArrayList<>(editedFlat.size());
-        for (int i = 0; i < editedFlat.size(); i++) {
-            int oc = charCount(i < origFlat.size() ? origFlat.get(i) : "");
-            int target = (minPerLineRatio > 0) ? (int) Math.ceil(oc * minPerLineRatio) : 0;
-            minChars.add(Math.max(0, target));
-        }
-
-        int origTotal = origFlat.stream().mapToInt(this::charCount).sum();
-        int editTotal = editedFlat.stream().mapToInt(this::charCount).sum();
-        int targetTotal = origTotal + Math.max(1, Math.max(minTotalIncreaseChars, (int) Math.ceil(origTotal * minTotalIncreaseRatio)));
-        int needTotal = Math.max(0, targetTotal - editTotal); // cần kéo thêm bao nhiêu ký tự
-
-        String prompt = buildExpandPrompt(shape, origFlat, editedFlat, minChars, needTotal, targetTotal, origTotal);
-
-        int baseChars = origFlat.stream().mapToInt(this::charCount).sum();
-        int maxTokens = Math.max(1024, Math.min(6000, baseChars / 3 + 512));
-        String body = buildAnthropicMessagesBody(prompt, maxTokens, temperature);
-
-        InvokeModelRequest request = InvokeModelRequest.builder()
-                .modelId(modelId)
-                .contentType("application/json")
-                .accept("application/json")
-                .body(SdkBytes.fromString(body, StandardCharsets.UTF_8))
-                .build();
-
-        InvokeModelResponse response = bedrock.invokeModel(request);
-        String contentText = extractAnthropicContentText(response.body().asUtf8String());
-
-        SongJson sj = parseSongJson(contentText);
-        SuggestionResult rs = new SuggestionResult();
-        rs.mood = sj.mood;
-        rs.sections = sj.sections;
-        rs.flat = flatten(sj.sections);
-        rs.temperature = temperature;
-        return rs;
-    }
-
-    private String buildExpandPrompt(
-            LyricsShape shape,
-            List<String> origFlat,
-            List<String> editedFlat,
-            List<Integer> minCharsPerLine,
-            int needTotalMoreChars,
-            int targetTotalChars,
-            int originalTotalChars
-    ) {
-        StringBuilder pairs = new StringBuilder();
-        for (int i = 0; i < editedFlat.size(); i++) {
-            int oc = charCount(i < origFlat.size() ? origFlat.get(i) : "");
-            int sc = charCount(editedFlat.get(i));
-            int minLine = (i < minCharsPerLine.size()) ? minCharsPerLine.get(i) : 0;
-
-            pairs.append((i + 1)).append(". ")
-                    .append("{ \"orig\": ").append(jsonEscape(i < origFlat.size() ? origFlat.get(i) : ""))
-                    .append(", \"edited\": ").append(jsonEscape(i < editedFlat.size() ? editedFlat.get(i) : ""))
-                    .append(", \"origChars\": ").append(oc)
-                    .append(", \"editedChars\": ").append(sc)
-                    .append(", \"minEditedChars\": ").append(minLine)
-                    .append(" }\n");
-        }
-
-        StringBuilder outline = new StringBuilder();
-        for (Section s : shape.sections) {
-            outline.append("- ").append(s.label).append(": ").append(s.lines.size()).append(" dòng\n");
-        }
-
-        String totalRule = "- **TỔNG SỐ KÝ TỰ** phải đạt **" + targetTotalChars + "** (gốc = " + originalTotalChars + ")\n" +
-                (needTotalMoreChars > 0
-                        ? ("- Cần kéo thêm **≥ " + needTotalMoreChars + " ký tự** so với phiên bản đã sửa hiện tại.\n")
-                        : "- Đã đạt/tiệm cận tổng mục tiêu, chỉ tinh chỉnh per-line nếu còn thiếu.\n");
-
-        return """
-                Bạn là biên tập lời. Nhiệm vụ: **MỞ RỘNG NHẸ** các dòng đã sửa để đạt yêu cầu độ dài,
-                vẫn **giữ nguyên ý**, **giữ nhạc tính**, và **GIỮ NGUYÊN SỐ DÒNG & THỨ TỰ** (1-1).
-                Không thêm/xoá dòng; chỉ kéo dài hợp lý bằng tính từ, cụm miêu tả, liên từ mềm mại.
-
-                RÀNG BUỘC CỨNG:
-                %s
-                - Với mỗi dòng i: edited[i] nên có **số ký tự ≥ minEditedChars[i]** (nếu minEditedChars[i] > 0).
-                - Giữ nguyên tên section & số dòng từng section.
-
-                Bố cục tham chiếu:
-                %s
-
-                DỮ LIỆU:
-                (i, orig, edited, origChars, editedChars, minEditedChars)
-                ---
-                %s
-                ---
-
-                Trả về **DUY NHẤT JSON** theo schema:
+            {
+              "mood": "short description of the overall mood in English or Vietnamese",
+              "sections": [
                 {
-                  "mood": "string",
-                  "sections": [
-                    { "label": "Verse 1", "lines": ["...", "..."] },
-                    { "label": "Chorus",  "lines": ["...", "..."] }
-                  ]
+                  "label": "Section 1",
+                  "text": "full rewritten lyrics for section 1, you may include internal line breaks if you want"
+                },
+                {
+                  "label": "Section 2",
+                  "text": "full rewritten lyrics for section 2"
                 }
-                """.formatted(totalRule, outline.toString(), pairs.toString());
-    }
+              ]
+            }
 
+            Do NOT add any other top-level fields. Inside each section object, use ONLY "label" and "text".
+
+            ORIGINAL LYRICS BY SECTION:
+            ---------------------------
+            %s
+            ---------------------------
+            """.formatted(sectionCount, sectionsText.toString());
+    }
 
     private String buildAnthropicMessagesBody(String userPrompt, int maxTokens, double temperature) {
         String promptJson = jsonEscape(userPrompt);
         return """
-                {
-                  "anthropic_version": "bedrock-2023-05-31",
-                  "max_tokens": %d,
-                  "temperature": %.2f,
-                  "system": "Bạn là chuyên gia sáng tác/biên tập, TRẢ VỀ DUY NHẤT JSON theo schema (không có chữ thừa).",
-                  "messages": [
-                    { "role": "user", "content": [ { "type": "text", "text": %s } ] }
-                  ]
-                }
-                """.formatted(maxTokens, temperature, promptJson);
+            {
+              "anthropic_version": "bedrock-2023-05-31",
+              "max_tokens": %d,
+              "temperature": %.2f,
+              "system": "You are a helpful expert Vietnamese lyricist. ALWAYS return exactly one JSON object that matches the requested schema. No extra commentary.",
+              "messages": [
+                { "role": "user", "content": [ { "type": "text", "text": %s } ] }
+              ]
+            }
+            """.formatted(maxTokens, temperature, promptJson);
     }
 
 
-    private static class SongJson { String mood = ""; List<Section> sections = new ArrayList<>(); }
+    private static class SongJson {
+        String mood = "";
+        List<Section> sections = new ArrayList<>();
+    }
+
+    private static class SongSuggestion {
+        String mood = "";
+        double temperature;
+        List<Section> sections = new ArrayList<>();
+    }
+
+    private static class Section {
+        String label;
+        List<String> lines = new ArrayList<>();
+
+        Section() {
+        }
+
+        Section(String label) {
+            this.label = label;
+        }
+    }
 
     private SongJson parseSongJson(String raw) throws Exception {
         SongJson sj = new SongJson();
         String content = raw.trim();
 
         if (!looksLikeJson(content)) {
-            // fallback: bọc free-text thành 1 section, mỗi dòng là 1 câu
+            // fallback: coi cả output là 1 section
             Section s = new Section("Suggestion");
             s.lines = freeTextToLines(content);
             sj.sections = List.of(s);
@@ -404,27 +254,45 @@ public class SuggestionServiceBedrockImpl {
 
         List<Section> sections = new ArrayList<>();
         JsonNode arr = root.path("sections");
-        if (arr.isArray() && !arr.isEmpty()) {
+        if (arr.isArray()) {
+            int idx = 1;
             for (JsonNode n : arr) {
-                String label = n.path("label").asText("Verse");
-                List<String> lines = new ArrayList<>();
-                JsonNode ln = n.path("lines");
-                if (ln.isArray()) {
-                    for (JsonNode x : ln) {
-                        String t = x.asText("").trim();
-                        if (!t.isBlank()) lines.add(t);
+                String label = n.path("label").asText("");
+                if (label == null || label.isBlank()) {
+                    label = "Section " + idx;
+                }
+
+                Section sec = new Section(label);
+
+                // ƯU TIÊN field "text" (cả đoạn)
+                String text = n.path("text").asText("");
+                if (text != null && !text.isBlank()) {
+                    sec.lines.add(text.trim());
+                } else {
+                    // fallback: nếu model vẫn lỡ trả về "lines"
+                    JsonNode ln = n.path("lines");
+                    if (ln.isArray()) {
+                        for (JsonNode x : ln) {
+                            String t = x.asText("").trim();
+                            if (!t.isBlank()) sec.lines.add(t);
+                        }
                     }
                 }
-                Section s = new Section(label);
-                s.lines = lines;
-                sections.add(s);
+
+                if (sec.lines.isEmpty()) {
+                    continue;
+                }
+                sections.add(sec);
+                idx++;
             }
         }
+
         if (sections.isEmpty()) {
             Section s = new Section("Suggestion");
             s.lines = freeTextToLines(content);
             sections.add(s);
         }
+
         sj.sections = sections;
         return sj;
     }
@@ -437,16 +305,24 @@ public class SuggestionServiceBedrockImpl {
         for (JsonNode node : content) {
             if ("text".equals(node.path("type").asText())) {
                 String t = node.path("text").asText("");
-                if (!t.isBlank()) { if (sb.length() > 0) sb.append("\n"); sb.append(t); }
+                if (!t.isBlank()) {
+                    if (sb.length() > 0) sb.append("\n");
+                    sb.append(t);
+                }
             }
         }
         return sb.toString().trim();
     }
 
-
-    private List<String> flatten(List<Section> sections) {
+    private List<String> splitSections(String lyrics) {
+        String normalized = lyrics == null ? "" : lyrics.replace("\r", "").trim();
+        if (normalized.isEmpty()) return List.of();
+        String[] parts = normalized.split("\\n+");
         List<String> out = new ArrayList<>();
-        for (Section s : sections) out.addAll(s.lines);
+        for (String p : parts) {
+            String t = p.trim();
+            if (!t.isBlank()) out.add(t);
+        }
         return out;
     }
 
@@ -496,7 +372,10 @@ public class SuggestionServiceBedrockImpl {
             if (d != null) sumDelta += d.doubleValue();
 
             Number ratio = (Number) r.get("ratio");
-            if (ratio != null) { sumRatio += ratio.doubleValue(); cntRatio++; }
+            if (ratio != null) {
+                sumRatio += ratio.doubleValue();
+                cntRatio++;
+            }
         }
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("origLonger", origLonger);
@@ -523,106 +402,36 @@ public class SuggestionServiceBedrockImpl {
         return "";
     }
 
+    private int charCount(String s) {
+        return (s == null) ? 0 : s.trim().length();
+    }
 
-    private int charCount(String s) { return (s == null) ? 0 : s.trim().length(); }
     private int wordCount(String s) {
         if (s == null) return 0;
         String t = s.trim();
         if (t.isEmpty()) return 0;
         return t.split("\\s+").length;
     }
+
     private boolean looksLikeJson(String s) {
         String t = s.trim();
         return (t.startsWith("{") && t.endsWith("}")) || (t.startsWith("[") && t.endsWith("]"));
     }
+
     private String jsonEscape(String s) {
-        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
+        return "\"" + s
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n") + "\"";
     }
+
     private List<String> freeTextToLines(String s) {
         String[] arr = s.replace("\r", "").split("\n");
         List<String> out = new ArrayList<>();
-        for (String x : arr) { String t = x.trim(); if (!t.isBlank()) out.add(t); }
-        return out;
-    }
-
-    private static final Pattern SECTION_BRACKET = Pattern.compile(
-            "^\\s*\\[(hook(?:-?intro)?|intro|verse|pre[- ]?chorus|chorus|rap(?:-?bridge)?|bridge|outro|final\\s+chorus)(\\s*\\d+)?]\\s*:?\\s*$",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern SECTION_COLON = Pattern.compile(
-            "^\\s*(hook(?:-?intro)?|intro|verse\\s*\\d*|pre[- ]?chorus|chorus|rap(?:-?bridge)?|bridge|outro|final\\s+chorus)\\s*:?\\s*$",
-            Pattern.CASE_INSENSITIVE);
-
-    private LyricsShape analyzeLyricsShape(String lyrics) {
-        String normalized = lyrics == null ? "" : lyrics.replace("\r", "").trim();
-        List<String> lines = normalized.contains("\n")
-                ? Arrays.asList(normalized.split("\n"))
-                : splitToPseudoLines(normalized);
-
-        List<Section> sections = new ArrayList<>();
-        Section cur = new Section("Verse 1");
-        int nonEmpty = 0;
-
-        for (String raw : lines) {
-            String line = raw.trim();
-            if (line.isBlank()) {
-                if (!cur.lines.isEmpty()) { sections.add(cur); cur = new Section("Verse " + (sections.size() + 1)); }
-                continue;
-            }
-            nonEmpty++;
-
-            if (SECTION_BRACKET.matcher(line).matches() || SECTION_COLON.matcher(line).matches()) {
-                if (!cur.lines.isEmpty()) sections.add(cur);
-                cur = new Section(normalizeHeading(line));
-            } else {
-                cur.lines.add(line);
-            }
-        }
-        if (!cur.lines.isEmpty()) sections.add(cur);
-        if (sections.isEmpty()) sections.add(new Section("Verse 1"));
-
-        LyricsShape shape = new LyricsShape();
-        shape.totalLines = nonEmpty;
-        shape.sections = sections;
-        return shape;
-    }
-
-    private String normalizeHeading(String tag) {
-        String t = tag.replace("[", "").replace("]", "").replace(":", "").trim().toLowerCase();
-        t = t.replaceAll("\\s+", " ").replace("-", " ");
-        if (t.matches("verse\\s*\\d+")) return t.substring(0,1).toUpperCase() + t.substring(1);
-        return switch (t) {
-            case "hook intro", "hookintro", "intro" -> "Hook-Intro";
-            case "pre chorus", "prechorus"         -> "Pre-Chorus";
-            case "chorus", "final chorus"          -> Character.toUpperCase(t.charAt(0)) + t.substring(1);
-            case "rap", "rap bridge", "rapbridge"  -> "Rap-Bridge";
-            case "bridge"                          -> "Bridge";
-            case "outro"                           -> "Outro";
-            default                                -> Character.toUpperCase(t.charAt(0)) + t.substring(1);
-        };
-    }
-
-    private List<String> splitToPseudoLines(String text) {
-        List<String> out = new ArrayList<>();
-        if (text == null || text.isBlank()) return out;
-        String[] sentences = text.split("(?<=\n|[\\.\\?\\!…])\\s+");
-        for (String s : sentences) {
-            String[] words = s.trim().split("\\s+");
-            if (words.length == 0) continue;
-            StringBuilder line = new StringBuilder();
-            int cnt = 0;
-            for (String w : words) {
-                if (line.length() > 0) line.append(' ');
-                line.append(w);
-                if (++cnt >= 10) { out.add(line.toString().trim()); line.setLength(0); cnt = 0; }
-            }
-            if (line.length() > 0) out.add(line.toString().trim());
+        for (String x : arr) {
+            String t = x.trim();
+            if (!t.isBlank()) out.add(t);
         }
         return out;
     }
-
-    private static class LyricsShape { int totalLines; List<Section> sections = new ArrayList<>(); }
-    private static class Section { String label; List<String> lines = new ArrayList<>(); Section(String l){label=l;} }
-    private static class SuggestionResult { String mood=""; double temperature; List<Section> sections=new ArrayList<>(); List<String> flat=new ArrayList<>(); }
 }
-
-

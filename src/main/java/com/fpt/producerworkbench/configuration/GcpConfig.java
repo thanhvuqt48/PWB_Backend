@@ -94,12 +94,9 @@ public class GcpConfig {
 
     private final GcpProperties props;
 
-    // SỬA ĐỔI QUAN TRỌNG Ở ĐÂY:
-    // Thêm tham số ResourceLoader để Spring tự động xử lý đường dẫn
     @Bean
     public GoogleCredentials googleCredentials(ResourceLoader resourceLoader) throws Exception {
         if (StringUtils.hasText(props.getCredentialsFile())) {
-            // resourceLoader.getResource(...) hỗ trợ cả "classpath:" và "file:"
             Resource resource = resourceLoader.getResource(props.getCredentialsFile());
 
             try (InputStream in = resource.getInputStream()) {
@@ -107,7 +104,6 @@ public class GcpConfig {
                         .createScoped(List.of("https://www.googleapis.com/auth/cloud-platform"));
             }
         }
-        // Fallback về default nếu không cấu hình file
         return GoogleCredentials.getApplicationDefault()
                 .createScoped(List.of("https://www.googleapis.com/auth/cloud-platform"));
     }
@@ -121,7 +117,6 @@ public class GcpConfig {
                 .getService();
     }
 
-    // (Tuỳ chọn) Giữ v1 nếu nơi khác còn dùng
     @Bean("speechV1Client")
     public com.google.cloud.speech.v1.SpeechClient speechV1Client(GoogleCredentials creds) throws Exception {
         SpeechSettings settings = SpeechSettings.newBuilder()
@@ -130,7 +125,6 @@ public class GcpConfig {
         return com.google.cloud.speech.v1.SpeechClient.create(settings);
     }
 
-    // NEW: Speech-to-Text v2 client — endpoint theo location
     @Bean("speechV2Client")
     public com.google.cloud.speech.v2.SpeechClient speechV2Client(GoogleCredentials creds) throws Exception {
         String location = props.getSpeech().getLocation() != null ? props.getSpeech().getLocation() : "global";

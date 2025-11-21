@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.LyricsExtractedEvent;
 import com.fpt.producerworkbench.dto.request.TrackUploadCompleteRequest;
 import com.fpt.producerworkbench.dto.request.TrackUploadUrlRequest;
+import com.fpt.producerworkbench.dto.response.TrackListItemResponse;
 import com.fpt.producerworkbench.dto.response.TrackSuggestionResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadDirectResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
@@ -38,6 +39,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -317,6 +319,26 @@ public class TrackServiceImpl implements TrackService {
         log.info("[Track] Deleted track {}", trackId);
     }
 
+    @Override
+    public List<TrackListItemResponse> getTracksByProject(Long userId, Long projectId) {
+        Project p = projectRepo.findById(projectId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
+
+        ensureMember(p.getId(), userId);
+
+        List<InspirationTrack> tracks =
+                trackRepo.findByProject_IdAndUploader_IdOrderByCreatedAtDesc(projectId, userId);
+
+        if (tracks.isEmpty()) {
+            throw new AppException(ErrorCode.NOT_PROJECT_MEMBER);
+        }
+
+        return tracks.stream()
+                .map(this::toTrackListItemResponse)
+                .toList();
+    }
+
+
     private TrackSuggestionResponse toSuggestionResponse(InspirationTrack t) {
         return TrackSuggestionResponse.builder()
                 .trackId(t.getId())
@@ -324,6 +346,18 @@ public class TrackServiceImpl implements TrackService {
                 .lyricsText(t.getLyricsText())
                 .aiSuggestions(t.getAiSuggestions())
                 .transcribeJobName(t.getTranscribeJobName())
+                .build();
+    }
+
+    private TrackListItemResponse toTrackListItemResponse(InspirationTrack t) {
+        return TrackListItemResponse.builder()
+                .id(t.getId())
+                .fileName(t.getFileName())
+                .mimeType(t.getMimeType())
+                .sizeBytes(t.getSizeBytes())
+                .status(t.getStatus())
+                .lyricsText(t.getLyricsText())
+                .aiSuggestions(t.getAiSuggestions())
                 .build();
     }
 
