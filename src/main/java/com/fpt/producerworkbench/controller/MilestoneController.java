@@ -215,6 +215,24 @@ public class MilestoneController {
                 .build();
     }
 
+    @DeleteMapping("/{projectId}/milestones/{milestoneId}/brief")
+    public ApiResponse<Void> deleteExternalMilestoneBrief(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        milestoneBriefService.deleteExternalMilestoneBrief(projectId, milestoneId, authentication);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Xóa miêu tả cột mốc EXTERNAL thành công")
+                .build();
+    }
+
     @GetMapping("/{projectId}/milestones/{milestoneId}/brief/internal")
     public ApiResponse<MilestoneBriefDetailResponse> getInternalMilestoneBrief(
             @PathVariable Long projectId,
@@ -253,6 +271,24 @@ public class MilestoneController {
                 .code(HttpStatus.OK.value())
                 .message("Lưu miêu tả cột mốc INTERNAL thành công")
                 .result(brief)
+                .build();
+    }
+
+    @DeleteMapping("/{projectId}/milestones/{milestoneId}/brief/internal")
+    public ApiResponse<Void> deleteInternalMilestoneBrief(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        milestoneBriefService.deleteInternalMilestoneBrief(projectId, milestoneId, authentication);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Xóa miêu tả cột mốc INTERNAL thành công")
                 .build();
     }
 }

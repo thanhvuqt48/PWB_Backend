@@ -99,6 +99,25 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
 
     @Override
     @Transactional
+    public void deleteExternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
+        log.info("[EXTERNAL] Delete milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
+
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+
+        var roleInfo = getRoleInfo(auth, projectId);
+        ProjectRole projectRole = roleInfo.projectRole;
+
+        boolean isClient = projectRole == ProjectRole.CLIENT;
+        if (!isClient) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        briefGroupRepository.deleteByMilestoneIdAndScope(milestone.getId(), MilestoneBriefScope.EXTERNAL);
+        log.info("[EXTERNAL] Deleted all EXTERNAL brief groups for milestoneId={}", milestone.getId());
+    }
+
+    @Override
+    @Transactional
     public MilestoneBriefDetailResponse upsertInternalMilestoneBrief(Long projectId, Long milestoneId,
                                                                      MilestoneBriefUpsertRequest request,
                                                                      Authentication auth) {
@@ -155,6 +174,25 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
                 briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.INTERNAL);
 
         return buildDetailResponse(milestone, groups, MilestoneBriefScope.INTERNAL);
+    }
+
+    @Override
+    @Transactional
+    public void deleteInternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
+        log.info("[INTERNAL] Delete milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
+
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+
+        var roleInfo = getRoleInfo(auth, projectId);
+        ProjectRole projectRole = roleInfo.projectRole;
+
+        boolean isOwner = projectRole == ProjectRole.OWNER;
+        if (!isOwner) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        briefGroupRepository.deleteByMilestoneIdAndScope(milestone.getId(), MilestoneBriefScope.INTERNAL);
+        log.info("[INTERNAL] Deleted all INTERNAL brief groups for milestoneId={}", milestone.getId());
     }
 
 
