@@ -19,6 +19,8 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.CompletedFileUpload;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -258,6 +260,28 @@ public class FileStorageServiceImpl implements FileStorageService {
         return convFile;
     }
 
+    @Override
+    public String generatePresignedUploadUrl(String objectKey, String contentType, Duration expiration) {
+        try {
+            PutObjectRequest put = PutObjectRequest.builder()
+                    .bucket(awsProperties.getS3().getBucketName())
+                    .key(objectKey)
+                    .contentType(contentType)
+                    .build();
+
+            PutObjectPresignRequest req = PutObjectPresignRequest.builder()
+                    .signatureDuration(expiration == null ? Duration.ofMinutes(15) : expiration)
+                    .putObjectRequest(put)
+                    .build();
+
+            String url = s3Presigner.presignPutObject(req).url().toString();
+            return url;
+        } catch (Exception e) {
+            log.error("Presigned PUT error for {}: {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.URL_GENERATION_FAILED);
+        }
+    }
+
     private void validateUploadFile(MultipartFile file) {
         if (file.isEmpty()) {
             log.warn("Bỏ qua file rỗng: {}", file.getOriginalFilename());
@@ -271,3 +295,4 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
     }
 }
+

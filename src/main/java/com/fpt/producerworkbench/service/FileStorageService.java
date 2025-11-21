@@ -13,4 +13,6 @@ public interface FileStorageService {
     String generatePermanentUrl(String objectKey);
     String uploadBytes(byte[] bytes, String objectKey, String contentType);
     byte[] downloadBytes(String objectKey);
+
+    String generatePresignedUploadUrl(String objectKey, String contentType, java.time.Duration expiration);
 }

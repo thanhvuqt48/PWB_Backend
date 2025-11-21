@@ -60,5 +60,8 @@ replay_pid*
 # Bỏ qua file env
 .env*
 
+*.json
+**/secrets/*
+
 # Database backups
 backup_*.sql

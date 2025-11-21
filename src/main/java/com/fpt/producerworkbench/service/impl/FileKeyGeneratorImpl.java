@@ -50,9 +50,28 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
     }
 
     @Override
+    public String generateInspirationAssetKey(Long projectId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("projects/%d/inspiration/%s%s",
+                projectId, uuid, getFileExtension(originalFilename));
+    }
+
+    @Override
+    public String generateInspirationAudioKey(Long projectId, String fileName) {
+        return "projects/" + projectId + "/Inspiration/" + UUID.randomUUID() + extOf(fileName);
+    }
+
+    @Override
     public String generateChatMessageFileKey(String conversationId, String originalFilename) {
         String uuid = UUID.randomUUID().toString();
         return String.format("conversations/%s/files/%s%s", conversationId, uuid, getFileExtension(originalFilename));
+
+    }
+
+    private String extOf(String name) {
+        if (name == null) return "";
+        int dot = name.lastIndexOf('.');
+        return (dot >= 0 ? name.substring(dot) : "");
     }
 
     @Override
