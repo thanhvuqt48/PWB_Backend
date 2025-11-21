@@ -23,6 +23,9 @@ public class ConversationCreationRequest {
     @Size(max = 100, message = "Conversation name cannot exceed 100 characters")
     private String conversationName;
 
+    @Size(max = 500, message = "Conversation avatar URL cannot exceed 500 characters")
+    private String conversationAvatar;
+
     @NotEmpty(message = "Participant cannot be null")
     @Size(min = 1,  message = "At least 1 participants are required")
     private List<Long> participantIds;

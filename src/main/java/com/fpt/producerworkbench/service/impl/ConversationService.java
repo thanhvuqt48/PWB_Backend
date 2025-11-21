@@ -49,15 +49,16 @@ public class ConversationService {
 
         List<User> participants = userRepository.findAllById(participantIds);
 
-        if(participants.size() != participantIds.size()) {
+        if (participants.size() != participantIds.size()) {
             throw new AppException(ErrorCode.PARTICIPANT_INVALID);
         }
 
         String participantHash = buildParticipantHash(participantIds);
 
-        if(request.getConversationType() == ConversationType.PRIVATE) {
-            Optional<Conversation> conversation = conversationRepository.findByParticipantHash(participantHash);
-            if(conversation.isPresent()) {
+        if (request.getConversationType() == ConversationType.PRIVATE) {
+            Optional<Conversation> conversation = conversationRepository
+                    .findByParticipantHash(participantHash);
+            if (conversation.isPresent()) {
                 log.info("Conversation existed");
                 return ConversationMapper.mapToConversationResponse(conversation.get(), sender.getId());
             }
@@ -69,18 +70,18 @@ public class ConversationService {
                         .conversation(null)
                         .joinedAt(LocalDateTime.now())
                         .build())
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
 
         Conversation conversation = Conversation.builder()
                 .name(request.getConversationName())
                 .conversationType(request.getConversationType())
                 .participantHash(participantHash)
                 .participants(participantInfos)
+                .conversationAvatar(request.getConversationAvatar())
                 .lastMessageAt(LocalDateTime.now())
                 .build();
 
-        participantInfos.forEach(participantInfo ->
-                participantInfo.setConversation(conversation));
+        participantInfos.forEach(participantInfo -> participantInfo.setConversation(conversation));
 
         conversationRepository.save(conversation);
 
@@ -107,7 +108,8 @@ public class ConversationService {
         }
 
         boolean isCurrentUserParticipant = conversation.getParticipants().stream()
-                .anyMatch(participantInfo -> participantInfo.getUser().getId().equals(currentUser.getId()));
+                .anyMatch(participantInfo -> participantInfo.getUser().getId()
+                        .equals(currentUser.getId()));
 
         if (!isCurrentUserParticipant) {
             throw new AppException(ErrorCode.FORBIDDEN);
@@ -138,7 +140,7 @@ public class ConversationService {
                         .conversation(conversation)
                         .joinedAt(LocalDateTime.now())
                         .build())
-                .toList();
+                .collect(Collectors.toCollection(ArrayList::new));
 
         conversation.getParticipants().addAll(participantInfos);
 
@@ -163,7 +165,8 @@ public class ConversationService {
         List<Conversation> conversations = conversationRepository.findByParticipantsUserId(currentUser.getId());
 
         return conversations.stream()
-                .map(conversation -> ConversationMapper.mapToConversationResponse(conversation, currentUser.getId()))
+                .map(conversation -> ConversationMapper.mapToConversationResponse(conversation,
+                        currentUser.getId()))
                 .toList();
     }
 

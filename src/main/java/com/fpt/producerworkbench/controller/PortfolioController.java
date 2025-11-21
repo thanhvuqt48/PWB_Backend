@@ -32,8 +32,6 @@ import java.util.Set;
 public class PortfolioController {
 
     PortfolioService portfolioService;
-    ObjectMapper objectMapper;
-    Validator validator;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")

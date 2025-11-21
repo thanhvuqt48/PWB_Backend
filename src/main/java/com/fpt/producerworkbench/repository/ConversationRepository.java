@@ -17,4 +17,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Stri
     @Query("SELECT c FROM Conversation c JOIN c.participants p WHERE p.user.id = :userId")
     List<Conversation> findByParticipantsUserId(Long userId);
 
+    // Tìm tất cả conversations theo milestoneId
+    List<Conversation> findByMilestoneId(Long milestoneId);
+
 }

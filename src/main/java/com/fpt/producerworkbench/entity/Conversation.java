@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.entity;
 
 import com.fpt.producerworkbench.common.ConversationType;
+import com.fpt.producerworkbench.common.MilestoneChatType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,6 +34,14 @@ public class Conversation {
 
     @Column(name = "conversation_avatar")
     private String conversationAvatar;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_id")
+    private Milestone milestone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "milestone_chat_type")
+    private MilestoneChatType milestoneChatType; // INTERNAL hoặc CLIENT - chỉ áp dụng cho group chat của milestone
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ParticipantInfo> participants = new ArrayList<>();

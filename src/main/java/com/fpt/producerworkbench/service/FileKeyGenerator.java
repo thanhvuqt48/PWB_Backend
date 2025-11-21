@@ -20,4 +20,8 @@ public interface FileKeyGenerator {
 
     String generateChatMessageFileKey(String conversationId, String originalFilename);
 
+    String generateConversationAvatarKey(String conversationId, String originalFilename);
+
+    String generateMilestoneConversationAvatarKey(Long milestoneId, String originalFilename);
+
 }

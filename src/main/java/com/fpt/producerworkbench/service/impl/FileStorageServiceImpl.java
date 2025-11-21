@@ -218,8 +218,7 @@ public class FileStorageServiceImpl implements FileStorageService {
                     "https://%s.s3.%s.amazonaws.com/%s",
                     awsProperties.getS3().getBucketName(),
                     awsProperties.getRegion(),
-                    normalizedKey
-            );
+                    normalizedKey);
 
             log.debug("Tạo permanent URL bằng S3 thành công: {}", permanentUrl);
             return permanentUrl;
@@ -232,8 +231,7 @@ public class FileStorageServiceImpl implements FileStorageService {
                     "Lỗi không mong muốn khi tạo permanent URL cho key '{}': {}",
                     objectKey,
                     e.getMessage(),
-                    e
-            );
+                    e);
             throw new AppException(ErrorCode.URL_GENERATION_FAILED);
         }
     }
@@ -291,7 +289,8 @@ public class FileStorageServiceImpl implements FileStorageService {
         }
 
         if (file.getSize() > awsProperties.getS3().getMaxFileSize()) {
-            log.warn("Kích cỡ file tải lên vượt quá giới hạn: {} > {}", file.getSize(), awsProperties.getS3().getMaxFileSize());
+            log.warn("Kích cỡ file tải lên vượt quá giới hạn: {} > {}", file.getSize(),
+                    awsProperties.getS3().getMaxFileSize());
             throw new RuntimeException("Kích cỡ file tải lên vượt quá giới hạn.");
         }
     }
