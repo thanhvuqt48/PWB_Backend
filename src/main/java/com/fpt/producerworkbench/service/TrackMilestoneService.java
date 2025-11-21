@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Service quản lý tracks trong milestone (phòng nội bộ)
  */
-public interface TrackService {
+public interface TrackMilestoneService {
 
     /**
      * Tạo track mới và trả về presigned URL để upload file master

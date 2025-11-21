@@ -33,7 +33,7 @@ public class MilestoneController {
     private final MilestoneService milestoneService;
 
     /**
-     * Lấy danh sách tất cả milestone của project.
+     * Lấy danh sách tất cả milestone của project.-
      * Yêu cầu đăng nhập và có quyền truy cập project.
      */
     @GetMapping("/{projectId}/milestones")

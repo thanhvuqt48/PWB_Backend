@@ -522,6 +522,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 .milestoneId(track.getMilestone().getId())
                 .userId(track.getUser().getId())
                 .userName(track.getUser().getFullName())
+                .userAvatarUrl(track.getUser().getAvatarUrl())
                 .voiceTagEnabled(track.getVoiceTagEnabled())
                 .voiceTagText(track.getVoiceTagText())
                 .status(track.getStatus())

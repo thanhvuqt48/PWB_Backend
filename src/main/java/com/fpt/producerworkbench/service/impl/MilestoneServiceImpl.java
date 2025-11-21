@@ -342,6 +342,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                             .userId(userId)
                             .userName(mm.getUser() != null ? mm.getUser().getFullName() : null)
                             .userEmail(mm.getUser() != null ? mm.getUser().getEmail() : null)
+                            .avatarUrl(mm.getUser() != null ? mm.getUser().getAvatarUrl() : null)
                             .description(mm.getDescription())
                             .role(role)
                             .isAnonymous(isMemberAnonymous)

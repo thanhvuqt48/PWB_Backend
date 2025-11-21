@@ -9,7 +9,7 @@ import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
-import com.fpt.producerworkbench.service.TrackService;
+import com.fpt.producerworkbench.service.TrackMilestoneService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,9 +29,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
-public class TrackController {
+public class TrackMilestoneController {
 
-    private final TrackService trackService;
+    private final TrackMilestoneService trackService;
 
     /**
      * Tạo track mới và nhận presigned URL để upload file master

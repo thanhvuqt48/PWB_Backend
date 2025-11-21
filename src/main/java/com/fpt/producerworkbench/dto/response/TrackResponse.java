@@ -45,6 +45,9 @@ public class TrackResponse {
     @JsonProperty("userName")
     private String userName;
 
+    @JsonProperty("userAvatarUrl")
+    private String userAvatarUrl;
+
     @JsonProperty("voiceTagEnabled")
     private Boolean voiceTagEnabled;
 

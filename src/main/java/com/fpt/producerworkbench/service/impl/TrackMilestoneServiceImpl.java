@@ -27,7 +27,7 @@ import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AudioProcessingService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.TrackService;
+import com.fpt.producerworkbench.service.TrackMilestoneService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TrackServiceImpl implements TrackService {
+public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
     private final TrackRepository trackRepository;
     private final MilestoneRepository milestoneRepository;
@@ -760,6 +760,7 @@ public class TrackServiceImpl implements TrackService {
                 .milestoneId(track.getMilestone().getId())
                 .userId(track.getUser().getId())
                 .userName(track.getUser().getFirstName() + " " + track.getUser().getLastName())
+                .userAvatarUrl(track.getUser().getAvatarUrl())
                 .voiceTagEnabled(track.getVoiceTagEnabled())
                 .voiceTagText(track.getVoiceTagText())
                 .status(track.getStatus())
