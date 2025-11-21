@@ -15,9 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public interface MilestoneService {
-    
+
     List<MilestoneListResponse> getAllMilestonesByProject(Long projectId, Authentication auth);
-    
+
     MilestoneResponse createMilestone(Long projectId, MilestoneRequest request, Authentication auth);
 
     MilestoneResponse updateMilestone(Long projectId, Long milestoneId, MilestoneRequest request, Authentication auth);
@@ -37,5 +37,12 @@ public interface MilestoneService {
     List<ConversationCreationResponse> getGroupChatsForMilestone(Long projectId, Long milestoneId, MilestoneChatType type, Authentication auth);
 
     List<AvailableProjectMemberResponse> searchUsersForMilestoneChat(Long projectId, Long milestoneId, String keyword, Authentication auth);
+
+    MilestoneResponse completeMilestone(Long projectId, Long milestoneId, Authentication auth);
+
+    com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse downloadOriginalTracksZip(
+            Long projectId, Long milestoneId,
+            com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest request,
+            Authentication auth);
 }
 

@@ -16,6 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * Controller quản lý các thao tác liên quan đến subscription PRO.
+ * Bao gồm: mua subscription mới, nâng cấp subscription, hủy/kích hoạt tự động gia hạn,
+ * xem trạng thái subscription, và xử lý webhook từ hệ thống thanh toán.
+ */
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -37,6 +42,10 @@ public class SubscriptionController {
                 .getId();
     }
 
+    /**
+     * Mua subscription PRO mới.
+     * Tạo payment order và trả về link thanh toán PayOS.
+     */
     @PostMapping("/purchase")
     ApiResponse<SubscriptionActionResponse> purchase(@Valid @RequestBody SubscriptionPurchaseRequest request) {
         var result = proSubscriptionService.purchase(currentUserId(), request);
@@ -46,6 +55,10 @@ public class SubscriptionController {
                 .build();
     }
 
+    /**
+     * Nâng cấp subscription lên gói PRO cao hơn.
+     * Tạo payment order và trả về link thanh toán PayOS.
+     */
     @PostMapping("/upgrade")
     ApiResponse<SubscriptionActionResponse> upgrade(@Valid @RequestBody SubscriptionUpgradeRequest request) {
         var result = proSubscriptionService.upgrade(currentUserId(), request);
@@ -55,6 +68,10 @@ public class SubscriptionController {
                 .build();
     }
 
+    /**
+     * Hủy tự động gia hạn subscription.
+     * Subscription sẽ hết hạn sau khi đến ngày kết thúc hiện tại.
+     */
     @PostMapping("/cancel-auto-renew")
     ApiResponse<Void> cancelAutoRenew() {
         proSubscriptionService.cancelAutoRenew(currentUserId());
@@ -64,6 +81,10 @@ public class SubscriptionController {
                 .build();
     }
 
+    /**
+     * Kích hoạt lại tự động gia hạn subscription.
+     * Subscription sẽ tự động gia hạn khi đến ngày kết thúc.
+     */
     @PostMapping("/reactivate-auto-renew")
     ApiResponse<Void> reactivateAutoRenew() {
         proSubscriptionService.reactivateAutoRenew(currentUserId());
@@ -73,6 +94,10 @@ public class SubscriptionController {
                 .build();
     }
 
+    /**
+     * Lấy trạng thái subscription hiện tại của user.
+     * Bao gồm: trạng thái, tên gói, ngày hết hạn, trạng thái auto renew.
+     */
     @GetMapping("/status")
     ApiResponse<SubscriptionStatusResponse> status() {
         var result = proSubscriptionService.getStatus(currentUserId());
@@ -82,6 +107,10 @@ public class SubscriptionController {
                 .build();
     }
 
+    /**
+     * Xử lý webhook từ hệ thống thanh toán.
+     * Endpoint này được hệ thống thanh toán gọi tự động, không cần authentication.
+     */
     @PostMapping("/webhook")
     public void webhook(@RequestBody String body) {
         proSubscriptionService.handleWebhook(body);

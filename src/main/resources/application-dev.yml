@@ -78,13 +78,21 @@ admin:
   username: ${ADMIN_USERNAME}
   password: ${ADMIN_PASSWORD}
 
-customer:
-  username: ${CUSTOMER_USERNAME}
-  password: ${CUSTOMER_PASSWORD}
-  
-producer:
-  username: ${PRODUCER_USERNAME}
-  password: ${PRODUCER_PASSWORD}
+producer1:
+  username: ${PRODUCER1_USERNAME}
+  password: ${PRODUCER1_PASSWORD}
+
+producer2:
+  username: ${PRODUCER2_USERNAME}
+  password: ${PRODUCER2_PASSWORD}
+
+customer1:
+  username: ${CUSTOMER1_USERNAME}
+  password: ${CUSTOMER1_PASSWORD}
+
+customer2:
+  username: ${CUSTOMER2_USERNAME}
+  password: ${CUSTOMER2_PASSWORD}
 
 spotify:
   client-id: ${SPOTIFY_CLIENT_ID}
@@ -162,6 +170,12 @@ gcp:
     gcs-output-prefix: pwb/stt/
     enablePunctuation: true
     timeoutSeconds: 1200
+  tts:
+    language-code: vi-VN
+    voice-name: vi-VN-Wavenet-A
+    speaking-rate: 1.0
+    pitch: 0.0
+    volume-gain-db: 6.0
 
 logging:
   charset:
@@ -204,3 +218,17 @@ pinecone:
   namespace: ${PINECONE_NAMESPACE:music-terms}
   project-id: ${PINECONE_PROJECT_ID:nxzaj2y}
   host: ${PINECONE_HOST:music-terms-index-nxzaj2y.svc.aped-4627-b74a.pinecone.io}
+
+ffmpeg:
+  path: ${FFMPEG_PATH:ffmpeg}
+  timeout-seconds: ${FFMPEG_TIMEOUT_SECONDS:600}
+  voice-tag:
+    max-repeats: ${FFMPEG_VOICE_TAG_MAX_REPEATS:20}
+    initial-delay-seconds: ${FFMPEG_VOICE_TAG_INITIAL_DELAY_SECONDS:25}
+    interval-seconds: ${FFMPEG_VOICE_TAG_INTERVAL_SECONDS:25}
+    volume-boost: ${FFMPEG_VOICE_TAG_VOLUME_BOOST:5}
+
+ffprobe:
+  path: ${FFPROBE_PATH:ffprobe}
+
+

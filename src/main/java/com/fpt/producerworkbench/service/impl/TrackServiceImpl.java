@@ -7,7 +7,7 @@ import com.fpt.producerworkbench.dto.request.TrackUploadUrlRequest;
 import com.fpt.producerworkbench.dto.response.TrackListItemResponse;
 import com.fpt.producerworkbench.dto.response.TrackSuggestionResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadDirectResponse;
-import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
+import com.fpt.producerworkbench.dto.response.TrackPresignedUrlResponse;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.InspirationTrack;
 import com.fpt.producerworkbench.entity.User;
@@ -64,7 +64,7 @@ public class TrackServiceImpl implements TrackService {
     private long maxBytes() { return maxUploadMb * 1024L * 1024L; }
 
     @Override
-    public TrackUploadUrlResponse generateUploadUrl(Long userId, TrackUploadUrlRequest req) {
+    public TrackPresignedUrlResponse generateUploadUrl(Long userId, TrackUploadUrlRequest req) {
         Project p = projectRepo.findById(req.getProjectId())
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
         userRepo.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -73,7 +73,7 @@ public class TrackServiceImpl implements TrackService {
         String objectKey = keyGen.generateInspirationAudioKey(p.getId(), req.getFileName());
         String url = storage.generatePresignedUploadUrl(objectKey, req.getMimeType(), Duration.ofMinutes(15));
 
-        return TrackUploadUrlResponse.builder()
+        return TrackPresignedUrlResponse.builder()
                 .objectKey(objectKey)
                 .presignedPutUrl(url)
                 .expiresInSeconds(15L * 60L)

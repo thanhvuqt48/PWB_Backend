@@ -21,6 +21,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 
+/**
+ * Controller quản lý các lời mời mà người dùng hiện tại nhận được.
+ * Bao gồm: xem danh sách lời mời, chấp nhận lời mời (bằng token hoặc ID), và từ chối lời mời.
+ */
 @RestController
 @RequestMapping("/api/v1/my-invitations")
 @RequiredArgsConstructor
@@ -29,6 +33,10 @@ public class MyInvitationController {
     private final InvitationService invitationService;
     private final UserRepository userRepository;
 
+    /**
+     * Chấp nhận lời mời tham gia project bằng token.
+     * Token được lấy từ link lời mời gửi qua email.
+     */
     @PostMapping("/accept")
     public ResponseEntity<ApiResponse<Void>> acceptInvitation(
             @Valid @RequestBody AcceptInvitationRequest request,
@@ -46,6 +54,10 @@ public class MyInvitationController {
                 .build());
     }
 
+    /**
+     * Chấp nhận lời mời tham gia project bằng ID của lời mời.
+     * Sử dụng khi người dùng đã đăng nhập và xem danh sách lời mời.
+     */
     @PostMapping("/{invitationId}/accept")
     public ResponseEntity<ApiResponse<Void>> acceptInvitationById(
             @PathVariable Long invitationId,
@@ -63,6 +75,10 @@ public class MyInvitationController {
                 .build());
     }
 
+    /**
+     * Lấy danh sách các lời mời đang chờ xử lý (pending) của người dùng hiện tại.
+     * Hỗ trợ phân trang và sắp xếp theo thời gian tạo (mặc định: mới nhất trước).
+     */
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<PageResponse<InvitationResponse>>> getMyInvitations(
@@ -75,8 +91,10 @@ public class MyInvitationController {
                 .build());
     }
 
-
-
+    /**
+     * Từ chối lời mời tham gia project.
+     * Chỉ người dùng được mời mới có thể từ chối lời mời của chính họ.
+     */
     @PostMapping("/{invitationId}/decline")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> declineInvitation(@PathVariable Long invitationId, @AuthenticationPrincipal Jwt jwt) {

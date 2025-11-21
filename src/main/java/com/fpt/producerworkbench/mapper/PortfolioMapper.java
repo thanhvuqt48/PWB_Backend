@@ -21,6 +21,8 @@ public interface PortfolioMapper {
     @Mapping(source = "portfolio.user.fullName", target = "fullName")
     @Mapping(source = "portfolio.user.avatarUrl", target = "avatarUrl")
     @Mapping(source = "portfolio.user.location", target = "location")
+    @Mapping(source = "portfolio.latitude", target = "latitude")
+    @Mapping(source = "portfolio.longitude", target = "longitude")
     @Mapping(source = "portfolio.genres", target = "genres", qualifiedByName = "genresToStrings")
     @Mapping(source = "portfolio.tags", target = "tags", qualifiedByName = "tagsToStrings")
     @Mapping(source = "distanceInKm", target = "distanceInKm")

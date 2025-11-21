@@ -15,6 +15,11 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Controller quản lý các thao tác upload, xem, tải xuống và xóa file.
+ * Hỗ trợ upload nhiều loại file: avatar, nhạc, video, zip, PDF, ảnh portfolio, ảnh personal project,
+ * và file chat. Cung cấp URL presigned để xem và tải xuống file từ storage.
+ */
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -24,42 +29,70 @@ public class FileController {
 
     private final FileService fileService;
 
+    /**
+     * Upload avatar cho user.
+     * Upload ảnh đại diện của user và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/user-avatar")
     public ApiResponse<String> uploadAvatar(@RequestParam Long userId, @RequestParam("file") MultipartFile file) {
         String key = fileService.uploadUserAvatar(userId, file);
         return ApiResponse.<String>builder().result(key).message("Upload avatar thành công. Key: " + key).build();
     }
 
+    /**
+     * Upload file nhạc cho project.
+     * Upload file audio của project và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/project-music")
     public ApiResponse<String> uploadMusic(@RequestParam Long projectId, @RequestParam("file") MultipartFile file) {
         String key = fileService.uploadProjectMusic(projectId, file);
         return ApiResponse.<String>builder().result(key).message("Upload nhạc thành công. Key: " + key).build();
     }
 
+    /**
+     * Upload file video cho project.
+     * Upload file video của project và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/project-video")
     public ApiResponse<String> uploadVideo(@RequestParam Long projectId, @RequestParam("file") MultipartFile file) {
         String key = fileService.uploadProjectVideo(projectId, file);
         return ApiResponse.<String>builder().result(key).message("Upload video thành công. Key: " + key).build();
     }
 
+    /**
+     * Upload file zip cho milestone.
+     * Upload file zip chứa các track gốc của milestone và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/milestone-zip")
     public ApiResponse<String> uploadZip(@RequestParam Long projectId, @RequestParam Long milestoneId, @RequestParam("file") MultipartFile file) {
         String key = fileService.uploadMilestoneZip(projectId, milestoneId, file);
         return ApiResponse.<String>builder().result(key).message("Upload file zip thành công. Key: " + key).build();
     }
 
+    /**
+     * Upload file PDF hợp đồng.
+     * Upload file PDF của contract và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/contract-pdf")
     public ApiResponse<String> uploadContract(@RequestParam Long contractId, @RequestParam String fileName, @RequestParam("file") MultipartFile file) {
         String key = fileService.uploadContractPdf(contractId, fileName, file);
         return ApiResponse.<String>builder().result(key).message("Upload hợp đồng thành công. Key: " + key).build();
     }
 
+    /**
+     * Upload ảnh bìa cho portfolio.
+     * Upload ảnh cover của portfolio và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/portfolio-cover")
     public ApiResponse<String> uploadPortfolioCover(@RequestParam Long userId, @RequestParam("file") MultipartFile file) {
         String key = fileService.uploadPortfolioCoverImage(userId, file);
         return ApiResponse.<String>builder().result(key).message("Upload ảnh bìa portfolio thành công. Key: " + key).build();
     }
 
+    /**
+     * Upload ảnh cho personal project.
+     * Upload ảnh của personal project và trả về key để lưu trữ.
+     */
     @PostMapping("/upload/personal-project-image")
     public ApiResponse<String> uploadPersonalProjectImage(
             @RequestParam Long userId,
@@ -69,24 +102,40 @@ public class FileController {
         return ApiResponse.<String>builder().result(key).message("Upload ảnh personal project thành công. Key: " + key).build();
     }
 
+    /**
+     * Lấy URL presigned để xem file trực tiếp.
+     * URL có hiệu lực trong 15 phút, dùng để hiển thị file trên trình duyệt.
+     */
     @GetMapping("/view")
     public ApiResponse<String> getViewUrl(@RequestParam String key) {
         String url = fileService.getViewableUrl(key);
         return ApiResponse.<String>builder().result(url).message("URL để XEM TRỰC TIẾP, có hiệu lực trong 15 phút.").build();
     }
 
+    /**
+     * Lấy URL presigned để tải xuống file.
+     * URL có hiệu lực trong 15 phút, dùng để download file với tên gốc.
+     */
     @GetMapping("/download")
     public ApiResponse<String> getDownloadUrl(@RequestParam String key, @RequestParam String originalFileName) {
         String url = fileService.getDownloadUrl(key, originalFileName);
         return ApiResponse.<String>builder().result(url).message("URL để TẢI XUỐNG, có hiệu lực trong 15 phút.").build();
     }
 
+    /**
+     * Xóa file khỏi storage.
+     * Xóa file dựa trên key đã lưu trữ.
+     */
     @DeleteMapping("/delete")
     public ApiResponse<Void> deleteFile(@RequestParam String key) {
         fileService.deleteFile(key);
         return ApiResponse.<Void>builder().message("Đã xóa file với key: " + key).build();
     }
 
+    /**
+     * Upload nhiều file cho project cùng lúc.
+     * Upload nhiều file cùng một lúc cho project và trả về danh sách keys.
+     */
     @PostMapping("/upload/project-files-multiple")
     public ApiResponse<List<String>> uploadMultipleProjectFiles(
             @RequestParam Long projectId,
@@ -100,6 +149,10 @@ public class FileController {
                 .build();
     }
 
+    /**
+     * Upload nhiều file cho chat message.
+     * Upload nhiều file cùng một lúc cho conversation và trả về danh sách keys.
+     */
     @PostMapping("/upload/chat-message-files")
     public DeferredResult<ApiResponse<List<FileMetaDataResponse>>> uploadChatMessageFiles(
             @RequestParam String conversationId,

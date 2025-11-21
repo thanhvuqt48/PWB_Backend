@@ -20,6 +20,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Controller quản lý các gói PRO subscription.
+ * Bao gồm: tạo, xem, tìm kiếm, cập nhật và xóa gói PRO. Một số thao tác chỉ dành cho Admin.
+ */
 @RestController
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -29,6 +33,10 @@ public class ProPackageController {
 
     ProPackageService proPackageService;
 
+    /**
+     * Tạo gói PRO mới.
+     * Chỉ Admin mới có thể tạo gói PRO. Tự động set durationMonths dựa trên packageType (MONTHLY = 1, YEARLY = 12).
+     */
     @PostMapping
     @PreAuthorize("hasAuthority('ADMIN')")
     ApiResponse<ProPackageResponse> create(@Valid @RequestBody ProPackageRequest request) {
@@ -43,6 +51,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Lấy thông tin gói PRO theo ID.
+     * Không yêu cầu authentication, ai cũng có thể xem.
+     */
     @GetMapping("/{id}")
     ApiResponse<ProPackageResponse> findById(@PathVariable Long id) {
         log.info("Finding Pro package by ID: {}", id);
@@ -55,6 +67,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Lấy danh sách tất cả gói PRO với phân trang.
+     * Hỗ trợ sắp xếp theo các trường khác nhau. Mặc định sắp xếp theo id DESC.
+     */
     @GetMapping
     ApiResponse<Page<ProPackageResponse>> findAll(
             @RequestParam(defaultValue = "0") int page,
@@ -76,6 +92,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Lấy danh sách tất cả gói PRO đang active.
+     * Không phân trang, trả về toàn bộ danh sách gói đang hoạt động.
+     */
     @GetMapping("/active")
     ApiResponse<List<ProPackageResponse>> findAllActive() {
         log.info("Finding all active Pro packages");
@@ -88,6 +108,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Tìm kiếm gói PRO với các bộ lọc.
+     * Hỗ trợ lọc theo tên, loại gói, và trạng thái active. Có phân trang và sắp xếp.
+     */
     @GetMapping("/search")
     ApiResponse<Page<ProPackageResponse>> search(
             @RequestParam(required = false) String name,
@@ -113,6 +137,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Lấy danh sách gói PRO theo loại (MONTHLY hoặc YEARLY).
+     * Trả về tất cả gói của loại đó, bao gồm cả active và inactive.
+     */
     @GetMapping("/type/{packageType}")
     ApiResponse<List<ProPackageResponse>> findByPackageType(@PathVariable ProPackage.ProPackageType packageType) {
         log.info("Finding Pro packages by type: {}", packageType);
@@ -125,6 +153,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Lấy danh sách gói PRO đang active theo loại (MONTHLY hoặc YEARLY).
+     * Chỉ trả về các gói đang hoạt động của loại được chỉ định.
+     */
     @GetMapping("/type/{packageType}/active")
     ApiResponse<List<ProPackageResponse>> findByPackageTypeAndActive(@PathVariable ProPackage.ProPackageType packageType) {
         log.info("Finding active Pro packages by type: {}", packageType);
@@ -137,6 +169,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Cập nhật thông tin gói PRO.
+     * Chỉ Admin mới có thể cập nhật. Tự động cập nhật durationMonths dựa trên packageType.
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     ApiResponse<ProPackageResponse> update(@PathVariable Long id,
@@ -152,6 +188,10 @@ public class ProPackageController {
                 .build();
     }
 
+    /**
+     * Xóa gói PRO.
+     * Chỉ Admin mới có thể xóa gói PRO.
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     ApiResponse<Void> delete(@PathVariable Long id) {

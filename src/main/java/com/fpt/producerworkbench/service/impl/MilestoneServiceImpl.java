@@ -5,17 +5,23 @@ import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.ProjectType;
+import com.fpt.producerworkbench.common.TrackStatus;
+import com.fpt.producerworkbench.common.ProcessingStatus;
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.AddMilestoneMemberRequest;
 import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
 import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
+import com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest;
 import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
 import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneMemberResponse;
+import com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.Conversation;
 import com.fpt.producerworkbench.entity.Milestone;
@@ -24,6 +30,8 @@ import com.fpt.producerworkbench.entity.MilestoneMoneySplit;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.ProjectMember;
 import com.fpt.producerworkbench.entity.User;
+import com.fpt.producerworkbench.entity.ClientDelivery;
+import com.fpt.producerworkbench.entity.Track;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractRepository;
@@ -33,6 +41,8 @@ import com.fpt.producerworkbench.repository.MilestoneMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.repository.MilestoneMoneySplitRepository;
+import com.fpt.producerworkbench.repository.TrackMilestoneRepository;
+import com.fpt.producerworkbench.repository.ClientDeliveryRepository;
 import com.fpt.producerworkbench.service.MilestoneService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.service.FileStorageService;
@@ -62,6 +72,13 @@ import java.util.Optional;
 import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.nio.file.Files;
+import java.util.zip.ZipOutputStream;
+import java.util.zip.ZipEntry;
 
 @Service
 @RequiredArgsConstructor
@@ -81,6 +98,8 @@ public class MilestoneServiceImpl implements MilestoneService {
     private final FileKeyGenerator fileKeyGenerator;
     private final ConversationRepository conversationRepository;
     private final NotificationService notificationService;
+    private final TrackMilestoneRepository trackRepository;
+    private final ClientDeliveryRepository clientDeliveryRepository;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -220,7 +239,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public MilestoneResponse updateMilestone(Long projectId, Long milestoneId, MilestoneRequest request,
-            Authentication auth) {
+                                             Authentication auth) {
         log.info("Cập nhật cột mốc: projectId={}, milestoneId={}", projectId, milestoneId);
 
         var permission = projectPermissionService.checkMilestonePermissions(auth, projectId);
@@ -345,6 +364,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                             .userId(userId)
                             .userName(mm.getUser() != null ? mm.getUser().getFullName() : null)
                             .userEmail(mm.getUser() != null ? mm.getUser().getEmail() : null)
+                            .avatarUrl(mm.getUser() != null ? mm.getUser().getAvatarUrl() : null)
                             .description(mm.getDescription())
                             .role(role)
                             .isAnonymous(isMemberAnonymous)
@@ -372,6 +392,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .sequence(milestone.getSequence())
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
+                .isFunded(project != null ? project.getIsFunded() : null)
                 .members(members)
                 .build();
     }
@@ -381,7 +402,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .findByContractIdAndTitleIgnoreCase(contract.getId(), request.getTitle());
         if (existingMilestoneWithSameTitle.isPresent()
                 && (excludeMilestoneId == null
-                        || !existingMilestoneWithSameTitle.get().getId().equals(excludeMilestoneId))) {
+                || !existingMilestoneWithSameTitle.get().getId().equals(excludeMilestoneId))) {
             throw new AppException(ErrorCode.MILESTONE_TITLE_DUPLICATE);
         }
 
@@ -498,7 +519,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private MilestoneListResponse mapToListResponse(Milestone milestone, String projectTitle,
-            Integer contractProductCount, Integer contractFpEditCount, BigDecimal contractTotalAmount) {
+                                                    Integer contractProductCount, Integer contractFpEditCount, BigDecimal contractTotalAmount) {
         return MilestoneListResponse.builder()
                 .id(milestone.getId())
                 .title(milestone.getTitle())
@@ -536,7 +557,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional(readOnly = true)
     public List<AvailableProjectMemberResponse> getAvailableProjectMembers(Long projectId, Long milestoneId,
-            Authentication auth) {
+                                                                           Authentication auth) {
         log.info("Lấy danh sách thành viên dự án có thể thêm vào cột mốc: projectId={}, milestoneId={}", projectId,
                 milestoneId);
 
@@ -595,7 +616,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public MilestoneDetailResponse addMembersToMilestone(Long projectId, Long milestoneId,
-            AddMilestoneMemberRequest request, Authentication auth) {
+                                                         AddMilestoneMemberRequest request, Authentication auth) {
         log.info("Thêm thành viên vào cột mốc: projectId={}, milestoneId={}, members={}", projectId, milestoneId,
                 request.getMembers());
 
@@ -698,7 +719,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public MilestoneDetailResponse removeMemberFromMilestone(Long projectId, Long milestoneId, Long userId,
-            Authentication auth) {
+                                                             Authentication auth) {
         log.info("Xóa thành viên khỏi cột mốc: projectId={}, milestoneId={}, userId={}", projectId, milestoneId,
                 userId);
 
@@ -798,7 +819,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private String determineMemberRole(Long userId, Long ownerId, Long clientId,
-            Map<Long, ProjectRole> projectMemberRoleMap) {
+                                       Map<Long, ProjectRole> projectMemberRoleMap) {
         if (userId == null) {
             return null;
         }
@@ -820,7 +841,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private void sendMilestoneMemberNotificationEmail(User user, Project project, Milestone milestone,
-            String description, ProjectRole projectRole) {
+                                                      String description, ProjectRole projectRole) {
         try {
             if (user.getEmail() == null || user.getEmail().isBlank()) {
                 log.warn("Không thể gửi email thông báo: user {} không có email", user.getId());
@@ -863,7 +884,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public ConversationCreationResponse createGroupChatForMilestone(Long projectId, Long milestoneId,
-            CreateMilestoneGroupChatRequest request, MultipartFile avatar, Authentication auth) {
+                                                                    CreateMilestoneGroupChatRequest request, MultipartFile avatar, Authentication auth) {
         log.info("Tạo group chat cho milestone: projectId={}, milestoneId={}", projectId, milestoneId);
 
         if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
@@ -958,7 +979,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional(readOnly = true)
     public List<ConversationCreationResponse> getGroupChatsForMilestone(Long projectId, Long milestoneId,
-            MilestoneChatType type, Authentication auth) {
+                                                                        MilestoneChatType type, Authentication auth) {
         log.info("Lấy danh sách group chat cho milestone: projectId={}, milestoneId={}, type={}", projectId,
                 milestoneId, type);
 
@@ -1007,7 +1028,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional(readOnly = true)
     public List<AvailableProjectMemberResponse> searchUsersForMilestoneChat(Long projectId, Long milestoneId,
-            String keyword, Authentication auth) {
+                                                                            String keyword, Authentication auth) {
         log.info("Search users cho milestone chat: projectId={}, milestoneId={}, keyword={}", projectId, milestoneId,
                 keyword);
 
@@ -1098,7 +1119,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private String determineUserProjectRole(Long userId, Long ownerId, Long clientId,
-            List<ProjectMember> projectMembers, List<MilestoneMember> milestoneMembers) {
+                                            List<ProjectMember> projectMembers, List<MilestoneMember> milestoneMembers) {
         if (ownerId != null && userId.equals(ownerId)) {
             return ProjectRole.OWNER.name();
         }
@@ -1162,6 +1183,378 @@ public class MilestoneServiceImpl implements MilestoneService {
         } catch (Exception e) {
             log.error("Lỗi khi gửi email thông báo xóa thành viên khỏi milestone qua Kafka: userId={}, milestoneId={}",
                     removedUser.getId(), milestone.getId(), e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public MilestoneResponse completeMilestone(Long projectId, Long milestoneId, Authentication auth) {
+        log.info("Khách hàng chấp nhận hoàn thành cột mốc: projectId={}, milestoneId={}", projectId, milestoneId);
+
+        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Kiểm tra permission
+        var permission = projectPermissionService.checkProjectPermissions(auth, projectId);
+        if (!permission.getMilestone().isCanCompleteMilestone()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ khách hàng mới có quyền chấp nhận hoàn thành cột mốc");
+        }
+
+        // Kiểm tra milestone tồn tại và thuộc về project
+        Milestone milestone = milestoneRepository.findById(milestoneId)
+                .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+
+        if (milestone.getContract() == null || milestone.getContract().getProject() == null
+                || !milestone.getContract().getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        Project project = milestone.getContract().getProject();
+
+        // Kiểm tra user là CLIENT
+        Optional<ProjectMember> projectMemberOpt = projectMemberRepository
+                .findByProjectIdAndUserEmail(projectId, currentUser.getEmail());
+
+        if (projectMemberOpt.isEmpty() || projectMemberOpt.get().getProjectRole() != ProjectRole.CLIENT) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ khách hàng mới có quyền chấp nhận hoàn thành cột mốc");
+        }
+
+        // Kiểm tra milestone có ít nhất 1 track
+        long trackCount = trackRepository.countByMilestoneId(milestoneId);
+        if (trackCount < 1) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành");
+        }
+
+        // Kiểm tra milestone chưa được hoàn thành và đang ở trạng thái hợp lệ để complete
+        if (milestone.getStatus() == MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã được hoàn thành");
+        }
+        if (milestone.getStatus() != MilestoneStatus.PENDING && milestone.getStatus() != MilestoneStatus.IN_PROGRESS) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc phải ở trạng thái PENDING hoặc IN_PROGRESS mới có thể hoàn thành");
+        }
+
+        // Cập nhật status thành COMPLETED
+        milestone.setStatus(MilestoneStatus.COMPLETED);
+        Milestone saved = milestoneRepository.save(milestone);
+
+        log.info("Đã cập nhật status cột mốc thành COMPLETED: milestoneId={}", saved.getId());
+
+        // Gửi email thông báo cho chủ dự án
+        sendMilestoneCompletedNotificationEmail(project, milestone, currentUser);
+
+        return mapToResponse(saved);
+    }
+
+    /**
+     * Gửi email thông báo cho chủ dự án khi khách hàng chấp nhận hoàn thành cột mốc
+     */
+    private void sendMilestoneCompletedNotificationEmail(Project project, Milestone milestone, User client) {
+        if (project == null || project.getCreator() == null) {
+            log.warn("Không thể gửi email thông báo: project hoặc project creator không tồn tại");
+            return;
+        }
+
+        User owner = project.getCreator();
+        if (owner.getEmail() == null || owner.getEmail().isBlank()) {
+            log.warn("Không thể gửi email thông báo: owner {} không có email", owner.getId());
+            return;
+        }
+
+        try {
+            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d",
+                    project.getId(), milestone.getId());
+
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("milestoneTitle", milestone.getTitle());
+            params.put("clientName", client.getFullName() != null ? client.getFullName() : client.getEmail());
+            params.put("projectUrl", projectUrl);
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(owner.getEmail())
+                    .subject("Khách hàng đã chấp nhận hoàn thành cột mốc: " + milestone.getTitle())
+                    .templateCode("milestone-completed-notification")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo hoàn thành cột mốc qua Kafka: ownerId={}, milestoneId={}",
+                    owner.getId(), milestone.getId());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email thông báo hoàn thành cột mốc qua Kafka: ownerId={}, milestoneId={}",
+                    owner.getId(), milestone.getId(), e);
+        }
+    }
+
+    @Override
+    @Transactional
+    public DownloadOriginalTracksZipResponse downloadOriginalTracksZip(
+            Long projectId, Long milestoneId,
+            DownloadOriginalTracksZipRequest request,
+            Authentication auth) {
+        log.info("Bắt đầu tải về ZIP các track bản gốc: projectId={}, milestoneId={}", projectId, milestoneId);
+
+        // BƯỚC 1: VALIDATION
+        // 1.1. Load user
+        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+        User currentUser = userRepository.findByEmail(auth.getName())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 1.2. Load milestone và validate
+        Milestone milestone = milestoneRepository.findById(milestoneId)
+                .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+
+        // 1.3. Validate milestone thuộc project hợp lệ
+        Project project = milestone.getContract().getProject();
+        if (project == null || !project.getId().equals(projectId)) {
+            log.warn("Milestone {} không thuộc project {}", milestoneId, projectId);
+            throw new AppException(ErrorCode.MILESTONE_NOT_FOUND);
+        }
+
+        // 1.4. Kiểm tra milestone status = COMPLETED
+        if (milestone.getStatus() != MilestoneStatus.COMPLETED) {
+            log.warn("Milestone {} chưa hoàn tất, status={}", milestoneId, milestone.getStatus());
+            throw new AppException(ErrorCode.BAD_REQUEST, "Chỉ cho phép tải về khi milestone đã hoàn tất (COMPLETED)");
+        }
+
+        // 1.5. Kiểm tra quyền truy cập Client Room
+        if (!canAccessClientRoom(currentUser, project)) {
+            log.warn("User {} không có quyền truy cập Client Room của project {}", currentUser.getId(), projectId);
+            throw new AppException(ErrorCode.FORBIDDEN);
+        }
+
+        // BƯỚC 2: LỌC TRACKS
+        // 2.1. Lấy tất cả ClientDelivery trong milestone
+        List<ClientDelivery> deliveries = clientDeliveryRepository.findByMilestoneIdOrderBySentAtDesc(milestoneId);
+        if (deliveries.isEmpty()) {
+            log.warn("Không có tracks nào đã được gửi cho client trong milestone {}", milestoneId);
+            throw new AppException(ErrorCode.BAD_REQUEST, "Không có tracks nào đã được gửi cho client trong milestone này");
+        }
+
+        // 2.2. Lọc theo trackIds nếu có
+        List<ClientDelivery> filteredDeliveries = deliveries;
+        if (request.getTrackIds() != null && !request.getTrackIds().isEmpty()) {
+            Set<Long> trackIdSet = request.getTrackIds().stream().collect(Collectors.toSet());
+            filteredDeliveries = deliveries.stream()
+                    .filter(d -> trackIdSet.contains(d.getTrack().getId()))
+                    .collect(Collectors.toList());
+
+            if (filteredDeliveries.isEmpty()) {
+                log.warn("Không tìm thấy tracks với IDs {} trong milestone {}", request.getTrackIds(), milestoneId);
+                throw new AppException(ErrorCode.BAD_REQUEST, "Không tìm thấy tracks với IDs đã chọn trong milestone này");
+            }
+        }
+
+        // 2.3. Lọc tracks hợp lệ: status = INTERNAL_APPROVED, processingStatus = READY, có s3OriginalKey
+        List<ClientDelivery> validDeliveries = new ArrayList<>();
+        List<Long> failedTrackIds = new ArrayList<>();
+
+        for (ClientDelivery delivery : filteredDeliveries) {
+            Track track = delivery.getTrack();
+            boolean isValid = track.getStatus() == TrackStatus.INTERNAL_APPROVED
+                    && track.getProcessingStatus() == ProcessingStatus.READY
+                    && track.getS3OriginalKey() != null && !track.getS3OriginalKey().trim().isEmpty();
+
+            if (isValid) {
+                validDeliveries.add(delivery);
+            } else {
+                failedTrackIds.add(track.getId());
+                log.warn("Track {} không hợp lệ: status={}, processingStatus={}, hasS3Key={}",
+                        track.getId(), track.getStatus(), track.getProcessingStatus(),
+                        track.getS3OriginalKey() != null);
+            }
+        }
+
+        // 2.4. Kiểm tra có tracks hợp lệ không
+        if (validDeliveries.isEmpty()) {
+            log.warn("Không có tracks hợp lệ nào để tải về trong milestone {}", milestoneId);
+            throw new AppException(ErrorCode.BAD_REQUEST, "Không có tracks hợp lệ nào để tải về. Tracks phải có status=INTERNAL_APPROVED, processingStatus=READY và có file gốc");
+        }
+
+        // BƯỚC 3: TẠO FILE ZIP
+        File tempZipFile = null;
+        File tempDir = null;
+        List<Long> downloadFailedTrackIds = new ArrayList<>();
+        int successfulCount = 0;
+
+        try {
+            // 3.1. Tạo thư mục tạm
+            tempDir = Files.createTempDirectory("tracks-zip-").toFile();
+            tempZipFile = new File(tempDir, "tracks-original.zip");
+
+            // 3.2. Tạo ZIP file
+            try (ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(tempZipFile))) {
+                for (ClientDelivery delivery : validDeliveries) {
+                    Track track = delivery.getTrack();
+                    try {
+                        // 3.3. Download file gốc từ S3
+                        File tempTrackFile = new File(tempDir, "track_" + track.getId() + ".tmp");
+                        fileStorageService.downloadFile(track.getS3OriginalKey(), tempTrackFile);
+
+                        // 3.4. Tạo tên file trong ZIP (tránh trùng, loại bỏ ký tự đặc biệt)
+                        String safeTrackName = sanitizeFileName(track.getName());
+                        String extension = getFileExtension(track.getS3OriginalKey());
+                        String zipEntryName = String.format("%d_%s%s", track.getId(), safeTrackName, extension);
+
+                        // 3.5. Thêm vào ZIP
+                        ZipEntry zipEntry = new ZipEntry(zipEntryName);
+                        zipOut.putNextEntry(zipEntry);
+                        try (FileInputStream fis = new FileInputStream(tempTrackFile)) {
+                            byte[] buffer = new byte[8192];
+                            int length;
+                            while ((length = fis.read(buffer)) > 0) {
+                                zipOut.write(buffer, 0, length);
+                            }
+                        }
+                        zipOut.closeEntry();
+
+                        // 3.6. Xóa file tạm
+                        tempTrackFile.delete();
+
+                        successfulCount++;
+                        log.info("Đã thêm track {} vào ZIP: {}", track.getId(), zipEntryName);
+
+                    } catch (Exception e) {
+                        downloadFailedTrackIds.add(track.getId());
+                        log.error("Lỗi khi download track {} từ S3: {}", track.getId(), e.getMessage(), e);
+                        // Tiếp tục với track khác
+                    }
+                }
+            }
+
+            // 3.7. Kiểm tra có tracks nào thành công không
+            if (successfulCount == 0) {
+                log.warn("Không thể download bất kỳ track nào từ S3");
+                throw new AppException(ErrorCode.STORAGE_READ_FAILED, "Không thể download các tracks từ S3");
+            }
+
+            // BƯỚC 4: UPLOAD VÀ TẠO LINK TẢI VỀ
+            // 4.1. Tạo S3 key cho ZIP file
+            String zipS3Key = fileKeyGenerator.generateMilestoneDeliveryKey(
+                    projectId, milestoneId, "tracks-original.zip");
+
+            // 4.2. Upload ZIP lên S3
+            fileStorageService.uploadFile(tempZipFile, zipS3Key, "application/zip");
+            log.info("Đã upload ZIP file lên S3: {}", zipS3Key);
+
+            // 4.3. Tạo presigned URL (15 phút)
+            LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(15);
+            String downloadUrl = fileStorageService.generatePresignedUrl(zipS3Key, true, "tracks-original.zip");
+
+            // BƯỚC 5: TRẢ VỀ KẾT QUẢ
+            // Gộp tất cả failed track IDs (bao gồm cả tracks không hợp lệ và tracks download lỗi)
+            List<Long> allFailedTrackIds = new ArrayList<>(failedTrackIds);
+            allFailedTrackIds.addAll(downloadFailedTrackIds);
+
+            DownloadOriginalTracksZipResponse.ZipStatistics statistics =
+                    DownloadOriginalTracksZipResponse.ZipStatistics.builder()
+                            .totalTracks(filteredDeliveries.size()) // Tổng số tracks được chọn (bao gồm cả không hợp lệ)
+                            .successfulTracks(successfulCount)
+                            .failedTracks(allFailedTrackIds.size())
+                            .failedTrackIds(allFailedTrackIds)
+                            .build();
+
+            return DownloadOriginalTracksZipResponse.builder()
+                    .downloadUrl(downloadUrl)
+                    .zipFileName("tracks-original.zip")
+                    .expiresAt(expiresAt)
+                    .statistics(statistics)
+                    .build();
+
+        } catch (AppException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo ZIP file: {}", e.getMessage(), e);
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR, "Lỗi khi tạo file ZIP: " + e.getMessage());
+        } finally {
+            // 4.4. Xóa các file tạm thời
+            cleanupTempFiles(tempZipFile, tempDir);
+        }
+    }
+
+    /**
+     * Kiểm tra user có quyền xem Client Room không
+     * Permission: Owner, Admin, Client, Observer (nếu project.isFunded = true)
+     */
+    private boolean canAccessClientRoom(User user, Project project) {
+        // Admin always has access
+        if (user.getRole() == UserRole.ADMIN) {
+            return true;
+        }
+
+        // Owner always has access
+        if (project.getCreator() != null && user.getId().equals(project.getCreator().getId())) {
+            return true;
+        }
+
+        // Check if user is project member with CLIENT or OBSERVER role
+        Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(), user.getId());
+        if (memberOpt.isPresent()) {
+            ProjectRole role = memberOpt.get().getProjectRole();
+            // Client và Observer chỉ được xem nếu project đã funded (có contract completed)
+            if (role == ProjectRole.CLIENT || role == ProjectRole.OBSERVER) {
+                // Check if project is funded (project type is COLLABORATIVE)
+                return project.getType() == ProjectType.COLLABORATIVE;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Làm sạch tên file (loại bỏ ký tự đặc biệt)
+     */
+    private String sanitizeFileName(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            return "track";
+        }
+        // Loại bỏ ký tự đặc biệt, chỉ giữ chữ, số, dấu gạch ngang và gạch dưới
+        return fileName.replaceAll("[^a-zA-Z0-9\\-_]", "_")
+                .replaceAll("_{2,}", "_") // Thay nhiều dấu gạch dưới liên tiếp bằng một
+                .trim();
+    }
+
+    /**
+     * Lấy extension từ file path hoặc S3 key
+     */
+    private String getFileExtension(String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            return "";
+        }
+        int lastDot = filePath.lastIndexOf('.');
+        if (lastDot == -1 || lastDot == filePath.length() - 1) {
+            return "";
+        }
+        return filePath.substring(lastDot);
+    }
+
+    /**
+     * Xóa các file tạm thời
+     */
+    private void cleanupTempFiles(File zipFile, File tempDir) {
+        try {
+            if (zipFile != null && zipFile.exists()) {
+                zipFile.delete();
+            }
+            if (tempDir != null && tempDir.exists()) {
+                File[] files = tempDir.listFiles();
+                if (files != null) {
+                    for (File file : files) {
+                        file.delete();
+                    }
+                }
+                tempDir.delete();
+            }
+        } catch (Exception e) {
+            log.warn("Lỗi khi xóa file tạm thời: {}", e.getMessage());
         }
     }
 }
