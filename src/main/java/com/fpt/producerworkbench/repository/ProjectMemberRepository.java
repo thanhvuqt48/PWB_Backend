@@ -36,4 +36,7 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, Lo
             @Param("projectId") Long projectId,
             @Param("userId") Long userId
     );
+
+    boolean existsByProject_IdAndUser_Id(Long projectId, Long userId);
+    Optional<ProjectMember> findByProject_IdAndUser_Id(Long projectId, Long userId);
 }

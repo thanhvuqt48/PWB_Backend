@@ -12,6 +12,7 @@ import jakarta.validation.ConstraintViolationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -21,6 +22,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.context.request.WebRequest;
+import vn.payos.exception.WebhookException;
 
 @ControllerAdvice
 @Slf4j
@@ -163,6 +165,29 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(errorResponse);
     }
 
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.BAD_REQUEST.getCode())
+                .timestamp(new Date())
+                .error(ErrorCode.BAD_REQUEST.getHttpStatus().getReasonPhrase())
+                .message("Phương thức yêu cầu không được hỗ trợ.")
+                .build();
+
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(WebhookException.class)
+    ResponseEntity<ErrorResponse> handleWebhookException(WebhookException e) {
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .code(ErrorCode.BAD_REQUEST.getCode())
+                .timestamp(new Date())
+                .error(ErrorCode.BAD_REQUEST.getHttpStatus().getReasonPhrase())
+                .message("Lỗi webhook: " + e.getMessage())
+                .build();
+
+        return ResponseEntity.badRequest().body(errorResponse);
+    }
 
     private String mapAttribute(String message, Map<String, Object> attributes) {
         String minValue = String.valueOf(attributes.get(MIN_ATTRIBUTE));

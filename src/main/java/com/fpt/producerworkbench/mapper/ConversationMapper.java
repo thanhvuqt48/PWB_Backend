@@ -7,7 +7,8 @@ import com.fpt.producerworkbench.entity.Conversation;
 
 public class ConversationMapper {
 
-    private ConversationMapper() {}
+    private ConversationMapper() {
+    }
 
     public static ConversationCreationResponse mapToConversationResponse(Conversation conversation, Long userId) {
         ConversationCreationResponse response = ConversationCreationResponse.builder()
@@ -22,18 +23,19 @@ public class ConversationMapper {
                                 .build())
                         .toList())
                 .createdAt(conversation.getCreatedAt())
+                .milestoneChatType(conversation.getMilestoneChatType())
                 .build();
 
-        if(conversation.getConversationType() == ConversationType.GROUP) {
+        if (conversation.getConversationType() == ConversationType.GROUP) {
             response.setConversationName(conversation.getName());
             response.setConversationAvatar(conversation.getConversationAvatar());
         } else {
-            if(conversation.getParticipants().size() == 1) {
+            if (conversation.getParticipants().size() == 1) {
                 response.setConversationName(conversation.getParticipants().getFirst().getUser().getUsername());
                 response.setConversationAvatar(conversation.getParticipants().getFirst().getUser().getAvatarUrl());
             } else {
                 conversation.getParticipants().stream()
-                        .filter(participantInfo -> ! participantInfo.getUser().getId().equals(userId))
+                        .filter(participantInfo -> !participantInfo.getUser().getId().equals(userId))
                         .findFirst().ifPresent(participantInfo -> {
                             response.setConversationName(participantInfo.getUser().getUsername());
                             response.setConversationAvatar(participantInfo.getUser().getAvatarUrl());

@@ -70,7 +70,7 @@ public class ApplicationInitConfiguration {
             prefix = "spring",
             value = "datasource.driver-class-name",
             havingValue = "com.mysql.cj.jdbc.Driver")
-    ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, PortfolioRepository portfolioRepository, ProPackageRepository proPackageRepository) {
+    ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, ProPackageRepository proPackageRepository) {
         log.info("Initializing application.....");
 
         return args -> {
@@ -128,29 +128,6 @@ public class ApplicationInitConfiguration {
                 );
                 genreRepository.saveAll(defaultGenres);
                 log.info("Created {} default genres.", defaultGenres.size());
-            }
-
-            if (userRepository.findByEmail(PRODUCER_USER_NAME).isEmpty()) {
-                User producer = User.builder()
-                        .email(PRODUCER_USER_NAME)
-                        .firstName("Bao")
-                        .lastName("Tran")
-                        .passwordHash(passwordEncoder.encode(PRODUCER_PASSWORD))
-                        .role(UserRole.PRODUCER)
-                        .status(UserStatus.ACTIVE)
-                        .location("Hanoi, Vietnam")
-                        .build();
-                User savedProducer = userRepository.save(producer);
-                log.info("Sample PRODUCER created: {}", PRODUCER_USER_NAME);
-
-                Portfolio portfolio = Portfolio.builder()
-                        .user(savedProducer)
-                        .headline("Music Producer & Sound Designer")
-                        .isPublic(true)
-                        .genres(new HashSet<>(genreRepository.findAllById(List.of(1L, 2L, 3L))))
-                        .build();
-                portfolioRepository.save(portfolio);
-                log.info("Portfolio created for producer: {}", PRODUCER_USER_NAME);
             }
 
             if (proPackageRepository.count() == 0) {

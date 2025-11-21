@@ -1,10 +1,13 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.InvitationStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.response.PageResponse;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
@@ -12,6 +15,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.mapper.InvitationMapper;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.InvitationService;
+import com.fpt.producerworkbench.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -37,6 +41,8 @@ public class InvitationServiceImpl implements InvitationService {
     private final ProjectMemberRepository projectMemberRepository;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final InvitationMapper invitationMapper;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -60,14 +66,16 @@ public class InvitationServiceImpl implements InvitationService {
             throw new AppException(ErrorCode.INVITATION_SELF_NOT_ALLOWED);
         }
 
-        boolean alreadyMember = projectMemberRepository.findByProjectIdAndUserEmail(projectId, request.getEmail()).isPresent()
+        boolean alreadyMember = projectMemberRepository.findByProjectIdAndUserEmail(projectId, request.getEmail())
+                .isPresent()
                 || (project.getClient() != null && project.getClient().getEmail().equalsIgnoreCase(request.getEmail()))
                 || project.getCreator().getEmail().equalsIgnoreCase(request.getEmail());
         if (alreadyMember) {
             throw new AppException(ErrorCode.USER_ALREADY_MEMBER);
         }
 
-        // Vô hiệu hóa tất cả lời mời PENDING cũ của email này trong project (đánh EXPIRED)
+        // Vô hiệu hóa tất cả lời mời PENDING cũ của email này trong project (đánh
+        // EXPIRED)
         try {
             invitationRepository.expirePendingInvitationsForEmail(projectId, request.getEmail());
         } catch (Exception ex) {
@@ -75,7 +83,8 @@ public class InvitationServiceImpl implements InvitationService {
         }
 
         String token = UUID.randomUUID().toString();
-        boolean collaboratorAnonymous = Boolean.TRUE.equals(request.getAnonymous()) && request.getRole() == ProjectRole.COLLABORATOR;
+        boolean collaboratorAnonymous = Boolean.TRUE.equals(request.getAnonymous())
+                && request.getRole() == ProjectRole.COLLABORATOR;
 
         ProjectInvitation invitation = ProjectInvitation.builder()
                 .project(project)
@@ -90,7 +99,7 @@ public class InvitationServiceImpl implements InvitationService {
         ProjectInvitation savedInvitation = invitationRepository.save(invitation);
         log.info("Đã lưu lời mời vào DB thành công. ID: {}", savedInvitation.getId());
 
-        String invitationLink = "http://localhost:5173/accept-invitation?token=" + savedInvitation.getToken();
+        String invitationLink = "/accept-invitation?token=" + savedInvitation.getToken();
 
         try {
             NotificationEvent event = NotificationEvent.builder()
@@ -101,13 +110,35 @@ public class InvitationServiceImpl implements InvitationService {
                             "inviterName", inviter.getFullName(),
                             "projectName", project.getTitle(),
                             "role", savedInvitation.getInvitedRole().name(),
-                            "invitationLink", invitationLink
-                    ))
+                            "invitationLink", invitationLink))
                     .build();
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
             log.info("Đã gửi message mời tới Kafka thành công!");
         } catch (Exception e) {
             log.error("Gặp lỗi khi gửi message mời tới Kafka!", e);
+        }
+
+        try {
+            userRepository.findByEmail(savedInvitation.getEmail()).ifPresent(user -> {
+                String roleName = savedInvitation.getInvitedRole() == ProjectRole.COLLABORATOR ? "Cộng tác viên"
+                        : savedInvitation.getInvitedRole() == ProjectRole.OBSERVER ? "Người quan sát"
+                                : "Khách hàng";
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(user.getId())
+                                .type(NotificationType.PROJECT_INVITATION)
+                                .title("Lời mời tham gia dự án")
+                                .message(String.format("%s đã mời bạn tham gia dự án \"%s\" với vai trò %s",
+                                        inviter.getFullName() != null ? inviter.getFullName() : inviter.getEmail(),
+                                        project.getTitle(),
+                                        roleName))
+                                .relatedEntityType(RelatedEntityType.PROJECT)
+                                .relatedEntityId(projectId)
+                                .actionUrl("/myInvitations")
+                                .build());
+            });
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime: {}", e.getMessage());
         }
 
         return invitationLink;
@@ -132,7 +163,8 @@ public class InvitationServiceImpl implements InvitationService {
             });
         }
 
-        boolean anonymousFlag = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous()) && invitation.getInvitedRole() == ProjectRole.COLLABORATOR;
+        boolean anonymousFlag = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous())
+                && invitation.getInvitedRole() == ProjectRole.COLLABORATOR;
 
         ProjectMember newMember = ProjectMember.builder()
                 .project(project)
@@ -157,8 +189,7 @@ public class InvitationServiceImpl implements InvitationService {
                 .param(Map.of(
                         "userName", acceptingUser.getFullName(),
                         "projectName", project.getTitle(),
-                        "role", invitation.getInvitedRole().name()
-                ))
+                        "role", invitation.getInvitedRole().name()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, confirmationEvent);
 
@@ -171,12 +202,12 @@ public class InvitationServiceImpl implements InvitationService {
                         "newMemberName", acceptingUser.getFullName(),
                         "newMemberEmail", acceptingUser.getEmail(),
                         "projectName", project.getTitle(),
-                        "role", invitation.getInvitedRole().name()
-                ))
+                        "role", invitation.getInvitedRole().name()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, ownerNotificationEvent);
 
-        log.info("Thành công: {} đã tham gia dự án '{}' với vai trò {}", acceptingUser.getEmail(), project.getTitle(), invitation.getInvitedRole());
+        log.info("Thành công: {} đã tham gia dự án '{}' với vai trò {}", acceptingUser.getEmail(), project.getTitle(),
+                invitation.getInvitedRole());
     }
 
     @Override
@@ -199,7 +230,8 @@ public class InvitationServiceImpl implements InvitationService {
             });
         }
 
-        boolean anonymousFlag = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous()) && invitation.getInvitedRole() == ProjectRole.COLLABORATOR;
+        boolean anonymousFlag = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous())
+                && invitation.getInvitedRole() == ProjectRole.COLLABORATOR;
 
         ProjectMember newMember = ProjectMember.builder()
                 .project(project)
@@ -224,8 +256,7 @@ public class InvitationServiceImpl implements InvitationService {
                 .param(Map.of(
                         "userName", acceptingUser.getFullName(),
                         "projectName", project.getTitle(),
-                        "role", invitation.getInvitedRole().name()
-                ))
+                        "role", invitation.getInvitedRole().name()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, confirmationEvent);
 
@@ -238,8 +269,7 @@ public class InvitationServiceImpl implements InvitationService {
                         "newMemberName", acceptingUser.getFullName(),
                         "newMemberEmail", acceptingUser.getEmail(),
                         "projectName", project.getTitle(),
-                        "role", invitation.getInvitedRole().name()
-                ))
+                        "role", invitation.getInvitedRole().name()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, ownerNotificationEvent);
     }
@@ -253,7 +283,8 @@ public class InvitationServiceImpl implements InvitationService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        List<ProjectInvitation> invitations = invitationRepository.findByProjectIdAndStatus(projectId, InvitationStatus.PENDING)
+        List<ProjectInvitation> invitations = invitationRepository
+                .findByProjectIdAndStatus(projectId, InvitationStatus.PENDING)
                 .stream()
                 .filter(inv -> inv.getExpiresAt().isAfter(LocalDateTime.now()))
                 .collect(Collectors.toList());
@@ -289,7 +320,8 @@ public class InvitationServiceImpl implements InvitationService {
 
     @Override
     public List<InvitationResponse> getMyPendingInvitations(User currentUser) {
-        List<ProjectInvitation> invitations = invitationRepository.findByEmailAndStatus(currentUser.getEmail(), InvitationStatus.PENDING);
+        List<ProjectInvitation> invitations = invitationRepository.findByEmailAndStatus(currentUser.getEmail(),
+                InvitationStatus.PENDING);
         return invitations.stream().map(invitationMapper::toInviteeInvitationResponse).collect(Collectors.toList());
     }
 
@@ -327,14 +359,14 @@ public class InvitationServiceImpl implements InvitationService {
                 .param(Map.of(
                         "projectName", project.getTitle(),
                         "inviteeEmail", currentUser.getEmail(),
-                        "inviteeName", currentUser.getFullName()
-                ))
+                        "inviteeName", currentUser.getFullName()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, event);
     }
 
     @Override
-    public PageResponse<InvitationResponse> getAllMyInvitations(User currentUser, InvitationStatus status, Pageable pageable) {
+    public PageResponse<InvitationResponse> getAllMyInvitations(User currentUser, InvitationStatus status,
+            Pageable pageable) {
         Page<ProjectInvitation> page = (status == null)
                 ? invitationRepository.findByEmail(currentUser.getEmail(), pageable)
                 : invitationRepository.findByEmailAndStatus(currentUser.getEmail(), status, pageable);
@@ -343,8 +375,10 @@ public class InvitationServiceImpl implements InvitationService {
     }
 
     @Override
-    public PageResponse<InvitationResponse> getAllOwnedInvitations(User currentUser, InvitationStatus status, Pageable pageable) {
-        // Only owner (PRODUCER/ADMIN) should call controller; here we just fetch by creator email
+    public PageResponse<InvitationResponse> getAllOwnedInvitations(User currentUser, InvitationStatus status,
+            Pageable pageable) {
+        // Only owner (PRODUCER/ADMIN) should call controller; here we just fetch by
+        // creator email
         Page<ProjectInvitation> page = (status == null)
                 ? invitationRepository.findByProjectCreatorEmail(currentUser.getEmail(), pageable)
                 : invitationRepository.findByProjectCreatorEmailAndStatus(currentUser.getEmail(), status, pageable);

@@ -7,5 +7,6 @@ public enum PortfolioSectionType {
     EDUCATION,
     CUSTOM,
     SKILLS,
-    SERVICE
+    SERVICE,
+    TOOLS
 }

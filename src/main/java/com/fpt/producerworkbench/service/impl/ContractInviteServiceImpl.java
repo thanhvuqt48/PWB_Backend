@@ -2,8 +2,11 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
@@ -16,6 +19,9 @@ import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.service.SignNowWebhookService;
+import com.fpt.producerworkbench.service.NotificationService;
+import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.entity.User;
 import org.springframework.kafka.core.KafkaTemplate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +48,8 @@ public class ContractInviteServiceImpl implements ContractInviteService {
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final ProjectPermissionService projectPermissionService;
     private final SignNowWebhookService signNowWebhookService;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
     
     @Lazy
     @Autowired
@@ -251,6 +259,39 @@ public class ContractInviteServiceImpl implements ContractInviteService {
 
         // Gửi mail async để không block request (gọi qua self để Spring proxy hoạt động)
         self.sendInviteEmailsAsync(c, filtered);
+
+        // Gửi notification realtime cho các signers
+        try {
+            User currentUser = userRepository.findByEmail(auth.getName())
+                    .orElse(null);
+            String inviterName = currentUser != null 
+                    ? (currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail())
+                    : "Hệ thống";
+//            String actionUrl = String.format("/projects/%d/contracts/%d/sign",
+//                    c.getProject().getId(), c.getId());
+            
+            for (var signer : filtered) {
+                if (signer.getEmail() == null || signer.getEmail().isBlank()) continue;
+                
+                userRepository.findByEmail(signer.getEmail()).ifPresent(user -> {
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(user.getId())
+                                    .type(NotificationType.CONTRACT_SIGNING)
+                                    .title("Yêu cầu ký hợp đồng")
+                                    .message(String.format("%s đã gửi yêu cầu ký hợp đồng cho dự án \"%s\". Vui lòng ký hợp đồng để tiếp tục.",
+                                            inviterName,
+                                            c.getProject().getTitle()))
+                                    .relatedEntityType(RelatedEntityType.CONTRACT)
+                                    .relatedEntityId(c.getId())
+//                                    .actionUrl(actionUrl)
+                                    .build()
+                    );
+                });
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho contract signing: {}", e.getMessage());
+        }
 
         return resp;
     }

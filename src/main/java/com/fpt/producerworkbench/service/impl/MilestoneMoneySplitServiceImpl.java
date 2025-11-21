@@ -2,8 +2,11 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.*;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.MilestoneExpenseResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneMoneySplitDetailResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneMoneySplitResponse;
@@ -13,6 +16,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.MilestoneMoneySplitService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
+import com.fpt.producerworkbench.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -40,6 +44,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
     private final UserRepository userRepository;
     private final ProjectPermissionService projectPermissionService;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -95,6 +100,31 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 saved.getId(), request.getUserId(), amount);
 
         sendMoneySplitNotificationEmail(user, project, milestone, amount, request.getNote(), "created");
+
+        // Gửi notification realtime
+        try {
+            User currentUser = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            String amountStr = amount != null ? amount.stripTrailingZeros().toPlainString() : "0";
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(request.getUserId())
+                            .type(NotificationType.MONEY_SPLIT_REQUEST)
+                            .title("Lời mời chấp nhận chia tiền")
+                            .message(String.format("%s đã đề xuất chia tiền %s cho bạn trong milestone \"%s\" của dự án \"%s\"%s",
+                                    currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail(),
+                                    amountStr,
+                                    milestone.getTitle(),
+                                    project.getTitle(),
+                                    request.getNote() != null && !request.getNote().isBlank() ? " - " + request.getNote() : ""))
+                            .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
+                            .relatedEntityId(saved.getId())
+                            .actionUrl(String.format("/project-workspace?projectId=%d&milestoneId=%d", projectId, milestoneId))
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho money split: {}", e.getMessage());
+        }
 
         return mapToMoneySplitResponse(saved);
     }

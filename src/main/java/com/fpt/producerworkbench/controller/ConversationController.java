@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.ConversationCreationRequest;
+import com.fpt.producerworkbench.dto.request.ConversationMemberAdditionRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
 import com.fpt.producerworkbench.service.impl.ConversationService;
@@ -39,6 +40,17 @@ public class ConversationController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Conversation deleted")
+                .build();
+    }
+
+    @PostMapping("/{conversationId}/members")
+    ApiResponse<ConversationCreationResponse> addMembersToConversation(
+            @PathVariable String conversationId,
+            @RequestBody ConversationMemberAdditionRequest request
+    ) {
+        return ApiResponse.<ConversationCreationResponse>builder()
+                .code(HttpStatus.OK.value())
+                .result(conversationService.addMembersToGroup(conversationId, request.getMemberIds()))
                 .build();
     }
 

@@ -1,0 +1,967 @@
+[
+  {
+    "term": "DAW",
+    "definition": "DAW là phần mềm máy tính dùng để thu âm, chỉnh sửa, trộn (mixing) và sản xuất âm nhạc.",
+    "examples": [
+      "Pro Tools, Logic Pro, Ableton Live, FL Studio"
+    ],
+    "synonyms": [
+      "Digital Audio Workstation",
+      "Phần mềm thu âm"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "MIDI",
+    "definition": "Giao thức kỹ thuật số cho phép nhạc cụ, máy tính giao tiếp với nhau. MIDI không chứa âm thanh, chỉ chứa dữ liệu 'hướng dẫn' (nốt nào, chơi khi nào, mạnh yếu ra sao).",
+    "examples": [],
+    "synonyms": [
+      "Musical Instrument Digital Interface"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Frequency",
+    "definition": "Tốc độ rung động của sóng âm, đo bằng Hertz (Hz). Tần số quyết định 'độ cao' (pitch) của âm thanh.",
+    "examples": [],
+    "synonyms": [
+      "Tần số"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Amplitude",
+    "definition": "Cường độ của sóng âm, quyết định âm lượng (loudness).",
+    "examples": [],
+    "synonyms": [
+      "Biên độ"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Dynamic Range",
+    "definition": "Sự khác biệt về âm lượng (dB) giữa âm thanh nhỏ nhất và lớn nhất.",
+    "examples": [],
+    "synonyms": [
+      "Dải tương phản động"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Sample Rate",
+    "definition": "Số lần 'chụp ảnh' tín hiệu analog mỗi giây khi chuyển sang digital. Tiêu chuẩn CD là 44.1kHz (44,100 lần/giây).",
+    "examples": [],
+    "synonyms": [
+      "Tần số lấy mẫu"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Bit Depth",
+    "definition": "Quyết định số lượng thông tin trong mỗi sample. Bit depth cao hơn (24-bit) cho dynamic range lớn hơn 16-bit.",
+    "examples": [],
+    "synonyms": [
+      "Độ sâu Bit"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "WAV",
+    "definition": "Một định dạng file âm thanh kỹ thuật số không nén (lossless), chất lượng cao, thường dùng làm tiêu chuẩn trong phòng thu.",
+    "examples": [],
+    "synonyms": [],
+    "category": "foundations"
+  },
+  {
+    "term": "AIFF",
+    "definition": "Tương tự như WAV, là một định dạng file âm thanh không nén do Apple tạo ra.",
+    "examples": [],
+    "synonyms": [],
+    "category": "foundations"
+  },
+  {
+    "term": "MP3",
+    "definition": "Một định dạng file âm thanh nén (lossy) phổ biến, loại bỏ một số dữ liệu âm thanh để giảm kích thước file.",
+    "examples": [],
+    "synonyms": [],
+    "category": "foundations"
+  },
+  {
+    "term": "Timbre",
+    "definition": "Đặc tính độc đáo của một âm thanh, giúp phân biệt tiếng piano và tiếng violin dù chúng chơi cùng một nốt nhạc, cùng âm lượng.",
+    "examples": [],
+    "synonyms": [
+      "Âm sắc"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Tempo",
+    "definition": "Tốc độ của bản nhạc, đo bằng BPM (Beats Per Minute - nhịp mỗi phút).",
+    "examples": [],
+    "synonyms": [
+      "Tốc độ",
+      "BPM"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "ADSR",
+    "definition": "Viết tắt của Attack (tấn công), Decay (suy giảm), Sustain (duy trì), và Release (thả). Đây là các thành phần cơ bản của một 'envelope' (đường bao) định hình âm lượng của một nốt nhạc theo thời gian, đặc biệt quan trọng trong synthesizer.",
+    "examples": [],
+    "synonyms": [
+      "Attack",
+      "Decay",
+      "Sustain",
+      "Release",
+      "Envelope"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "LFO",
+    "definition": "Một bộ dao động tần số thấp (thường dưới 20Hz, tai người không nghe được) dùng để tạo ra sự biến đổi tuần hoàn (modulation) cho một âm thanh khác, ví dụ tạo hiệu ứng vibrato (rung) hoặc tremolo (rung lắc âm lượng).",
+    "examples": [],
+    "synonyms": [
+      "Low-Frequency Oscillator"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Latency",
+    "definition": "Độ trễ thời gian (đo bằng mili giây) giữa lúc tín hiệu âm thanh đi vào hệ thống (ví dụ: bạn hát vào mic) và lúc tín hiệu đi ra (ví dụ: bạn nghe thấy tiếng hát của mình trong tai nghe).",
+    "examples": [],
+    "synonyms": [
+      "Độ trễ"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Clipping",
+    "definition": "Hiện tượng vỡ tiếng xảy ra khi tín hiệu âm thanh vượt quá mức tối đa (0dBFS) mà hệ thống kỹ thuật số có thể xử lý. Gây ra méo tiếng (distortion) không mong muốn.",
+    "examples": [],
+    "synonyms": [
+      "Vỡ tiếng"
+    ],
+    "category": "foundations"
+  },
+  {
+    "term": "Headroom",
+    "definition": "Khoảng 'trống' về âm lượng giữa đỉnh cao nhất của bản mix và mức 0dBFS. Để headroom (ví dụ: -6dB) là quan trọng để kỹ sư mastering có không gian làm việc.",
+    "examples": [],
+    "synonyms": [],
+    "category": "foundations"
+  },
+  {
+    "term": "Audio Interface",
+    "definition": "Thiết bị phần cứng kết nối micro và nhạc cụ (analog) với máy tính (digital). Nó bao gồm bộ tiền khuếch đại (preamp) và bộ chuyển đổi A/D, D/A.",
+    "examples": [],
+    "synonyms": [
+      "Sound Card Thu Âm"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Condenser Microphone",
+    "definition": "Loại micro nhạy, chi tiết, thu được tần số cao tốt. Thường dùng trong phòng thu cho vocal và nhạc cụ acoustic. Cần nguồn Phantom Power.",
+    "examples": [],
+    "synonyms": [
+      "Mic điện dung"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Dynamic Microphone",
+    "definition": "Loại micro bền bỉ, ít nhạy, xử lý được âm lượng lớn. Thường dùng trên sân khấu live hoặc thu các nguồn âm lớn như trống, amp guitar.",
+    "examples": [],
+    "synonyms": [
+      "Mic điện động"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Phantom Power",
+    "definition": "Nguồn điện một chiều (DC) được gửi qua cáp XLR từ audio interface/mixer để cấp nguồn cho micro condenser hoạt động.",
+    "examples": [],
+    "synonyms": [
+      "+48V"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "XLR",
+    "definition": "Loại cáp nối 3 chân tiêu chuẩn dùng để kết nối micro với preamp hoặc mixer, có khả năng truyền tín hiệu 'balanced' (cân bằng) để chống nhiễu.",
+    "examples": [],
+    "synonyms": [
+      "Cáp Canon"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "TS",
+    "definition": "Loại jack cắm 1/4 inch (jack 6 ly) có 2 cực (tip, sleeve), dùng cho tín hiệu 'unbalanced' (không cân bằng). Thường dùng cho guitar điện, bass.",
+    "examples": [],
+    "synonyms": [
+      "Tip-Sleeve",
+      "Jack 6 ly mono"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "TRS",
+    "definition": "Loại jack cắm 1/4 inch có 3 cực, dùng cho tín hiệu 'balanced' (chống nhiễu) hoặc tín hiệu stereo (như tai nghe).",
+    "examples": [],
+    "synonyms": [
+      "Tip-Ring-Sleeve",
+      "Jack 6 ly stereo"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Preamp",
+    "definition": "Thiết bị dùng để khuếch đại tín hiệu âm thanh rất yếu từ micro lên mức 'line level' đủ mạnh để các thiết bị khác có thể xử lý.",
+    "examples": [],
+    "synonyms": [
+      "Tiền khuếch đại"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Monitors",
+    "definition": "Loa được thiết kế để tái tạo âm thanh 'phẳng' (flat) và trung thực, không 'nịnh tai', giúp kỹ sư âm thanh đưa ra quyết định mixing chính xác.",
+    "examples": [],
+    "synonyms": [
+      "Loa kiểm âm"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Acoustic Treatment",
+    "definition": "Việc sửang dụng các vật liệu như tấm hút âm (absorption panels), tấm tán âm (diffusers) để kiểm soát sự phản xạ âm thanh trong phòng, giúp loa kiểm âm hoạt động chính xác hơn.",
+    "examples": [],
+    "synonyms": [
+      "Xử lý âm học",
+      "Tán âm",
+      "Hút âm"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Room Tone",
+    "definition": "Tiếng ồn nền tự nhiên của một căn phòng khi 'hoàn toàn' yên tĩnh (tiếng điều hòa, tiếng máy tính...). Thường được thu riêng để chèn vào các khoảng lặng khi edit, giúp âm thanh liền mạch.",
+    "examples": [],
+    "synonyms": [
+      "Âm thanh nền phòng"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "ADR",
+    "definition": "Quá trình thu âm lại lời thoại trong phòng thu để thay thế cho lời thoại gốc bị nhiễu hoặc kém chất lượng.",
+    "examples": [],
+    "synonyms": [
+      "Automatic Dialog Replacement"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Foley",
+    "definition": "Nghệ thuật tạo ra và thu âm các hiệu ứng âm thanh hàng ngày (tiếng bước chân, tiếng quần áo) trong đồng bộ với hình ảnh phim.",
+    "examples": [],
+    "synonyms": [
+      "Hiệu ứng âm thanh"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "Sibilance",
+    "definition": "Âm 's' (hoặc 'x', 'sh') chói gắt, khó chịu trong giọng hát hoặc lời nói. Thường được xử lý bằng De-esser.",
+    "examples": [],
+    "synonyms": [
+      "Âm xì"
+    ],
+    "category": "recording-studio"
+  },
+  {
+    "term": "EQ",
+    "definition": "Công cụ dùng để tăng (boost) hoặc giảm (cut) âm lượng của các dải tần số (frequency) cụ thể, dùng để 'điêu khắc' âm sắc.",
+    "examples": [],
+    "synonyms": [
+      "Equalizer"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "High-Pass Filter",
+    "definition": "Một loại EQ dùng để 'cắt bỏ' tất cả các tần số thấp dưới một ngưỡng nhất định, chỉ cho tần số cao đi qua.",
+    "examples": [],
+    "synonyms": [
+      "HPF",
+      "Lọc bỏ tần số thấp"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Low-Pass Filter",
+    "definition": "Một loại EQ dùng để 'cắt bỏ' tất cả các tần số cao trên một ngưỡng nhất định, chỉ cho tần số thấp đi qua.",
+    "examples": [],
+    "synonyms": [
+      "LPF",
+      "Lọc bỏ tần số cao"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Parametric EQ",
+    "definition": "Loại EQ linh hoạt nhất, cho phép điều chỉnh 3 thông số: Tần số trung tâm (Frequency), Lượng tăng/giảm (Gain), và Độ rộng (Q hoặc Bandwidth).",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Compressor",
+    "definition": "Hiệu ứng dùng để giảm dải tương phản động. Nó tự động làm giảm âm lượng của các phần âm thanh lớn, giúp âm thanh nghe cân bằng và 'dày' hơn.",
+    "examples": [],
+    "synonyms": [
+      "Bộ nén tiếng",
+      "Nén tiếng"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Threshold",
+    "definition": "Thông số trên Compressor/Gate. Đối với Compressor, đây là mức âm lượng mà tín hiệu phải vượt qua để bắt đầu bị nén.",
+    "examples": [],
+    "synonyms": [
+      "Ngưỡng"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Ratio",
+    "definition": "Thông số trên Compressor, quyết định mức độ nén. Tỷ lệ 4:1 nghĩa là nếu tín hiệu vượt ngưỡng 4dB, tín hiệu đầu ra sẽ chỉ vượt ngưỡng 1dB.",
+    "examples": [],
+    "synonyms": [
+      "Tỷ lệ"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Attack",
+    "definition": "Thông số trên Compressor/Gate, quyết định tốc độ (tính bằng mili giây) mà hiệu ứng bắt đầu hoạt động sau khi tín hiệu vượt ngưỡng.",
+    "examples": [],
+    "synonyms": [
+      "Tấn công"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Release",
+    "definition": "Thông số trên Compressor/Gate, quyết định tốc độ mà hiệu ứng ngừng hoạt động sau khi tín hiệu giảm xuống dưới ngưỡng.",
+    "examples": [],
+    "synonyms": [
+      "Thả"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Limiter",
+    "definition": "Một dạng compressor cực mạnh (tỷ lệ nén vô hạn) dùng để ngăn tín hiệu vượt qua một ngưỡng âm lượng nhất định (ceiling). Thường dùng trong bước mastering.",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Noise Gate",
+    "definition": "Hiệu ứng tự động tắt (mute) âm thanh khi âm lượng của nó giảm xuống dưới một ngưỡng (threshold) nhất định. Dùng để loại bỏ tiếng ồn nền.",
+    "examples": [],
+    "synonyms": [
+      "Cổng nhiễu"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "De-esser",
+    "definition": "Một loại compressor chuyên dụng (multiband) chỉ tác động lên các tần số cao (nơi có âm 's'), dùng để giảm sibilance.",
+    "examples": [],
+    "synonyms": [
+      "Lọc âm xì"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Reverb",
+    "definition": "Hiệu ứng mô phỏng sự phản xạ của âm thanh trong một không gian (phòng, nhà thờ, hang động), tạo ra 'không gian' và 'độ sâu'.",
+    "examples": [],
+    "synonyms": [
+      "Tiếng vang"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Delay",
+    "definition": "Hiệu ứng lặp lại tín hiệu âm thanh sau một khoảng thời gian nhất định, tạo ra tiếng 'echo'.",
+    "examples": [],
+    "synonyms": [
+      "Tiếng lặp",
+      "Echo"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Chorus",
+    "definition": "Hiệu ứng tạo ra âm thanh 'dày' và 'lung linh' bằng cách nhân đôi tín hiệu gốc và áp dụng một chút thay đổi về pitch (cao độ) và thời gian (timing) cho bản sao.",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Flanger",
+    "definition": "Hiệu ứng tương tự Chorus nhưng sử dụng thời gian delay rất ngắn và có 'feedback' (phản hồi), tạo ra âm thanh 'xoáy' đặc trưng (giống tiếng máy bay phản lực).",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Phaser",
+    "definition": "Hiệu ứng tạo ra các 'vết khía' (notches) trong phổ tần số và di chuyển chúng, tạo ra âm thanh 'xoáy' mượt mà, huyền ảo.",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Distortion",
+    "definition": "Hiệu ứng xảy ra khi tính hiệu bị khuếch đại quá mức, làm biến dạng sóng âm (thường là 'cắt ngọn' - clipping). Dùng nhiều cho guitar điện.",
+    "examples": [],
+    "synonyms": [
+      "Méo tiếng"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Overdrive",
+    "definition": "Một dạng distortion nhẹ, mô phỏng âm thanh của ampli đèn (tube amp) khi bị vặn lớn.",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Fuzz",
+    "definition": "Một dạng distortion cực mạnh, làm sóng âm gần như biến thành sóng vuông, tạo âm thanh rất dày và 'bẩn'.",
+    "examples": [],
+    "synonyms": [],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Wet/Dry",
+    "definition": "Tỷ lệ trộn giữa tín hiệu 'Wet' (đã qua xử lý hiệu ứng) và tín hiệu 'Dry' (gốc, chưa xử lý). 100% Wet nghĩa là chỉ nghe thấy tiếng hiệu ứng.",
+    "examples": [],
+    "synonyms": [
+      "Mix level"
+    ],
+    "category": "effects-processing"
+  },
+  {
+    "term": "Mixing",
+    "definition": "Quá trình kết hợp tất cả các track (vocal, trống, guitar...) lại với nhau. Bao gồm việc cân bằng âm lượng, panning, EQ, và thêm hiệu ứng để tạo ra một bản nhạc hoàn chỉnh, gắn kết.",
+    "examples": [],
+    "synonyms": [
+      "Trộn âm"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Mastering",
+    "definition": "Bước cuối cùng của sản xuất. Đây là quá trình xử lý bản mix stereo cuối cùng để tối ưu hóa âm lượng tổng thể (loudness), cân bằng tần số và đảm bảo bản nhạc nghe hay trên mọi hệ thống loa.",
+    "examples": [],
+    "synonyms": [
+      "Hoàn thiện"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Bus",
+    "definition": "Một đường tín hiệu ảo trong DAW dùng để nhóm nhiều track lại với nhau (ví dụ: nhóm 8 track trống vào 'Drum Bus') để xử lý chúng đồng loạt.",
+    "examples": [],
+    "synonyms": [
+      "Buss",
+      "Group Track"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Panning",
+    "definition": "Việc điều chỉnh vị trí của một âm thanh trong không gian stereo (trái hoặc phải).",
+    "examples": [],
+    "synonyms": [
+      "Pan"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Stereo Image",
+    "definition": "Cảm nhận về không gian (độ rộng, độ sâu) của bản nhạc khi nghe bằng hai loa hoặc tai nghe.",
+    "examples": [],
+    "synonyms": [
+      "Hình ảnh Stereo"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Mono",
+    "definition": "Âm thanh đơn kênh. Tất cả âm thanh được phát ra từ một điểm duy nhất, không có cảm giác không gian trái-phải.",
+    "examples": [],
+    "synonyms": [
+      "Monaural"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Phase",
+    "definition": "Mối quan hệ về thời gian giữa hai hoặc nhiều sóng âm. Nếu hai sóng giống hệt nhau nhưng 'lệch pha' (out of phase), chúng có thể triệt tiêu lẫn nhau, làm âm thanh bị mỏng hoặc mất bass.",
+    "examples": [],
+    "synonyms": [
+      "Pha",
+      "Lệch pha"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Parallel Compression",
+    "definition": "Kỹ thuật trộn tín hiệu gốc (dry) với một bản sao được nén rất mạnh (wet) của chính nó. Giúp tăng độ 'dày' và 'uy lực' mà vẫn giữ được dynamic của tín hiệu gốc.",
+    "examples": [],
+    "synonyms": [
+      "Nén song song",
+      "New York Compression"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Sidechain Compression",
+    "definition": "Kỹ thuật dùng tín hiệu từ một track (ví dụ: trống kick) để kích hoạt compressor trên một track khác (ví dụ: bass). Thường dùng trong nhạc EDM để tạo hiệu ứng 'pump' (bass nhường chỗ cho kick).",
+    "examples": [
+      "Dùng trong nhạc EDM để tạo hiệu ứng 'pump' (bass nhường chỗ cho kick)."
+    ],
+    "synonyms": [
+      "Sidechain"
+    ],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Automation",
+    "definition": "Khả năng 'vẽ' hoặc 'thu' lại sự thay đổi của một thông số (như volume, pan, EQ) theo thời gian trong DAW.",
+    "examples": [],
+    "synonyms": [],
+    "category": "mixing-mastering"
+  },
+  {
+    "term": "Air",
+    "definition": "Các tần số rất cao (thường trên 12kHz). Thêm 'Air' làm cho bản mix nghe 'mở', 'sáng' và 'tinh tế' hơn.",
+    "examples": [],
+    "synonyms": [
+      "Không khí"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Warmth",
+    "definition": "Thường chỉ sự phong phú ở dải tần số thấp-trung (low-mids). Âm thanh 'ấm' nghe dễ chịu, đầy đặn, ngược với 'lạnh' hoặc 'mỏng'.",
+    "examples": [],
+    "synonyms": [
+      "Ấm áp"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Mud",
+    "definition": "Sự tích tụ quá nhiều năng lượng ở dải thấp-trung (khoảng 200-500Hz), làm cho bản mix nghe mờ, không rõ ràng, thiếu chi tiết.",
+    "examples": [],
+    "synonyms": [
+      "Đục",
+      "Bùn"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Boxy",
+    "definition": "Âm thanh có cảm giác như bị kẹt trong hộp giấy, thường do cộng hưởng ở dải trung (khoảng 400-800Hz).",
+    "examples": [],
+    "synonyms": [
+      "Tiếng hộp"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Harsh",
+    "definition": "Âm thanh khó chịu, mệt tai, thường do có quá nhiều năng lượng ở dải cao-trung (high-mids, khoảng 2kHz-5kHz).",
+    "examples": [],
+    "synonyms": [
+      "Chói",
+      "Gắt"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Presence",
+    "definition": "Dải tần số cao-trung giúp âm thanh (đặc biệt là vocal) nghe 'rõ lời' và 'tiến về phía trước' người nghe.",
+    "examples": [],
+    "synonyms": [
+      "Sự hiện diện"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Glue",
+    "definition": "Một thuật ngữ chủ quan để mô tả tác dụng của compressor (thường là bus compressor) khi nó làm cho tất cả các nhạc cụ trong bản mix nghe 'gắn kết' với nhau như một thể thống nhất.",
+    "examples": [],
+    "synonyms": [
+      "Keo dính"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Punch",
+    "definition": "Cảm giác mạnh mẽ, rõ ràng của các âm thanh có attack nhanh, đặc biệt là trống (kick) và snare.",
+    "examples": [],
+    "synonyms": [
+      "Cú đấm",
+      "Lực"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Body",
+    "definition": "Dải tần số trung-trầm (khoảng 100-300Hz) mang lại 'sức nặng' và 'độ dày' cho âm thanh như guitar hoặc vocal.",
+    "examples": [],
+    "synonyms": [
+      "Thân"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Thin",
+    "definition": "Âm thanh thiếu dải tần số thấp (bass) và thấp-trung (low-mids), nghe yếu và không có sức nặng.",
+    "examples": [],
+    "synonyms": [
+      "Mỏng"
+    ],
+    "category": "subjective-terms"
+  },
+  {
+    "term": "Synthesizer",
+    "definition": "Nhạc cụ điện tử tạo ra âm thanh bằng cách tổng hợp sóng âm (ví dụ: sóng sin, vuông, răng cưa) và xử lý chúng qua bộ lọc (filter) và đường bao (envelope).",
+    "examples": [],
+    "synonyms": [
+      "Synth"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Oscillator",
+    "definition": "Thành phần cơ bản của synth, tạo ra sóng âm thô ban đầu (waveform) ở một tần số nhất định.",
+    "examples": [],
+    "synonyms": [
+      "Bộ dao động",
+      "OSC"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Filter",
+    "definition": "Thành phần trong synth dùng để 'cắt' bớt các tần số (giống như EQ) của sóng âm thô, làm thay đổi âm sắc.",
+    "examples": [],
+    "synonyms": [
+      "Bộ lọc"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Arpeggiator",
+    "definition": "Một tính năng trong synth hoặc DAW tự động chơi các nốt của một hợp âm (chord) theo thứ tự tuần tự, thay vì chơi cùng lúc.",
+    "examples": [],
+    "synonyms": [
+      "Arp"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Sequencer",
+    "definition": "Thiết bị hoặc phần mềm dùng để sắp xếp và phát lại một chuỗi các dữ liệu MIDI hoặc audio theo thứ tự.",
+    "examples": [],
+    "synonyms": [],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Sampler",
+    "definition": "Nhạc cụ điện tử không tạo ra âm thanh từ đầu, mà sử dụng các đoạn âm thanh được thu sẵn (samples) và cho phép chơi chúng như các nốt nhạc trên bàn phím.",
+    "examples": [],
+    "synonyms": [],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "VST",
+    "definition": "Một chuẩn plugin phần mềm phổ biến, cho phép chạy các nhạc cụ ảo (VSTi) hoặc hiệu ứng ảo (VSTfx) bên trong DAW.",
+    "examples": [],
+    "synonyms": [
+      "Virtual Studio Technology",
+      "Plugin"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "AU",
+    "definition": "Chuẩn plugin tương tự VST nhưng dành riêng cho hệ điều hành macOS của Apple (dùng trong Logic Pro, GarageBand).",
+    "examples": [],
+    "synonyms": [
+      "Audio Units"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "AAX",
+    "definition": "Chuẩn plugin độc quyền của Avid, dùng trong Pro Tools.",
+    "examples": [],
+    "synonyms": [],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Drum Machine",
+    "definition": "Thiết bị hoặc phần mềm chuyên dụng để tạo ra nhịp trống.",
+    "examples": [],
+    "synonyms": [
+      "Máy trống"
+    ],
+    "category": "instruments-synthesis"
+  },
+  {
+    "term": "Scale",
+    "definition": "Một chuỗi các nốt nhạc được sắp xếp theo một công thức nhất định, tạo nên 'bảng màu' cho giai điệu. Ví dụ: Thang âm Trưởng (Major), Thứ (Minor).",
+    "examples": [
+      "Thang âm Trưởng (Major)",
+      "Thang âm Thứ (Minor)"
+    ],
+    "synonyms": [
+      "Thang âm"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Chord",
+    "definition": "Ba hoặc nhiều nốt nhạc được chơi cùng một lúc, tạo nên nền tảng 'hòa âm' (harmony) cho bài hát.",
+    "examples": [],
+    "synonyms": [
+      "Hợp âm"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Chord Progression",
+    "definition": "Một chuỗi các hợp âm được chơi nối tiếp nhau, tạo nên cấu trúc và cảm xúc cho bài hát.",
+    "examples": [],
+    "synonyms": [
+      "Tiến trình hợp âm",
+      "Vòng hòa âm"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Key",
+    "definition": "'Trung tâm' của bài hát, là thang âm và hợp âm chủ đạo mà bài hát dựa trên (ví dụ: Giọng Đô trưởng - C Major).",
+    "examples": [
+      "Giọng Đô trưởng - C Major"
+    ],
+    "synonyms": [
+      "Giọng",
+      "Khóa"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Modulation",
+    "definition": "Sự 'chuyển giọng', tức là thay đổi từ một Key (trung tâm) này sang một Key khác.",
+    "examples": [],
+    "synonyms": [
+      "Chuyển giọng"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Harmony",
+    "definition": "Việc kết hợp các nốt nhạc khác nhau chơi cùng lúc để tạo ra hợp âm và tiến trình hợp âm, hỗ trợ cho giai điệu.",
+    "examples": [],
+    "synonyms": [
+      "Hòa âm"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Melody",
+    "definition": "Một chuỗi các nốt nhạc được chơi nối tiếp nhau (phần 'hát' chính) mà người nghe thường nhớ đến.",
+    "examples": [],
+    "synonyms": [
+      "Giai điệu"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Rhythm",
+    "definition": "'Nhịp điệu' của âm nhạc, là sự sắp xếp các âm thanh theo thời gian, được xác định bởi tempo và time signature.",
+    "examples": [],
+    "synonyms": [
+      "Tiết tấu",
+      "Nhịp điệu"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Time Signature",
+    "definition": "Hai con số (ví dụ: 4/4, 3/4) cho biết có bao nhiêu phách (beat) trong một ô nhịp (measure) và nốt nào được tính là một phách.",
+    "examples": [
+      "4/4",
+      "3/4"
+    ],
+    "synonyms": [
+      "Số chỉ nhịp"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Polyphony",
+    "definition": "Nhiều đường giai điệu độc lập được chơi cùng một lúc.",
+    "examples": [],
+    "synonyms": [
+      "Phức điệu"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Homophony",
+    "definition": "Một giai điệu chính rõ rệt được hỗ trợ bởi các hợp âm đệm. Đây là dạng phổ biến nhất trong nhạc Pop.",
+    "examples": [],
+    "synonyms": [
+      "Đồng điệu"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Monophony",
+    "definition": "Chỉ có một đường giai điệu duy nhất mà không có bất kỳ sự hỗ trợ hòa âm nào (ví dụ: một người huýt sáo một mình).",
+    "examples": [
+      "Một người huýt sáo một mình"
+    ],
+    "synonyms": [
+      "Đơn điệu"
+    ],
+    "category": "applied-music-theory"
+  },
+  {
+    "term": "Remix",
+    "definition": "Một phiên bản mới của bài hát gốc, được tạo ra bằng cách lấy một phần (thường là vocal) và xây dựng một phần nhạc đệm (hòa âm, trống) hoàn toàn mới, thường thuộc một thể loại khác.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Mixset",
+    "definition": "Một chuỗi các bài hát được 'trộn' (mix) liên tục, liền mạch với nhau, thường kéo dài từ 30 phút đến vài giờ. DJ sử dụng kỹ thuật 'beatmatching' để đồng bộ tốc độ (BPM) và chuyển đổi mượt mà giữa các bài.",
+    "examples": [],
+    "synonyms": [
+      "DJ Mix",
+      "Set"
+    ],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Mixtape",
+    "definition": "Ban đầu là một cuộn băng cassette chứa các bài hát sưu tầm. Ngày nay, nó thường là một album không chính thức, thường được phát hành miễn phí (như trên SoundCloud) để quảng bá, có thể chứa cả nhạc gốc, remix, và các đoạn 'freestyle'.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Edit",
+    "definition": "Một phiên bản chỉnh sửa nhỏ của bài hát gốc, thường là thêm đoạn intro/outro có trống rõ ràng (để DJ dễ mix) hoặc cắt ngắn/kéo dài một phần nào đó, nhưng vẫn giữ nguyên cấu trúc chính của bài.",
+    "examples": [],
+    "synonyms": [
+      "Club Edit"
+    ],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Bootleg",
+    "definition": "Một bản remix không chính thức, được tạo ra mà không có sự cho phép của nghệ sĩ gốc hoặc hãng đĩa, thường là bằng cách 'tách' (rip) vocal từ bản gốc.",
+    "examples": [],
+    "synonyms": [
+      "Remix lậu"
+    ],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Mashup",
+    "definition": "Một bản nhạc được tạo ra bằng cách 'ghép' hai hoặc nhiều bài hát khác nhau lại với nhau (ví dụ: lấy vocal của bài Pop hát trên nền nhạc của bài Rock).",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Podcast",
+    "definition": "Một chương trình âm thanh (thường là nói chuyện, phỏng vấn, kể chuyện) được phát hành định kỳ theo từng tập (episode).",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "EDM",
+    "definition": "Thuật ngữ 'ô dù' (umbrella term) chỉ chung cho rất nhiều thể loại nhạc điện tử dùng để khiêu vũ, như House, Techno, Trance.",
+    "examples": [],
+    "synonyms": [
+      "Electronic Dance Music"
+    ],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "House",
+    "definition": "Một thể loại nhạc điện tử có nhịp 4/4 (four-on-the-floor) đặc trưng, tempo thường khoảng 120-130 BPM, có nguồn gốc từ Chicago.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Techno",
+    "definition": "Thể loại nhạc điện tử tập trung vào nhịp điệu (rhythm) và sự lặp lại (repetition), thường có âm thanh 'công nghiệp' (industrial) và tối hơn House, tempo khoảng 120-150 BPM.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Trance",
+    "definition": "Thể loại nhạc điện tử tập trung vào giai điệu (melody) du dương, bay bổng, các đoạn 'build-up' (dâng trào) và 'drop' (bùng nổ), tempo thường khoảng 130-145 BPM.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Dubstep",
+    "definition": "Thể loại nhạc điện tử nổi bật với tiếng bass 'wobble' (rung lắc) rất nặng và nhịp điệu 'gãy' (half-time), tempo thường khoảng 140 BPM.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Chillout",
+    "definition": "Một thuật ngữ rộng chỉ các loại nhạc điện tử có nhịp độ chậm, thư giãn, không dùng để nhảy (ví dụ: Ambient, Downtempo).",
+    "examples": [
+      "Ambient",
+      "Downtempo"
+    ],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  },
+  {
+    "term": "Ambient",
+    "definition": "Thể loại nhạc điện tử tập trung vào 'không khí' (atmosphere) và 'âm sắc' (timbre) hơn là nhịp điệu hay giai điệu, thường dùng làm nhạc nền.",
+    "examples": [],
+    "synonyms": [],
+    "category": "dj-remix-formats"
+  }
+]

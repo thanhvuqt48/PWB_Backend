@@ -53,11 +53,6 @@ public class SecurityUtils {
         throw new AppException(ErrorCode.UNAUTHENTICATED);
     }
 
-    public static Optional<String> getCurrentUserLogin() {
-        SecurityContext contextHolder = SecurityContextHolder.getContext();
-        return Optional.ofNullable(extractPrincipal(contextHolder.getAuthentication()));
-    }
-
     public static Optional<String> getCurrentUserEmail() {
         SecurityContext contextHolder = SecurityContextHolder.getContext();
         Authentication authentication = contextHolder.getAuthentication();
@@ -81,6 +76,11 @@ public class SecurityUtils {
         }
 
         return Optional.empty();
+    }
+
+    public static Optional<String> getCurrentUserLogin() {
+        SecurityContext contextHolder = SecurityContextHolder.getContext();
+        return Optional.ofNullable(extractPrincipal(contextHolder.getAuthentication()));
     }
 
     private static String extractPrincipal(Authentication authentication) {
