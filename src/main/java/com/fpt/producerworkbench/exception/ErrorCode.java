@@ -234,12 +234,29 @@ public enum ErrorCode {
     DUPLICATE_JOIN_REQUEST(5203, "Bạn đã có yêu cầu tham gia đang chờ xử lý", HttpStatus.CONFLICT),
     REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
     OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
-
     INVALID_FILE_KEY(1011, "Key của file không hợp lệ.", HttpStatus.BAD_REQUEST),
     DUPLICATE_SECTION_TYPE(4001, "Không thể có nhiều hơn một section cùng loại.", HttpStatus.BAD_REQUEST),
-    DUPLICATE_SOCIAL_PLATFORM(4002, "Không thể có nhiều hơn một liên kết cùng nền tảng.", HttpStatus.BAD_REQUEST)
+    DUPLICATE_SOCIAL_PLATFORM(4002, "Không thể có nhiều hơn một liên kết cùng nền tảng.", HttpStatus.BAD_REQUEST),
 
-    ;
+    // Track Comment errors (8xxx)
+    TRACK_COMMENT_NOT_FOUND(8001, "Không tìm thấy comment", HttpStatus.NOT_FOUND),
+    TRACK_NOT_FOUND(8002, "Không tìm thấy track", HttpStatus.NOT_FOUND),
+    NOT_COMMENT_OWNER(8003, "Bạn không phải là người tạo comment này", HttpStatus.FORBIDDEN),
+    NOT_TRACK_OWNER(8004, "Chỉ người tải track mới có quyền thực hiện hành động này", HttpStatus.FORBIDDEN),
+    PARENT_COMMENT_NOT_FOUND(8005, "Không tìm thấy comment cha", HttpStatus.NOT_FOUND),
+    CANNOT_REPLY_TO_DELETED_COMMENT(8006, "Không thể trả lời comment đã bị xóa", HttpStatus.BAD_REQUEST),
+    INVALID_TIMESTAMP(8007, "Timestamp không hợp lệ hoặc vượt quá độ dài track", HttpStatus.BAD_REQUEST),
+    TRACK_NOT_READY(8008, "Track chưa sẵn sàng để gửi", HttpStatus.BAD_REQUEST),
+    
+    // Client Delivery errors (8017-8022)
+    PRODUCT_COUNT_EXHAUSTED(8037, "Đã hết lượt gửi sản phẩm cho milestone này", HttpStatus.BAD_REQUEST),
+    EDIT_COUNT_EXHAUSTED(8043, "Đã hết lượt chỉnh sửa cho milestone này", HttpStatus.BAD_REQUEST),
+    TRACK_ALREADY_SENT_TO_CLIENT(8038, "Track này đã được gửi cho khách hàng", HttpStatus.BAD_REQUEST),
+    CANNOT_SEND_UNAPPROVED_TRACK(8039, "Chỉ có thể gửi track đã được phê duyệt nội bộ", HttpStatus.BAD_REQUEST),
+    CLIENT_DELIVERY_NOT_FOUND(8040, "Client delivery không tồn tại", HttpStatus.NOT_FOUND),
+    INVALID_DELIVERY_STATUS_TRANSITION(8041, "Không thể chuyển đổi trạng thái delivery này", HttpStatus.BAD_REQUEST),
+    REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST);
+
 
     private final int code;
     private final String message;

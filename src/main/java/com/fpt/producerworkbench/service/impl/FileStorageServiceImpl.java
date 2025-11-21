@@ -13,8 +13,13 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.CompletedFileUpload;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
@@ -177,14 +182,9 @@ public class FileStorageServiceImpl implements FileStorageService {
             String presignedUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
             log.info("Đã tạo presigned URL cho key '{}' với chế độ: {}", objectKey, forDownload ? "Download" : "View");
 
-            String s3Host = String.format("%s.s3.%s.amazonaws.com",
-                    awsProperties.getS3().getBucketName(),
-                    awsProperties.getRegion());
-
-            if (cloudfrontDomain != null && !cloudfrontDomain.isBlank()) {
-                return presignedUrl.replace(s3Host, cloudfrontDomain);
-            }
-
+            // ✅ KHÔNG còn thay thế host sang CloudFront
+            // Method này chỉ dùng cho file tài liệu (PDF, attachments, images)
+            // HLS streaming sẽ dùng generateStreamingUrl() riêng
             return presignedUrl;
 
         } catch (Exception e) {
@@ -247,6 +247,145 @@ public class FileStorageServiceImpl implements FileStorageService {
             log.error("Lỗi download '{}' từ S3: {}", objectKey, e.getMessage());
             throw new AppException(ErrorCode.STORAGE_READ_FAILED);
         }
+    }
+
+    @Override
+    public void uploadFile(File file, String objectKey, String contentType) {
+        try {
+            UploadFileRequest uploadRequest = UploadFileRequest.builder()
+                    .putObjectRequest(req -> req
+                            .bucket(awsProperties.getS3().getBucketName())
+                            .key(objectKey)
+                            .contentType(contentType))
+                    .source(file.toPath())
+                    .build();
+
+            FileUpload fileUpload = s3TransferManager.uploadFile(uploadRequest);
+            CompletedFileUpload completedUpload = fileUpload.completionFuture().join();
+            
+            log.info("Upload file thành công: {} -> {} (ETag: {})", 
+                    file.getName(), objectKey, completedUpload.response().eTag());
+                    
+        } catch (Exception e) {
+            log.error("Lỗi khi upload file '{}' lên S3: {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.UPLOAD_FAILED);
+        }
+    }
+
+    @Override
+    public void downloadFile(String objectKey, File destinationFile) {
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(awsProperties.getS3().getBucketName())
+                    .key(objectKey)
+                    .build();
+
+            try (var s3Object = s3Client.getObject(getObjectRequest);
+                 var outputStream = new FileOutputStream(destinationFile)) {
+                s3Object.transferTo(outputStream);
+            }
+
+            log.info("Download file thành công: {} -> {} ({} bytes)", 
+                    objectKey, destinationFile.getName(), destinationFile.length());
+                    
+        } catch (Exception e) {
+            log.error("Lỗi khi download file '{}' từ S3: {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.STORAGE_READ_FAILED);
+        }
+    }
+
+    @Override
+    public String generateUploadPresignedUrl(String objectKey, String contentType, long expiresInSeconds) {
+        try {
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(awsProperties.getS3().getBucketName())
+                    .key(objectKey)
+                    .contentType(contentType)
+                    .build();
+
+            PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofSeconds(expiresInSeconds))
+                    .putObjectRequest(putObjectRequest)
+                    .build();
+
+            String url = s3Presigner.presignPutObject(presignRequest).url().toString();
+            log.info("Đã tạo presigned UPLOAD URL cho key '{}' (expires in {}s)", objectKey, expiresInSeconds);
+            return url;
+
+        } catch (Exception e) {
+            log.error("Lỗi khi tạo presigned upload URL cho file '{}': {}", objectKey, e.getMessage());
+            throw new AppException(ErrorCode.URL_GENERATION_FAILED);
+        }
+    }
+
+    @Override
+    public void deletePrefix(String prefix) {
+        try {
+            log.info("Bắt đầu xóa tất cả files với prefix: {}", prefix);
+            
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(awsProperties.getS3().getBucketName())
+                    .prefix(prefix)
+                    .build();
+
+            ListObjectsV2Response listResponse;
+            int totalDeleted = 0;
+            
+            do {
+                listResponse = s3Client.listObjectsV2(listRequest);
+                
+                for (S3Object s3Object : listResponse.contents()) {
+                    DeleteObjectRequest deleteRequest = DeleteObjectRequest.builder()
+                            .bucket(awsProperties.getS3().getBucketName())
+                            .key(s3Object.key())
+                            .build();
+                    s3Client.deleteObject(deleteRequest);
+                    totalDeleted++;
+                    log.debug("Đã xóa: {}", s3Object.key());
+                }
+                
+                // Nếu có nhiều hơn 1000 objects, cần pagination
+                listRequest = listRequest.toBuilder()
+                        .continuationToken(listResponse.nextContinuationToken())
+                        .build();
+                        
+            } while (listResponse.isTruncated());
+            
+            log.info("Đã xóa thành công {} files với prefix: {}", totalDeleted, prefix);
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi xóa prefix '{}': {}", prefix, e.getMessage());
+            throw new AppException(ErrorCode.DELETE_FAILED);
+        }
+    }
+
+    @Override
+    public String generateStreamingUrl(String objectKey) {
+        // Validate CloudFront domain
+        if (cloudfrontDomain == null || cloudfrontDomain.isBlank()) {
+            log.error("CloudFront domain chưa được cấu hình (cloudfront.domain = null hoặc blank)");
+            throw new AppException(ErrorCode.URL_GENERATION_FAILED);
+        }
+
+        // Chuẩn hóa CloudFront domain
+        String normalizedDomain = cloudfrontDomain.trim();
+        
+        // Thêm https:// nếu chưa có protocol
+        if (!normalizedDomain.startsWith("http://") && !normalizedDomain.startsWith("https://")) {
+            normalizedDomain = "https://" + normalizedDomain;
+        }
+        
+        // Thêm trailing slash nếu chưa có
+        if (!normalizedDomain.endsWith("/")) {
+            normalizedDomain = normalizedDomain + "/";
+        }
+
+        // Tạo streaming URL
+        String streamingUrl = normalizedDomain + objectKey;
+        
+        log.info("Đã tạo CloudFront streaming URL cho key '{}': {}", objectKey, streamingUrl);
+        
+        return streamingUrl;
     }
 
     private File convertMultiPartToFile(MultipartFile multipartFile) {

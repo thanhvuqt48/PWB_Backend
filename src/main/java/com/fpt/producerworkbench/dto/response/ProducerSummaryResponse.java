@@ -13,6 +13,8 @@ public class ProducerSummaryResponse {
     private String headline;
     private String avatarUrl;
     private String location;
+    private Double latitude;
+    private Double longitude;
     private Set<String> genres;
     private Set<String> tags;
     private Double distanceInKm;

@@ -14,6 +14,12 @@ RUN mvn package -DskipTests
 # Start with Amazon Correto JDK 21
 FROM amazoncorretto:21.0.4
 
+# Cài đặt FFmpeg
+RUN yum update -y && \
+    yum install -y ffmpeg && \
+    yum clean all && \
+    rm -rf /var/cache/yum
+
 # Set working folder to App and copy complied file from above step
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
