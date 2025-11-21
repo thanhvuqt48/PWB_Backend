@@ -8,7 +8,11 @@ import lombok.*;
 
 import java.time.LocalDate;
 
-@Setter @Getter @AllArgsConstructor @NoArgsConstructor @Builder
+@Setter
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 public class MilestoneRequest {
 
     @JsonProperty("title")
@@ -17,7 +21,6 @@ public class MilestoneRequest {
 
     @JsonProperty("description")
     private String description;
-
 
     @JsonProperty("amount")
     @NotBlank(message = "Milestone amount is required")
@@ -30,4 +33,8 @@ public class MilestoneRequest {
 
     @JsonProperty("editCount")
     Integer editCount;
+
+    @NotNull
+    @JsonProperty("productCount")
+    Integer productCount;
 }

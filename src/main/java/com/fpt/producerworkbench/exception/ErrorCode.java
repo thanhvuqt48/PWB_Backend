@@ -46,6 +46,7 @@ public enum ErrorCode {
     DELETE_FAILED(4004, "Xóa tài nguyên thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
     PORTFOLIO_ALREADY_EXISTS(4005, "Bạn đã có portfolio. Mỗi người dùng chỉ được có một portfolio.", HttpStatus.CONFLICT),
     PORTFOLIO_NOT_FOUND(4006, "Không tìm thấy portfolio.", HttpStatus.NOT_FOUND),
+    PORTFOLIO_NOT_PUBLIC(4007, "Portfolio này không công khai.", HttpStatus.FORBIDDEN),
 
     // ===== Lỗi liên quan đến Dự án (5xxx) =====
     CLIENT_ALREADY_EXISTS(5001, "Dự án này đã có khách hàng.", HttpStatus.BAD_REQUEST),
@@ -81,12 +82,23 @@ public enum ErrorCode {
     CONTRACT_DOC_NOT_FOUND(7007, "Không tìm thấy hợp đồng.", HttpStatus.BAD_REQUEST),
     ALREADY_SIGNED_FINAL(7008, "Hợp đồng đã có bản ký cuối. Không thể lưu thêm.", HttpStatus.CONFLICT),
     INVITE_NOT_ALLOWED_ALREADY_COMPLETED(7009, "Hợp đồng đã hoàn tất ký. Không thể mời ký lại.", HttpStatus.CONFLICT),
+    INVITE_ALREADY_SENT(7017, "Lời mời ký đã được gửi cho hợp đồng này. Không thể gửi lại lời mời lần thứ 2.", HttpStatus.CONFLICT),
     CLIENT_NOT_FOUND(7010, "Dự án chưa có khách hàng. Vui lòng mời khách hàng tham gia dự án trước.", HttpStatus.BAD_REQUEST),
     CONTRACT_ALREADY_DECLINED(7011, "Hợp đồng đã bị từ chối trước đó. Không thể từ chối lại.", HttpStatus.CONFLICT),
     CONTRACT_ALREADY_COMPLETED(7012, "Hợp đồng đã hoàn tất ký. Không thể từ chối.", HttpStatus.CONFLICT),
     CONTRACT_NOT_DECLINED(7013, "Hợp đồng chưa bị từ chối.", HttpStatus.BAD_REQUEST),
     MILESTONES_TOTAL_NOT_ENOUGH(7014, "Tổng số tiền các cột mốc nhỏ hơn tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
     MILESTONES_TOTAL_EXCEEDS(7015, "Tổng số tiền các cột mốc vượt quá tổng số tiền trước thuế.", HttpStatus.BAD_REQUEST),
+    PRODUCT_COUNT_REQUIRED(7016, "Thiếu số lượng sản phẩm (tổng từ bảng hạng mục phải > 0).", HttpStatus.BAD_REQUEST),
+    MILESTONES_PRODUCT_TOTAL_NOT_ENOUGH(7017, "Tổng số lượng sản phẩm ở các cột mốc BỊ THIẾU so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
+    MILESTONES_PRODUCT_TOTAL_EXCEEDS(7018, "Tổng số lượng sản phẩm ở các cột mốc BỊ DƯ so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
+
+    // ===== 8xxx: Tích hợp SignNow (MỚI) =====
+    FILE_TOO_LARGE(8000, "Dung lượng file vượt quá 50MB", HttpStatus.BAD_REQUEST),
+    UNSUPPORTED_MEDIA_TYPE(8001, "Định dạng file không được hỗ trợ", HttpStatus.BAD_REQUEST),
+    NOT_PROJECT_MEMBER(8004, "Bạn không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
+    INSPIRATION_ITEM_NOT_FOUND(8005, "Không tìm thấy mục cảm hứng", HttpStatus.BAD_REQUEST),
+
 
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -116,14 +128,50 @@ public enum ErrorCode {
     FILE_NOT_IN_PROJECT(7002, "File không thuộc về dự án này", HttpStatus.FORBIDDEN),
     INVALID_FILE_FORMAT(7003, "Định dạng file không hợp lệ", HttpStatus.BAD_REQUEST),
 
+    // ========== Sugguestion (8xxx) ==========
+    CONFLICT(8006, "Track đang xử lý, vui lòng đợi xong rồi mới đề xuất lại", HttpStatus.BAD_REQUEST),
+    FILE_LARGE(8007,  "File vượt quá giới hạn 25MB", HttpStatus.BAD_REQUEST),
+    FILE_STORAGE_NOT_FOUND(8007,  "Không tìm thấy File", HttpStatus.BAD_REQUEST),
+
     // ========== Playback Related (8xxx) ==========
     CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
     INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
 
+
+    PROJECT_NOT_FUNDED(8004, "Dự án chưa được thanh toán.", HttpStatus.BAD_REQUEST),
     PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+    NOT_FOUND(8006, "Không tìm thấy.", HttpStatus.BAD_REQUEST),
+    INVALID_REQUEST(8007, "Yếu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
 
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
+    MILESTONE_TITLE_DUPLICATE(8010, "Tên cột mốc đã tồn tại trong dự án này. Vui lòng chọn tên khác.", HttpStatus.BAD_REQUEST),
+    CANNOT_CREATE_MILESTONE_FOR_MILESTONE_PAYMENT_TYPE(8011, "Hợp đồng có loại thanh toán MILESTONE không được phép tạo cột mốc. Chỉ hợp đồng có loại thanh toán FULL mới được tạo cột mốc.", HttpStatus.BAD_REQUEST),
+    EDIT_COUNT_EXCEEDS_CONTRACT_LIMIT(8012, "Số lượt chỉnh sửa không được vượt quá số lượng trong dự án.", HttpStatus.BAD_REQUEST),
+    PRODUCT_COUNT_EXCEEDS_CONTRACT_LIMIT(8013, "Số lượng sản phẩm không được vượt quá số lượng trong dự án.", HttpStatus.BAD_REQUEST),
+    MILESTONE_AMOUNT_EXCEEDS_CONTRACT_TOTAL(8014, "Tổng số tiền các cột mốc không được vượt quá tổng số tiền trong dự án.", HttpStatus.BAD_REQUEST),
+    EDIT_COUNT_TOTAL_EXCEEDS_CONTRACT_LIMIT(8015, "Tổng số lượt chỉnh sửa của tất cả cột mốc không được vượt quá số lượng trong dự án.", HttpStatus.BAD_REQUEST),
+    PRODUCT_COUNT_TOTAL_EXCEEDS_CONTRACT_LIMIT(8016, "Tổng số lượng sản phẩm của tất cả cột mốc không được vượt quá số lượng trong dự án.", HttpStatus.BAD_REQUEST),
+    MEMBER_ALREADY_IN_MILESTONE(8017, "Thành viên đã có trong cột mốc này.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_NOT_FOUND(8018, "Không tìm thấy phân chia tiền.", HttpStatus.NOT_FOUND),
+    MONEY_SPLIT_ALREADY_APPROVED(8019, "Phân chia tiền đã được chấp nhận.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_ALREADY_REJECTED(8020, "Phân chia tiền đã bị từ chối.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_TOTAL_EXCEEDS_MILESTONE(8021, "Tổng số tiền phân chia và chi phí vượt quá số tiền của cột mốc.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_CANNOT_APPROVE_OWN(8022, "Bạn không thể chấp nhận phân chia tiền của chính mình.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_CANNOT_REJECT_OWN(8023, "Bạn không thể từ chối phân chia tiền của chính mình.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_ONLY_MEMBER_CAN_APPROVE(8024, "Chỉ thành viên được phân chia tiền mới có thể chấp nhận hoặc từ chối.", HttpStatus.FORBIDDEN),
+    EXPENSE_NOT_FOUND(8025, "Không tìm thấy chi phí.", HttpStatus.NOT_FOUND),
+    MONEY_SPLIT_CANNOT_UPDATE_APPROVED(8026, "Không thể chỉnh sửa phân chia tiền đã được chấp nhận.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_CANNOT_UPDATE_REJECTED(8027, "Không thể chỉnh sửa phân chia tiền đã bị từ chối. Vui lòng tạo mới.", HttpStatus.BAD_REQUEST),
+    MONEY_SPLIT_CANNOT_DELETE_APPROVED(8028, "Không thể xóa phân chia tiền đã được chấp nhận. Chỉ có thể xóa phân chia tiền đang chờ phản hồi hoặc đã bị từ chối.", HttpStatus.BAD_REQUEST),
+    CONTRACT_NOT_COMPLETED_FOR_MILESTONE(8029, "Hợp đồng chưa được hoàn thành. Chỉ có thể tạo hoặc sử dụng cột mốc khi hợp đồng đã được hoàn thành.", HttpStatus.BAD_REQUEST),
+    MILESTONE_HAS_APPROVED_MONEY_SPLIT(8030, "Cột mốc đã có phân chia tiền được chấp nhận. Không thể xóa.", HttpStatus.BAD_REQUEST),
+    MILESTONE_MEMBER_NOT_FOUND(8031, "Không tìm thấy thành viên cột mốc.", HttpStatus.NOT_FOUND),
+    MILESTONE_MEMBER_HAS_APPROVED_MONEY_SPLIT(8032, "Không thể xóa thành viên vì đã có phân chia tiền hoàn tất.", HttpStatus.BAD_REQUEST),
+    PROJECT_MEMBER_HAS_MONEY_SPLIT(8033, "Thành viên đã được phân chia tiền trong cột mốc. Không thể xóa.", HttpStatus.BAD_REQUEST),
+    PROJECT_OWNER_CANNOT_BE_MODIFIED(8034, "Không thể chỉnh sửa hoặc xóa chủ dự án.", HttpStatus.BAD_REQUEST),
+    PROJECT_CLIENT_CANNOT_BE_MODIFIED(8035, "Không thể chỉnh sửa hoặc xóa khách hàng của dự án.", HttpStatus.BAD_REQUEST),
+    PROJECT_CLIENT_CONTRACT_COMPLETED(8036, "Không thể xóa khách hàng vì hợp đồng của dự án đã hoàn thành.", HttpStatus.BAD_REQUEST),
     PLAYBACK_CONTROL_DENIED(8001, "Bạn không có quyền điều khiển phát lại", HttpStatus.FORBIDDEN),
     NO_FILE_PLAYING(8002, "Hiện tại không có file nào đang phát", HttpStatus.BAD_REQUEST),
     INVALID_PLAYBACK_POSITION(8003, "Vị trí phát lại không hợp lệ", HttpStatus.BAD_REQUEST),
@@ -133,15 +181,27 @@ public enum ErrorCode {
     CHAT_MESSAGE_NOT_FOUND(9001, "Không tìm thấy tin nhắn chat", HttpStatus.NOT_FOUND),
     CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),
     MESSAGE_TOO_LONG(9003, "Tin nhắn vượt quá độ dài tối đa", HttpStatus.BAD_REQUEST),
+    CONVERSATION_NOT_GROUP(9004, "Chỉ có thể thêm thành viên vào cuộc trò chuyện nhóm.", HttpStatus.BAD_REQUEST),
+    CONVERSATION_MEMBER_ALREADY_EXISTS(9005, "Người dùng đã là thành viên của cuộc trò chuyện.", HttpStatus.BAD_REQUEST),
+
+    // ========== AI & Vector Database (10xxx) ==========
+    VECTOR_DB_CONNECTION_FAILED(10001, "Không thể kết nối tới vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    VECTOR_DB_INDEXING_FAILED(10002, "Lỗi khi indexing dữ liệu vào vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    VECTOR_DB_SEARCH_FAILED(10003, "Lỗi khi tìm kiếm trong vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    GEMINI_API_ERROR(10004, "Lỗi khi gọi Gemini API", HttpStatus.BAD_GATEWAY),
+    GEMINI_API_RATE_LIMIT(10005, "Vượt quá giới hạn request Gemini API", HttpStatus.TOO_MANY_REQUESTS),
+    TERM_NOT_FOUND(10006, "Không tìm thấy thuật ngữ âm nhạc", HttpStatus.NOT_FOUND),
+    EMBEDDING_GENERATION_FAILED(10007, "Lỗi khi tạo embedding vector", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_EXPLANATION_REQUEST(10008, "Yêu cầu giải thích không hợp lệ", HttpStatus.BAD_REQUEST),
+    AI_SERVICE_UNAVAILABLE(10009, "Dịch vụ AI tạm thời không khả dụng", HttpStatus.SERVICE_UNAVAILABLE),
 
     SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
     SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
-    SESSION_FULL(5011, "Phiên đã đạt số lượng người tham gia tối đa", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ACTIVE(5012, "Phiên đã hoạt động", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_ENDED(5013, "Phiên đã kết thúc", HttpStatus.BAD_REQUEST),
     SESSION_ALREADY_STARTED(5014, "Phiên đã bắt đầu", HttpStatus.BAD_REQUEST),
-    SESSION_NOT_PAUSED(5015, "Phiên không bị tạm dừng", HttpStatus.BAD_REQUEST),
     CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Chỉ có thể hủy phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    MUST_REQUEST_JOIN_FIRST(5017, "Bạn phải gửi yêu cầu tham gia và được phê duyệt trước", HttpStatus.FORBIDDEN),
     CANNOT_REMOVE_HOST(5106, "Không thể xóa người chủ trì phiên", HttpStatus.BAD_REQUEST),
 
 
@@ -154,6 +214,31 @@ public enum ErrorCode {
     // Project errors (4xxx)
     ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
     PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
+
+    MAX_CONCURRENT_SESSIONS_REACHED(4004, "Dự án đã đạt giới hạn tối đa 3 phiên đồng thời", HttpStatus.BAD_REQUEST),
+
+    // Session Update/Delete errors (5300-5399)
+    SCHEDULED_START_MUST_BE_FUTURE(5301, "Thời gian bắt đầu phải là thời gian tương lai", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_UPDATE_SCHEDULED_SESSION(5304, "Chỉ có thể cập nhật phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CANNOT_DELETE_ACTIVE_SESSION(5306, "Không thể xóa phiên đang hoạt động. Vui lòng kết thúc phiên trước", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_DELETE_SCHEDULED_ENDED_OR_CANCELLED_SESSION(5307, "Chỉ có thể xóa phiên đã lên lịch, đã kết thúc hoặc đã hủy", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_INVITE_TO_SCHEDULED_SESSION(5310, "Chỉ có thể mời thêm thành viên vào phiên đã lên lịch", HttpStatus.BAD_REQUEST),
+    CAN_ONLY_INVITE_TO_PRIVATE_SESSION(5311, "Chỉ có thể mời thêm thành viên vào phiên riêng tư", HttpStatus.BAD_REQUEST),
+    MEMBER_IDS_AND_ROLES_MUST_MATCH(5312, "Số lượng thành viên và vai trò phải khớp nhau", HttpStatus.BAD_REQUEST),
+    USER_NOT_IN_PROJECTS(5313, "Người dùng không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
+    ANONYMOUS_MEMBER_CANNOT_ACCESS_SESSION(5308, "Thành viên ẩn danh không thể truy cập phiên", HttpStatus.FORBIDDEN),
+
+    // Join Request errors (5200-5299)
+    JOIN_REQUEST_NOT_FOUND(5201, "Không tìm thấy yêu cầu tham gia hoặc đã hết hạn", HttpStatus.NOT_FOUND),
+    JOIN_REQUEST_EXPIRED(5202, "Yêu cầu tham gia đã hết hạn", HttpStatus.BAD_REQUEST),
+    DUPLICATE_JOIN_REQUEST(5203, "Bạn đã có yêu cầu tham gia đang chờ xử lý", HttpStatus.CONFLICT),
+    REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
+    OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
+
+    INVALID_FILE_KEY(1011, "Key của file không hợp lệ.", HttpStatus.BAD_REQUEST),
+    DUPLICATE_SECTION_TYPE(4001, "Không thể có nhiều hơn một section cùng loại.", HttpStatus.BAD_REQUEST),
+    DUPLICATE_SOCIAL_PLATFORM(4002, "Không thể có nhiều hơn một liên kết cùng nền tảng.", HttpStatus.BAD_REQUEST)
+
     ;
 
     private final int code;

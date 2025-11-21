@@ -19,7 +19,7 @@ import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.service.ContractPdfService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
 import com.itextpdf.forms.fields.PdfTextFormField;
@@ -62,7 +62,8 @@ import java.util.*;
 @Slf4j
 public class ContractPdfServiceImpl implements ContractPdfService {
 
-    static final BigDecimal DEFAULT_VAT_RATE = new BigDecimal("0.08");
+    static final BigDecimal VAT_RATE = new BigDecimal("0.05");
+    static final BigDecimal PIT_RATE = new BigDecimal("0.02");
     static final float INCH = 72f;
     static final BigDecimal ONE = BigDecimal.ONE;
 
@@ -112,7 +113,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     ContractDocumentRepository contractDocumentRepository;
     FileStorageService fileStorageService;
     FileKeyGenerator fileKeyGenerator;
-    ContractPermissionService contractPermissionService;
+    ProjectPermissionService projectPermissionService;
     Resource templateResource;
     Resource fontResource;
 
@@ -122,7 +123,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             ContractDocumentRepository contractDocumentRepository,
             FileStorageService fileStorageService,
             FileKeyGenerator fileKeyGenerator,
-            ContractPermissionService contractPermissionService,
+            ProjectPermissionService projectPermissionService,
             MilestoneRepository milestoneRepository,
             @Value("${pwb.contract.template}") Resource templateResource,
             @Value("${pwb.contract.font}") Resource fontResource
@@ -132,7 +133,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         this.contractDocumentRepository = contractDocumentRepository;
         this.fileStorageService = fileStorageService;
         this.fileKeyGenerator = fileKeyGenerator;
-        this.contractPermissionService = contractPermissionService;
+        this.projectPermissionService = projectPermissionService;
         this.milestoneRepository = milestoneRepository;
         this.templateResource = templateResource;
         this.fontResource = fontResource;
@@ -142,13 +143,13 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     public byte[] fillTemplate(Authentication auth, Long projectId, ContractPdfFillRequest req) {
         if (req.getPercent() == null || req.getPercent().isBlank()) throw new AppException(ErrorCode.BAD_REQUEST);
 
-        var permissions = contractPermissionService.checkContractPermissions(auth, projectId);
+        var permissions = projectPermissionService.checkContractPermissions(auth, projectId);
         if (!permissions.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
         MoneyTotals totals = computeTotals(req);
         String sumFmt = formatMoney(totals.sum);
-        String vatFmt = formatMoney(totals.vat);
-        String gtFmt  = formatMoney(totals.grandTotal);
+
+        int totalQtyFromLines = computeTotalQtyFromLines(req);
 
         boolean payOnce      = Boolean.TRUE.equals(req.getPayOnce());
         boolean payMilestone = Boolean.TRUE.equals(req.getPayMilestone());
@@ -156,9 +157,13 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
         if (payOnce) {
             if (req.getFpEditAmount() == null) throw new AppException(ErrorCode.BAD_REQUEST);
+            if (totalQtyFromLines <= 0) {
+                throw new AppException(ErrorCode.PRODUCT_COUNT_REQUIRED);
+            }
         }
         if (payMilestone) {
             validateMilestonesAmountPreVat(req.getMilestones(), totals.sum);
+            validateMilestonesProductQty(req.getMilestones(), totalQtyFromLines);
         }
 
         if (projectId == null) throw new AppException(ErrorCode.BAD_REQUEST);
@@ -175,30 +180,42 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         }
 
         contract.setContractDetails("Sinh hợp đồng từ PDF fill: " + Optional.ofNullable(req.getContractNo()).orElse(""));
-
-        contract.setTotalAmount(totals.grandTotal);
         contract.setPaymentType(payOnce ? PaymentType.FULL : PaymentType.MILESTONE);
+
+        contract.setTotalAmount(totals.sum);
+        contract.setPitTax(totals.pit);
+        contract.setVatTax(totals.vat);
         contract.setStatus(ContractStatus.DRAFT);
         contract.setFpEditAmount(req.getFpEditAmount());
-        contract = contractRepository.save(contract);
+        // Reset SignNow fields khi tạo hợp đồng mới (hoặc reset hợp đồng cũ)
+        contract.setSignnowDocumentId(null);
+        contract.setSignnowStatus(ContractStatus.DRAFT);
 
-        List<BigDecimal> milestoneGrossList = payMilestone
-                ? computeMilestoneGrossDistributed(req.getMilestones(), DEFAULT_VAT_RATE, totals.grandTotal)
-                : Collections.emptyList();
+        if (payOnce) {
+            contract.setProductCount(totalQtyFromLines);
+        }
+
+        contract = contractRepository.save(contract);
 
         if (payMilestone && req.getMilestones() != null) {
             int idx = 0;
             for (MilestoneRequest m : req.getMilestones()) {
-                BigDecimal gross = milestoneGrossList.get(idx);
+                BigDecimal amtPreVat = parseMoney(m.getAmount());
+                BigDecimal pit = amtPreVat.multiply(PIT_RATE).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal vat = amtPreVat.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+
                 Milestone ms = Milestone.builder()
                         .contract(contract)
                         .title(Optional.ofNullable(m.getTitle()).orElse("Cột mốc " + (idx + 1)))
                         .description(m.getDescription())
-                        .amount(gross)
+                        .amount(amtPreVat)
+                        .pitTax(pit)
+                        .vatTax(vat)
                         .dueDate(m.getDueDate())
                         .status(MilestoneStatus.PENDING)
                         .sequence(idx + 1)
                         .editCount(m.getEditCount())
+                        .productCount(m.getProductCount())
                         .build();
                 milestoneRepository.save(ms);
                 idx++;
@@ -223,12 +240,22 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
             Map<String, String> fields = mapDtoToPdfFields(req);
             fields.put("Text Box 37", sumFmt);
-            fields.put("Text Box 38", vatFmt);
-            fields.put("Text Box 39", gtFmt);
-            if (payOnce) fields.put("Text Box 42", gtFmt);
+
+            if (payOnce) {
+                fields.put("Text Box 42", sumFmt);
+            } else {
+                fields.put("Text Box 42", "");
+            }
 
             fields.put("Percent", ns(req.getPercent()));
             fields.put("FP Edit Amount", req.getFpEditAmount() == null ? "" : String.valueOf(req.getFpEditAmount()));
+            fields.put("FpEditAmount",  req.getFpEditAmount() == null ? "" : String.valueOf(req.getFpEditAmount()));
+
+            if (payOnce) {
+                fields.put("NumOfProduct", String.valueOf(totalQtyFromLines));
+            } else {
+                fields.put("NumOfProduct", "");
+            }
 
             Rectangle addRect = null;
             PdfPage addPage = null;
@@ -261,7 +288,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             setCheck(acro, "Check Box 2", payMilestone);
 
             if (payMilestone) {
-                drawMilestones(pdf, acro, font, req.getMilestones(), milestoneGrossList);
+                drawMilestonesPreTax(pdf, acro, font, req.getMilestones());
             }
 
             acro.flattenFields();
@@ -304,11 +331,10 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         return PdfFontFactory.createFont(fp, PdfEncodings.IDENTITY_H);
     }
 
-    private void drawMilestones(PdfDocument pdf,
-                                PdfAcroForm acro,
-                                PdfFont font,
-                                List<MilestoneRequest> milestones,
-                                List<BigDecimal> milestoneGrossList) {
+    private void drawMilestonesPreTax(PdfDocument pdf,
+                                      PdfAcroForm acro,
+                                      PdfFont font,
+                                      List<MilestoneRequest> milestones) {
         if (milestones == null || milestones.isEmpty()) return;
 
         PageAndRect first = resolveMilestoneFirstArea(pdf, acro);
@@ -327,17 +353,19 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             String title = nvl(m.getTitle(), "Cột mốc " + (i + 1));
             String due   = m.getDueDate() != null ? m.getDueDate().format(df) : "......";
 
-            String amountStr = (milestoneGrossList != null && milestoneGrossList.size() > i)
-                    ? formatMoney(milestoneGrossList.get(i))
-                    : ".....................";
-            String money = "• Số tiền: " + amountStr + " VND";
+            BigDecimal amt = parseMoney(m.getAmount());
+            String amountStr = formatMoney(amt) + " VND";
+            String money = "• Số tiền: " + amountStr;
 
             String desc  = (m.getDescription() == null || m.getDescription().trim().isEmpty())
                     ? null : ("• Mô tả: " + m.getDescription());
             String revisions = (m.getEditCount() == null) ? null : ("• Số lần chỉnh sửa: " + m.getEditCount());
 
+            String qty = (m.getProductCount() == null) ? null // LOGIC MOI
+                    : ("• Số sản phẩm: " + m.getProductCount());
+
             com.itextpdf.layout.element.Div probe =
-                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions);
+                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions, qty);
             float needed = measureHeight(probe, rect);
 
             if (needed > remaining) {
@@ -351,7 +379,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             }
 
             com.itextpdf.layout.element.Div real =
-                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions);
+                    buildMilestoneBlock(font, rect.getWidth(), title, due, money, desc, revisions, qty);
             canvas.add(real);
             remaining -= needed;
         }
@@ -362,7 +390,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     private com.itextpdf.layout.element.Div buildMilestoneBlock(PdfFont font, float width,
                                                                 String title, String due,
                                                                 String money, String desc,
-                                                                String revisions) {
+                                                                String revisions, String qty) {
         com.itextpdf.layout.Style base = new com.itextpdf.layout.Style()
                 .setFont(font).setFontSize(10.5f);
 
@@ -390,6 +418,15 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 .setMultipliedLeading(1.15f)
                 .setMargin(0).setPadding(0);
         block.add(pMoney);
+
+        if (qty != null) {
+            Text tQty = new Text(qty).setFont(font).setFontSize(10.5f);
+            Paragraph pQty = new Paragraph(tQty)
+                    .setFont(font).setFontSize(10.5f)
+                    .setMultipliedLeading(1.15f)
+                    .setMargin(0).setPadding(0);
+            block.add(pQty);
+        }
 
         if (desc != null) {
             com.itextpdf.layout.element.Text tDesc = new com.itextpdf.layout.element.Text(desc)
@@ -522,16 +559,16 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         return m;
     }
 
-    private record MoneyTotals(BigDecimal sum, BigDecimal vat, BigDecimal grandTotal) {}
+    private record MoneyTotals(BigDecimal sum, BigDecimal pit, BigDecimal vat) {}
 
     private MoneyTotals computeTotals(ContractPdfFillRequest req) {
         BigDecimal sum = BigDecimal.ZERO;
         for (Line ln : collectLines(req)) {
             sum = sum.add(computeAmount(ln.qty, ln.price));
         }
-        BigDecimal vat = sum.multiply(DEFAULT_VAT_RATE).setScale(0, RoundingMode.HALF_UP);
-        BigDecimal total = sum.add(vat);
-        return new MoneyTotals(sum, vat, total);
+        BigDecimal pit = sum.multiply(PIT_RATE).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal vat = sum.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+        return new MoneyTotals(sum, pit, vat);
     }
 
     private void validateMilestonesAmountPreVat(List<MilestoneRequest> milestones, BigDecimal preVatSum) {
@@ -561,51 +598,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         if (runningPreVat.compareTo(preVatSum) < 0) {
             throw new AppException(ErrorCode.MILESTONES_TOTAL_NOT_ENOUGH);
         }
-    }
-
-    private List<BigDecimal> computeMilestoneGrossDistributed(List<MilestoneRequest> milestones,
-                                                              BigDecimal vatRate,
-                                                              BigDecimal expectedGrandTotal) {
-        if (milestones == null || milestones.isEmpty()) return Collections.emptyList();
-
-        List<BigDecimal> grossRounded = new ArrayList<>(milestones.size());
-        BigDecimal factor = ONE.add(vatRate);
-
-        for (MilestoneRequest m : milestones) {
-            BigDecimal preVat = parseMoney(m.getAmount());
-            BigDecimal grossExact = preVat.multiply(factor);
-            BigDecimal gross = grossExact.setScale(0, RoundingMode.HALF_UP);
-            grossRounded.add(gross);
-        }
-
-        BigDecimal sumGross = grossRounded.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal delta = expectedGrandTotal.subtract(sumGross);
-
-        if (delta.signum() != 0) {
-            int idxLargest = 0;
-            for (int i = 1; i < grossRounded.size(); i++) {
-                if (grossRounded.get(i).compareTo(grossRounded.get(idxLargest)) > 0) {
-                    idxLargest = i;
-                }
-            }
-            BigDecimal adjusted = grossRounded.get(idxLargest).add(delta);
-            if (adjusted.signum() <= 0) {
-                int last = grossRounded.size() - 1;
-                adjusted = grossRounded.get(last).add(delta);
-                if (adjusted.signum() <= 0) {
-                    throw new AppException(ErrorCode.BAD_REQUEST);
-                }
-                grossRounded.set(last, adjusted);
-            } else {
-                grossRounded.set(idxLargest, adjusted);
-            }
-        }
-
-        BigDecimal finalSum = grossRounded.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
-        if (finalSum.compareTo(expectedGrandTotal) != 0) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-        return grossRounded;
     }
 
     private void setCheck(PdfAcroForm acro, String name, boolean checked) {
@@ -681,7 +673,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             return;
         }
 
-        int base = 10;
+        int base = 9;
         for (int i = 0; i < clauses.size(); i++) {
             String body = clauses.get(i);
             int no = base + i;
@@ -744,6 +736,33 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         nf.setMaximumFractionDigits(0);
         nf.setMinimumFractionDigits(0);
         return nf.format(v);
+    }
+
+
+    private int computeTotalQtyFromLines(ContractPdfFillRequest req) {
+        int total = 0;
+        for (Line ln : collectLines(req)) {
+            if (ln.qty != null && ln.qty > 0) total += ln.qty;
+        }
+        return total;
+    }
+
+    private void validateMilestonesProductQty(List<MilestoneRequest> milestones, int expectedQty) {
+        if (milestones == null || milestones.isEmpty()) throw new AppException(ErrorCode.BAD_REQUEST);
+
+        int sum = 0;
+        for (MilestoneRequest m : milestones) {
+            if (m.getProductCount() == null || m.getProductCount() <= 0) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+            sum += m.getProductCount();
+        }
+
+        if (sum < expectedQty) {
+            throw new AppException(ErrorCode.MILESTONES_PRODUCT_TOTAL_NOT_ENOUGH);
+        } else if (sum > expectedQty) {
+            throw new AppException(ErrorCode.MILESTONES_PRODUCT_TOTAL_EXCEEDS);
+        }
     }
 
     private String ns(Object o) { return o == null ? "" : String.valueOf(o); }

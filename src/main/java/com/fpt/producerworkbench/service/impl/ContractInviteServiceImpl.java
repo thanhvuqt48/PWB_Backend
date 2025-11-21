@@ -2,8 +2,11 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
@@ -13,13 +16,19 @@ import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractInviteService;
 import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.ContractPermissionService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.service.SignNowWebhookService;
+import com.fpt.producerworkbench.service.NotificationService;
+import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.entity.User;
 import org.springframework.kafka.core.KafkaTemplate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -37,12 +46,54 @@ public class ContractInviteServiceImpl implements ContractInviteService {
     private final FileStorageService fileStorageService;
     private final SignNowClient signNowClient;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
-    private final ContractPermissionService contractPermissionService;
+    private final ProjectPermissionService projectPermissionService;
     private final SignNowWebhookService signNowWebhookService;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
+    
+    @Lazy
+    @Autowired
+    private ContractInviteServiceImpl self;
 
 
     private static boolean eqIgnore(String a, String b) {
         return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
+    }
+
+    @Async
+    public void sendInviteEmailsAsync(Contract contract, List<ContractInviteRequest.Signer> signers) {
+        try {
+            String previewUrl = null;
+            try {
+                var filledDoc = contractDocumentRepository
+                        .findTopByContract_IdAndTypeOrderByVersionDesc(contract.getId(), ContractDocumentType.FILLED)
+                        .orElse(null);
+                if (filledDoc != null) {
+                    previewUrl = fileStorageService.generatePresignedUrl(filledDoc.getStorageUrl(), false, null);
+                }
+            } catch (Exception ignore) { }
+
+            for (var s : signers) {
+                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
+                NotificationEvent event = NotificationEvent.builder()
+                        .subject("Yêu cầu ký hợp đồng - Project #" + contract.getProject().getId())
+                        .recipient(s.getEmail().trim())
+                        .templateCode("contract-invite-sent.html")
+                        .param(new java.util.HashMap<>())
+                        .build();
+                event.getParam().put("projectId", String.valueOf(contract.getProject().getId()));
+                event.getParam().put("projectTitle", contract.getProject().getTitle());
+                event.getParam().put("contractId", String.valueOf(contract.getId()));
+                event.getParam().put("recipient", s.getFullName() == null ? s.getEmail() : s.getFullName());
+                if (previewUrl != null) {
+                    event.getParam().put("previewUrl", previewUrl);
+                }
+                kafkaTemplate.send("notification-delivery", event);
+            }
+            log.info("Sent invite emails for contract {} to {} signers", contract.getId(), signers.size());
+        } catch (Exception mailEx) {
+            log.error("Failed to send invite emails for contract {}: {}", contract.getId(), mailEx.getMessage(), mailEx);
+        }
     }
 
 
@@ -95,9 +146,28 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
-        var permissions = contractPermissionService.checkContractPermissions(auth, c.getProject().getId());
+        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE)
+        // Kiểm tra cả status và signnowStatus để đảm bảo chính xác
+        // Lưu ý: Nếu status là DRAFT, cho phép gửi lại lời mời (hợp đồng mới hoặc đã reset)
+        if (c.getStatus() != com.fpt.producerworkbench.common.ContractStatus.DRAFT) {
+            if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.OUT_FOR_SIGNATURE
+                    || c.getSignnowStatus() == com.fpt.producerworkbench.common.ContractStatus.OUT_FOR_SIGNATURE) {
+                throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
+            }
+        }
+
+        var permissions = projectPermissionService.checkContractPermissions(auth, c.getProject().getId());
         if (!permissions.isCanInviteToSign()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // Nếu status là DRAFT (hợp đồng mới hoặc đã reset), đảm bảo reset signnowDocumentId
+        // để upload document mới, tránh dùng document cũ có thể đã có invite
+        if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.DRAFT && c.getSignnowDocumentId() != null) {
+            log.info("Resetting signnowDocumentId for DRAFT contract {} to allow new document upload", c.getId());
+            c.setSignnowDocumentId(null);
+            c.setSignnowStatus(com.fpt.producerworkbench.common.ContractStatus.DRAFT);
+            contractRepository.save(c);
         }
 
         List<ContractInviteRequest.Signer> autoSigners = generateAutoSigners(c.getProject());
@@ -125,19 +195,12 @@ public class ContractInviteServiceImpl implements ContractInviteService {
 
             String docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "contract-" + contractId + ".pdf");
             c.setSignnowDocumentId(docId);
-            try {
-                signNowWebhookService.ensureCompletedEventForDocument(docId);
-            } catch (WebClientResponseException ex) {
-                int sc = ex.getStatusCode().value();
-                if (sc == 409 || sc == 422) {
-                    log.info("[Webhook] already exists or not applicable: status={}", sc);
-                } else {
-                    log.warn("[Webhook] register failed: status={} body={}", sc, ex.getResponseBodyAsString());
-                }
-            } catch (Exception ex) {
-                log.warn("[Webhook] register failed (unexpected): {}", ex.toString());
-            }
-
+            // Save contract ngay sau khi set signnowDocumentId để đảm bảo webhook có thể tìm thấy contract
+            // khi document.complete event được gửi từ SignNow
+            contractRepository.save(c);
+            
+            // Đăng ký webhook async để không block request
+            signNowWebhookService.ensureCompletedEventForDocument(docId);
         }
 
         String ownerEmail = signNowClient.getDocumentOwnerEmail(c.getSignnowDocumentId());
@@ -191,38 +254,43 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         }
 
         c.setStatus(ContractStatus.OUT_FOR_SIGNATURE);
+        c.setSignnowStatus(ContractStatus.OUT_FOR_SIGNATURE);
         contractRepository.save(c);
 
-        try {
-            String previewUrl = null;
-            try {
-                var filledDoc = contractDocumentRepository
-                        .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.FILLED)
-                        .orElse(null);
-                if (filledDoc != null) {
-                    previewUrl = fileStorageService.generatePresignedUrl(filledDoc.getStorageUrl(), false, null);
-                }
-            } catch (Exception ignore) { }
+        // Gửi mail async để không block request (gọi qua self để Spring proxy hoạt động)
+        self.sendInviteEmailsAsync(c, filtered);
 
-            for (var s : filtered) {
-                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
-                NotificationEvent event = NotificationEvent.builder()
-                        .subject("Yêu cầu ký hợp đồng - Project #" + c.getProject().getId())
-                        .recipient(s.getEmail().trim())
-                        .templateCode("contract-invite-sent.html")
-                        .param(new java.util.HashMap<>())
-                        .build();
-                event.getParam().put("projectId", String.valueOf(c.getProject().getId()));
-                event.getParam().put("projectTitle", c.getProject().getTitle());
-                event.getParam().put("contractId", String.valueOf(c.getId()));
-                event.getParam().put("recipient", s.getFullName() == null ? s.getEmail() : s.getFullName());
-                if (previewUrl != null) {
-                    event.getParam().put("previewUrl", previewUrl);
-                }
-                kafkaTemplate.send("notification-delivery", event);
+        // Gửi notification realtime cho các signers
+        try {
+            User currentUser = userRepository.findByEmail(auth.getName())
+                    .orElse(null);
+            String inviterName = currentUser != null 
+                    ? (currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail())
+                    : "Hệ thống";
+//            String actionUrl = String.format("/projects/%d/contracts/%d/sign",
+//                    c.getProject().getId(), c.getId());
+            
+            for (var signer : filtered) {
+                if (signer.getEmail() == null || signer.getEmail().isBlank()) continue;
+                
+                userRepository.findByEmail(signer.getEmail()).ifPresent(user -> {
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(user.getId())
+                                    .type(NotificationType.CONTRACT_SIGNING)
+                                    .title("Yêu cầu ký hợp đồng")
+                                    .message(String.format("%s đã gửi yêu cầu ký hợp đồng cho dự án \"%s\". Vui lòng ký hợp đồng để tiếp tục.",
+                                            inviterName,
+                                            c.getProject().getTitle()))
+                                    .relatedEntityType(RelatedEntityType.CONTRACT)
+                                    .relatedEntityId(c.getId())
+//                                    .actionUrl(actionUrl)
+                                    .build()
+                    );
+                });
             }
-        } catch (Exception mailEx) {
-            log.warn("Failed to publish contract invite notification emails: {}", mailEx.getMessage());
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho contract signing: {}", e.getMessage());
         }
 
         return resp;

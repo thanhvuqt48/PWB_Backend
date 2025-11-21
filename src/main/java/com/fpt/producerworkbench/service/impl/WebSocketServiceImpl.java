@@ -16,7 +16,6 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     private final SimpMessagingTemplate messagingTemplate;
 
-// broadcast SessionStateChangeEvent
     @Override
     public void broadcastSessionStateChange(String sessionId, SessionStateChangeEvent event) {
         log.debug("Broadcasting session state change: {} -> {} for session {}",
@@ -35,7 +34,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.error("❌ Failed to broadcast session state change: {}", e.getMessage());
         }
     }
-// broadcast ParticipantEvent
+
     @Override
     public void broadcastParticipantEvent(String sessionId, ParticipantEvent event) {
         log.debug("Broadcasting participant event: {} - {} in session {}",
@@ -53,7 +52,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.error("❌ Failed to broadcast participant event: {}", e.getMessage());
         }
     }
-// broadcast ChatMessage
+
     @Override
     public void broadcastChatMessage(String sessionId, ChatMessage chatMessage) {
         log.debug("Broadcasting chat message from {} in session {}",
@@ -71,7 +70,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.error("❌ Failed to broadcast chat message: {}", e.getMessage());
         }
     }
-// broadcast PlaybackEvent
+
     @Override
     public void broadcastPlaybackEvent(String sessionId, PlaybackEvent event) {
         log.debug("Broadcasting playback event: {} - {} in session {}",
@@ -89,7 +88,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.error("❌ Failed to broadcast playback event: {}", e.getMessage());
         }
     }
-// broadcast SystemNotification
+
     @Override
     public void broadcastSystemNotification(String sessionId, SystemNotification notification) {
         log.debug("Broadcasting system notification: {} in session {}",
@@ -107,7 +106,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.error("❌ Failed to broadcast system notification: {}", e.getMessage());
         }
     }
-//Send private message to user
+
     @Override
     public void sendToUser(Long userId, String destination, Object payload) {
         log.debug("Sending private message to user: {} at {}", userId, destination);
@@ -122,7 +121,7 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.error("❌ Failed to send private message to user {}: {}", userId, e.getMessage());
         }
     }
-// broadcastSessionSummary
+
     @Override
     public void broadcastSessionSummary(String sessionId, Object summary) {
         log.debug("Broadcasting session summary for session {}", sessionId);
@@ -138,5 +137,33 @@ public class WebSocketServiceImpl implements WebSocketService {
         } catch (Exception e) {
             log.error("❌ Failed to broadcast session summary: {}", e.getMessage());
         }
+    }
+
+    @Override
+    public void broadcastUserStatusChange(String userEmail, boolean isOnline, String conversationId) {
+        log.debug("Broadcasting user status change: {} is {} in conversation {}",
+                userEmail, isOnline ? "online" : "offline", conversationId);
+
+        SessionEventMessage message = SessionEventMessage.builder()
+                .eventType("USER_STATUS_CHANGE")
+                .sessionId(conversationId)
+                .timestamp(LocalDateTime.now())
+                .payload(new UserStatusChangePayload(userEmail, isOnline))
+                .build();
+
+        try {
+            messagingTemplate.convertAndSend("/topic/conversation/" + conversationId + "/status", message);
+            log.info("✅ User status change broadcasted: {} is {} in conversation {}",
+                    userEmail, isOnline ? "online" : "offline", conversationId);
+        } catch (Exception e) {
+            log.error("❌ Failed to broadcast user status change: {}", e.getMessage());
+        }
+    }
+
+    @lombok.Data
+    @lombok.AllArgsConstructor
+    private static class UserStatusChangePayload {
+        private String userEmail;
+        private boolean isOnline;
     }
 }

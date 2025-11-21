@@ -30,7 +30,7 @@ public class ContractPdfFillRequest {
     LocalDate aCccdIssueDate;
 
     @NotBlank @JsonProperty("aCccdIssuePlace") String aCccdIssuePlace;
-    @NotBlank @JsonProperty("aAddress")        String aAddress;
+    @NotBlank @JsonProperty("aAddress")   String aAddress;
 
     @NotBlank @JsonProperty("bName")  String bName;
     @NotBlank @JsonProperty("bCccd")  String bCccd;
@@ -128,4 +128,7 @@ public class ContractPdfFillRequest {
 
     @JsonProperty("fpEditAmount")
     Integer fpEditAmount;
+
+    @JsonProperty("NumOfProduct")
+    Integer NumOfProduct;
 }

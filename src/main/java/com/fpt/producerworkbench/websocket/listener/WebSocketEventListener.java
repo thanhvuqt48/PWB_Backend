@@ -1,8 +1,17 @@
 package com.fpt.producerworkbench.websocket.listener;
 
+import com.fpt.producerworkbench.entity.Conversation;
+import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.entity.WebSocketSession;
+import com.fpt.producerworkbench.repository.ConversationRepository;
+import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.dto.websocket.JoinRequest;
+import com.fpt.producerworkbench.dto.websocket.SystemNotification;
+import com.fpt.producerworkbench.entity.LiveSession;
+import com.fpt.producerworkbench.repository.LiveSessionRepository;
 import com.fpt.producerworkbench.service.SessionParticipantService;
 import com.fpt.producerworkbench.service.WebSocketService;
+import com.fpt.producerworkbench.service.impl.JoinRequestRedisService;
 import com.fpt.producerworkbench.service.impl.WebSocketSessionRedisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +23,7 @@ import org.springframework.web.socket.messaging.SessionConnectEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -23,6 +33,11 @@ public class WebSocketEventListener {
 
     private final WebSocketSessionRedisService sessionRedisService;
     private final SessionParticipantService participantService;
+    private final WebSocketService webSocketService;
+    private final ConversationRepository conversationRepository;
+    private final UserRepository userRepository;
+    private final JoinRequestRedisService joinRequestRedisService;
+    private final LiveSessionRepository liveSessionRepository;
 
     @Async
     @EventListener
@@ -32,10 +47,11 @@ public class WebSocketEventListener {
         String sessionId = accessor.getSessionId();
         Principal user = connectEvent.getUser();
 
-        if(user == null) {
+        if (user == null) {
             throw new RuntimeException("Unauthenticated");
         }
 
+        String userEmail = user.getName();
         Long userId = sessionAttributes != null && sessionAttributes.get("userId") != null
                 ? ((Number) sessionAttributes.get("userId")).longValue()
                 : null;
@@ -45,15 +61,29 @@ public class WebSocketEventListener {
 
         log.info("🔌 WebSocket CONNECT event - WsSession: {}, User: {}, UserId: {}, LiveSession: {}",
                 sessionId,
-                user != null ? user.getName() : "null",
+                userEmail,
                 userId,
                 liveSessionId);
 
         sessionRedisService.saveWebSocketSession(WebSocketSession.builder()
                 .socketSessionId(sessionId)
-                .userId(user.getName())
+                .userId(userEmail)
                 .build());
         log.info("✅ Saved WebSocket session to Redis: wsSession={}, userId={}", sessionId, userId);
+
+        // Broadcast online status to all conversations this user is part of
+        try {
+            User currentUser = userRepository.findByEmail(userEmail).orElse(null);
+            if (currentUser != null) {
+                List<Conversation> conversations = conversationRepository.findByParticipantsUserId(currentUser.getId());
+                for (Conversation conversation : conversations) {
+                    webSocketService.broadcastUserStatusChange(userEmail, true, conversation.getId());
+                }
+                log.info("✅ Broadcasted online status for user {} to {} conversations", userEmail, conversations.size());
+            }
+        } catch (Exception e) {
+            log.error("❌ Failed to broadcast online status for user {}: {}", userEmail, e.getMessage(), e);
+        }
     }
 
     @Async
@@ -61,7 +91,11 @@ public class WebSocketEventListener {
     public void handleSessionDisConnect(SessionDisconnectEvent disconnectEvent) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(disconnectEvent.getMessage());
         String wsSessionId = accessor.getSessionId();
+        Principal user = disconnectEvent.getUser();
+        String userEmail = user != null ? user.getName() : null;
+
         sessionRedisService.deleteWebsocketSession(wsSessionId);
+
         Map<String, Object> sessionAttributes = accessor.getSessionAttributes();
         if (sessionAttributes == null) {
             log.warn("⚠️ Session attributes null for wsSession: {}", wsSessionId);
@@ -83,9 +117,10 @@ public class WebSocketEventListener {
                 ? sessionAttributes.get("liveSessionId").toString()
                 : null;
 
-        log.info("🔌 WebSocket DISCONNECTED - WsSession: {}, User ID: {}, LiveSession: {}",
-                wsSessionId, userId, liveSessionId);
+        log.info("🔌 WebSocket DISCONNECTED - WsSession: {}, User: {}, User ID: {}, LiveSession: {}",
+                wsSessionId, userEmail, userId, liveSessionId);
 
+        // 1. Cleanup participant từ live session
         if (userId != null && liveSessionId != null) {
             try {
                 log.info("🧹 Cleaning up participant {} from session {}", userId, liveSessionId);
@@ -99,6 +134,56 @@ public class WebSocketEventListener {
             log.debug("ℹ️ WebSocket disconnected but no active live session (userId: {}, sessionId: {})",
                     userId, liveSessionId);
         }
+
+        if (userEmail != null) {
+            try {
+                User currentUser = userRepository.findByEmail(userEmail).orElse(null);
+                if (currentUser != null) {
+                    List<Conversation> conversations = conversationRepository.findByParticipantsUserId(currentUser.getId());
+                    for (Conversation conversation : conversations) {
+                        webSocketService.broadcastUserStatusChange(userEmail, false, conversation.getId());
+                    }
+                    log.info("✅ Broadcasted offline status for user {} to {} conversations", userEmail, conversations.size());
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to broadcast offline status for user {}: {}", userEmail, e.getMessage(), e);
+            }
+        }
+
+        // 2. Cleanup pending join request nếu có
+        if (userId != null && joinRequestRedisService.hasActiveRequest(userId)) {
+            try {
+                String requestId = joinRequestRedisService.getActiveRequestId(userId);
+                JoinRequest request = joinRequestRedisService.getJoinRequest(requestId);
+
+                if (request != null) {
+                    log.info("🧹 Cleaning up pending join request {} for disconnected user {}", requestId, userId);
+
+                    // Delete request from Redis
+                    joinRequestRedisService.deleteJoinRequest(requestId, request.getSessionId(), userId);
+
+                    // ✅ Notify owner that user disconnected (with requestId)
+                    LiveSession session = liveSessionRepository.findById(request.getSessionId()).orElse(null);
+                    if (session != null) {
+                        Long hostId = session.getHost().getId();
+                        webSocketService.sendToUser(hostId, "/queue/notification",
+                                SystemNotification.builder()
+                                        .type("INFO")
+                                        .title("Join Request Cancelled")
+                                        .message(request.getUserName() + " disconnected while waiting for approval")
+                                        .requiresAction(false)
+                                        .data(Map.of("requestId", requestId))
+                                        .build()
+                        );
+                    }
+
+                    log.info("✅ Join request {} cleaned up successfully", requestId);
+                }
+            } catch (Exception e) {
+                log.error("❌ Failed to cleanup join request for user {}: {}", userId, e.getMessage(), e);
+            }
+        }
+
         log.info("Disconnected from websocket session {}", accessor.getSessionId());
     }
 

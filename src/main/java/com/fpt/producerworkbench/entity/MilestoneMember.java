@@ -20,4 +20,7 @@ public class MilestoneMember  extends AbstractEntity<Long>{
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
 }
