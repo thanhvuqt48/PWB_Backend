@@ -52,6 +52,23 @@ spring:
     time-zone: Asia/Ho_Chi_Minh
     date-format: yyyy-MM-dd
 
+  # Gemini REST API Configuration
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+    model: gemini-2.5-flash  # Stable: 15 req/min, 1M tokens context
+    base-url: https://generativelanguage.googleapis.com/v1beta
+
+  # Spring AI Configuration
+  ai:
+    vectorstore:
+      pinecone:
+        apiKey: ${PINECONE_API_KEY}
+        indexName: ${PINECONE_INDEX_NAME:music-terms-index}
+        namespace: ${PINECONE_NAMESPACE:music-terms}
+        projectName: ${PINECONE_PROJECT_ID:nxzaj2y}
+        environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
+        # Using default transformer embeddings (384 dimensions)
+
 jwt:
   secret-key: ${SECRET_KEY}
   valid-duration: 24
@@ -93,6 +110,9 @@ signnow:
     connect-timeout-ms: ${SN_HTTP_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${SN_HTTP_READ_TIMEOUT_MS:120000}
 
+bedrock:
+  region: ap-southeast-1
+  modelId: anthropic.claude-3-haiku-20240307-v1:0
 
 pwb:
   contract:
@@ -116,8 +136,32 @@ aws:
   region: ${AWS_REGION}
   access-key-id: ${AWS_ACCESS_KEY_ID}
   secret-access-key: ${AWS_SECRET_ACCESS_KEY}
+  ai:
+    song:
+      baseline:
+        temperature: 0.8
+      min-per-line-ratio: 0.85
+      min-total-increase-ratio: 0.05
+      min-total-increase-chars: 12
+      max-rewrite-retries: 2
   s3:
     bucket-name: ${S3_BUCKET_NAME}
+    max-upload-mb: 25
+
+gcp:
+  project-id: ${GCP_PROJECT_ID}
+  credentials-file: classpath:google-cloud/producer-workbench-478512-048275ebbad8.json
+  gcs:
+    bucket: ${GCS_BUCKET}
+    delete-after-finish: true
+  speech:
+    location: global
+    languageCode: vi-VN
+    model: latest_long
+    gcs-output-bucket: ${GCS_OUT_BUCKET}
+    gcs-output-prefix: pwb/stt/
+    enablePunctuation: true
+    timeoutSeconds: 1200
 
 logging:
   charset:
@@ -143,3 +187,20 @@ payos:
 subscription:
   grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
   renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}
+
+# Gemini AI Configuration (for direct API calls)
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: ${GEMINI_MODEL:gemini-1.5-flash}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+  max-tokens: ${GEMINI_MAX_TOKENS:2048}
+  temperature: ${GEMINI_TEMPERATURE:0.3}
+  
+# Pinecone Vector Database Configuration
+pinecone:
+  api-key: ${PINECONE_API_KEY}
+  index-name: ${PINECONE_INDEX_NAME:music-terms-index}
+  environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
+  namespace: ${PINECONE_NAMESPACE:music-terms}
+  project-id: ${PINECONE_PROJECT_ID:nxzaj2y}
+  host: ${PINECONE_HOST:music-terms-index-nxzaj2y.svc.aped-4627-b74a.pinecone.io}

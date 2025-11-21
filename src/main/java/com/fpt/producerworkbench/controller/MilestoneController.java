@@ -7,12 +7,22 @@ import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.MilestoneBriefService;
+import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
+import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
+import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
+import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
+import com.fpt.producerworkbench.dto.response.MilestoneResponse;
+import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
+import com.fpt.producerworkbench.common.MilestoneChatType;
 import com.fpt.producerworkbench.service.MilestoneService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -105,7 +115,7 @@ public class MilestoneController {
             throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         }
 
-        List<AvailableProjectMemberResponse> availableMembers = 
+        List<AvailableProjectMemberResponse> availableMembers =
                 milestoneService.getAvailableProjectMembers(projectId, milestoneId, authentication);
 
         return ApiResponse.<List<AvailableProjectMemberResponse>>builder()
@@ -125,7 +135,7 @@ public class MilestoneController {
             throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         }
 
-        MilestoneDetailResponse milestoneDetail = 
+        MilestoneDetailResponse milestoneDetail =
                 milestoneService.addMembersToMilestone(projectId, milestoneId, request, authentication);
 
         return ApiResponse.<MilestoneDetailResponse>builder()
@@ -179,11 +189,9 @@ public class MilestoneController {
             @PathVariable Long projectId,
             @PathVariable Long milestoneId,
             Authentication authentication) {
-
         if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
             throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         }
-
         MilestoneBriefDetailResponse brief =
                 milestoneBriefService.getMilestoneBrief(projectId, milestoneId, authentication);
 
@@ -192,6 +200,27 @@ public class MilestoneController {
                 .message("Lấy miêu tả cột mốc thành công")
                 .result(brief)
                 .build();
+    }
+
+    @GetMapping("/{projectId}/milestones/{milestoneId}/group-chats")
+    public ApiResponse<List<ConversationCreationResponse>> getGroupChatsForMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @RequestParam(required = false) MilestoneChatType type,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        List<ConversationCreationResponse> conversations = milestoneService.getGroupChatsForMilestone(
+                projectId, milestoneId, type, authentication);
+
+        return ApiResponse.<List<ConversationCreationResponse>>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy danh sách group chat của cột mốc thành công")
+                .result(conversations)
+                .build();
+
     }
 
     @PutMapping("/{projectId}/milestones/{milestoneId}/brief")
@@ -215,6 +244,26 @@ public class MilestoneController {
                 .build();
     }
 
+    @GetMapping("/{projectId}/milestones/{milestoneId}/search-users")
+    public ApiResponse<List<AvailableProjectMemberResponse>> searchUsersForMilestoneChat(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @RequestParam(required = false) String keyword,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        List<AvailableProjectMemberResponse> users = milestoneService.searchUsersForMilestoneChat(
+                projectId, milestoneId, keyword, authentication);
+
+        return ApiResponse.<List<AvailableProjectMemberResponse>>builder()
+                .code(HttpStatus.OK.value())
+                .message("Tìm kiếm thành viên thành công")
+                .result(users)
+                .build();
+    }
+
     @DeleteMapping("/{projectId}/milestones/{milestoneId}/brief")
     public ApiResponse<Void> deleteExternalMilestoneBrief(
             @PathVariable Long projectId,
@@ -230,6 +279,27 @@ public class MilestoneController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Xóa miêu tả cột mốc EXTERNAL thành công")
+                .build();
+    }
+
+    @PostMapping(value = "/{projectId}/milestones/{milestoneId}/group-chat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ConversationCreationResponse> createGroupChatForMilestone(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar,
+            @Valid @RequestPart("data") CreateMilestoneGroupChatRequest request,
+            Authentication authentication) {
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        ConversationCreationResponse conversation = milestoneService.createGroupChatForMilestone(
+                projectId, milestoneId, request, avatar, authentication);
+
+        return ApiResponse.<ConversationCreationResponse>builder()
+                .code(HttpStatus.CREATED.value())
+                .message("Tạo group chat cho cột mốc thành công")
+                .result(conversation)
                 .build();
     }
 
