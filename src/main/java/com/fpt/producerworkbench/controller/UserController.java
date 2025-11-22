@@ -10,7 +10,10 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.UnsupportedEncodingException;
 import java.util.List;
@@ -79,10 +82,31 @@ public class UserController extends User {
     }
 
     @PutMapping("/change-password")
-    ApiResponse<ChangePasswordResponse> changePassword(@RequestBody @Valid ChangePasswordRequest request){
+    ApiResponse<ChangePasswordResponse> changePassword(@RequestBody @Valid ChangePasswordRequest request) {
         return ApiResponse.<ChangePasswordResponse>builder()
                 .code(HttpStatus.OK.value())
                 .result(userService.changePassword(request))
+                .build();
+    }
+
+    @GetMapping("/profile")
+    ApiResponse<UserProfileResponse> getPersonalProfile() {
+        return ApiResponse.<UserProfileResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy thông tin cá nhân thành công!")
+                .result(userService.getPersonalProfile())
+                .build();
+    }
+
+    @PutMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    ApiResponse<UserProfileResponse> updatePersonalProfile(
+            @RequestPart(value = "avatar", required = false) MultipartFile avatar,
+            @Valid @RequestPart("data") UpdatePersonalProfileRequest request) {
+        return ApiResponse.<UserProfileResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật thông tin cá nhân thành công!")
+                .result(userService.updatePersonalProfile(request, avatar))
                 .build();
     }
 
