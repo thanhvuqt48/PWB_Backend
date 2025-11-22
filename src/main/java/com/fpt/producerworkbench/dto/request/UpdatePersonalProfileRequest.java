@@ -29,9 +29,6 @@ public class UpdatePersonalProfileRequest {
     @DateOfBirth(message = "INVALID_DOB")
     LocalDate dateOfBirth;
 
-    @Size(max = 1000, message = "Avatar URL must not exceed 1000 characters")
-    String avatarUrl;
-
     @Size(max = 200, message = "Location must not exceed 200 characters")
     String location;
 }
