@@ -93,6 +93,13 @@ public enum ErrorCode {
     MILESTONES_PRODUCT_TOTAL_NOT_ENOUGH(7017, "Tổng số lượng sản phẩm ở các cột mốc BỊ THIẾU so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
     MILESTONES_PRODUCT_TOTAL_EXCEEDS(7018, "Tổng số lượng sản phẩm ở các cột mốc BỊ DƯ so với tổng số lượng hạng mục.", HttpStatus.BAD_REQUEST),
 
+    // ===== 8xxx: Tích hợp SignNow (MỚI) =====
+    FILE_TOO_LARGE(8000, "Dung lượng file vượt quá 50MB", HttpStatus.BAD_REQUEST),
+    UNSUPPORTED_MEDIA_TYPE(8001, "Định dạng file không được hỗ trợ", HttpStatus.BAD_REQUEST),
+    NOT_PROJECT_MEMBER(8004, "Bạn không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
+    INSPIRATION_ITEM_NOT_FOUND(8005, "Không tìm thấy mục cảm hứng", HttpStatus.BAD_REQUEST),
+
+
     // ===== Lỗi Hệ thống / Máy chủ (9xxx) =====
     INTERNAL_SERVER_ERROR(9001, "Đã có lỗi xảy ra ở phía máy chủ.", HttpStatus.INTERNAL_SERVER_ERROR),
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
@@ -121,13 +128,21 @@ public enum ErrorCode {
     FILE_NOT_IN_PROJECT(7002, "File không thuộc về dự án này", HttpStatus.FORBIDDEN),
     INVALID_FILE_FORMAT(7003, "Định dạng file không hợp lệ", HttpStatus.BAD_REQUEST),
 
+    // ========== Sugguestion (8xxx) ==========
+    CONFLICT(8006, "Track đang xử lý, vui lòng đợi xong rồi mới đề xuất lại", HttpStatus.BAD_REQUEST),
+    FILE_LARGE(8007,  "File vượt quá giới hạn 25MB", HttpStatus.BAD_REQUEST),
+    FILE_STORAGE_NOT_FOUND(8007,  "Không tìm thấy File", HttpStatus.BAD_REQUEST),
+
     // ========== Playback Related (8xxx) ==========
     CONTRACT_NOT_READY_FOR_PAYMENT(8006, "Hợp đồng chưa sẵn sàng để thanh toán.", HttpStatus.BAD_REQUEST),
     INVALID_PAYMENT_TYPE(8008, "Loại thanh toán không hợp lệ.", HttpStatus.BAD_REQUEST),
     PAYMENT_LINK_CREATION_FAILED(8007, "Tạo link thanh toán thất bại.", HttpStatus.INTERNAL_SERVER_ERROR),
 
+
     PROJECT_NOT_FUNDED(8004, "Dự án chưa được thanh toán.", HttpStatus.BAD_REQUEST),
     PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
+    NOT_FOUND(8006, "Không tìm thấy.", HttpStatus.BAD_REQUEST),
+    INVALID_REQUEST(8007, "Yếu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
 
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
     MILESTONE_TITLE_DUPLICATE(8010, "Tên cột mốc đã tồn tại trong dự án này. Vui lòng chọn tên khác.", HttpStatus.BAD_REQUEST),
@@ -166,6 +181,19 @@ public enum ErrorCode {
     CHAT_MESSAGE_NOT_FOUND(9001, "Không tìm thấy tin nhắn chat", HttpStatus.NOT_FOUND),
     CANNOT_DELETE_MESSAGE(9002, "Bạn không có quyền xóa tin nhắn này", HttpStatus.FORBIDDEN),
     MESSAGE_TOO_LONG(9003, "Tin nhắn vượt quá độ dài tối đa", HttpStatus.BAD_REQUEST),
+    CONVERSATION_NOT_GROUP(9004, "Chỉ có thể thêm thành viên vào cuộc trò chuyện nhóm.", HttpStatus.BAD_REQUEST),
+    CONVERSATION_MEMBER_ALREADY_EXISTS(9005, "Người dùng đã là thành viên của cuộc trò chuyện.", HttpStatus.BAD_REQUEST),
+
+    // ========== AI & Vector Database (10xxx) ==========
+    VECTOR_DB_CONNECTION_FAILED(10001, "Không thể kết nối tới vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    VECTOR_DB_INDEXING_FAILED(10002, "Lỗi khi indexing dữ liệu vào vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    VECTOR_DB_SEARCH_FAILED(10003, "Lỗi khi tìm kiếm trong vector database", HttpStatus.INTERNAL_SERVER_ERROR),
+    GEMINI_API_ERROR(10004, "Lỗi khi gọi Gemini API", HttpStatus.BAD_GATEWAY),
+    GEMINI_API_RATE_LIMIT(10005, "Vượt quá giới hạn request Gemini API", HttpStatus.TOO_MANY_REQUESTS),
+    TERM_NOT_FOUND(10006, "Không tìm thấy thuật ngữ âm nhạc", HttpStatus.NOT_FOUND),
+    EMBEDDING_GENERATION_FAILED(10007, "Lỗi khi tạo embedding vector", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_EXPLANATION_REQUEST(10008, "Yêu cầu giải thích không hợp lệ", HttpStatus.BAD_REQUEST),
+    AI_SERVICE_UNAVAILABLE(10009, "Dịch vụ AI tạm thời không khả dụng", HttpStatus.SERVICE_UNAVAILABLE),
 
     SESSION_NOT_FOUND(5009, "Không tìm thấy phiên", HttpStatus.NOT_FOUND),
     SESSION_NOT_ACTIVE(5010, "Phiên không hoạt động", HttpStatus.BAD_REQUEST),
@@ -186,6 +214,7 @@ public enum ErrorCode {
     // Project errors (4xxx)
     ONLY_PROJECT_OWNER_CAN_CREATE_SESSION(4002, "Chỉ chủ sở hữu dự án mới có thể tạo phiên", HttpStatus.FORBIDDEN),
     PROJECT_ALREADY_HAS_ACTIVE_SESSION(4003, "Dự án đã có phiên hoạt động", HttpStatus.BAD_REQUEST),
+
     MAX_CONCURRENT_SESSIONS_REACHED(4004, "Dự án đã đạt giới hạn tối đa 3 phiên đồng thời", HttpStatus.BAD_REQUEST),
 
     // Session Update/Delete errors (5300-5399)
@@ -198,7 +227,6 @@ public enum ErrorCode {
     MEMBER_IDS_AND_ROLES_MUST_MATCH(5312, "Số lượng thành viên và vai trò phải khớp nhau", HttpStatus.BAD_REQUEST),
     USER_NOT_IN_PROJECTS(5313, "Người dùng không phải thành viên của dự án", HttpStatus.BAD_REQUEST),
     ANONYMOUS_MEMBER_CANNOT_ACCESS_SESSION(5308, "Thành viên ẩn danh không thể truy cập phiên", HttpStatus.FORBIDDEN),
-    NOT_PROJECT_MEMBER(5309, "Bạn không phải là thành viên của dự án này", HttpStatus.FORBIDDEN),
 
     // Join Request errors (5200-5299)
     JOIN_REQUEST_NOT_FOUND(5201, "Không tìm thấy yêu cầu tham gia hoặc đã hết hạn", HttpStatus.NOT_FOUND),
@@ -206,11 +234,29 @@ public enum ErrorCode {
     DUPLICATE_JOIN_REQUEST(5203, "Bạn đã có yêu cầu tham gia đang chờ xử lý", HttpStatus.CONFLICT),
     REQUEST_ALREADY_PROCESSED(5204, "Yêu cầu đã được xử lý", HttpStatus.CONFLICT),
     OWNER_BYPASS_APPROVAL(5205, "Chủ phòng không cần phê duyệt để tham gia", HttpStatus.BAD_REQUEST),
-
     INVALID_FILE_KEY(1011, "Key của file không hợp lệ.", HttpStatus.BAD_REQUEST),
     DUPLICATE_SECTION_TYPE(4001, "Không thể có nhiều hơn một section cùng loại.", HttpStatus.BAD_REQUEST),
-    DUPLICATE_SOCIAL_PLATFORM(4002, "Không thể có nhiều hơn một liên kết cùng nền tảng.", HttpStatus.BAD_REQUEST)
-    ;
+    DUPLICATE_SOCIAL_PLATFORM(4002, "Không thể có nhiều hơn một liên kết cùng nền tảng.", HttpStatus.BAD_REQUEST),
+
+    // Track Comment errors (8xxx)
+    TRACK_COMMENT_NOT_FOUND(8001, "Không tìm thấy comment", HttpStatus.NOT_FOUND),
+    TRACK_NOT_FOUND(8002, "Không tìm thấy track", HttpStatus.NOT_FOUND),
+    NOT_COMMENT_OWNER(8003, "Bạn không phải là người tạo comment này", HttpStatus.FORBIDDEN),
+    NOT_TRACK_OWNER(8004, "Chỉ người tải track mới có quyền thực hiện hành động này", HttpStatus.FORBIDDEN),
+    PARENT_COMMENT_NOT_FOUND(8005, "Không tìm thấy comment cha", HttpStatus.NOT_FOUND),
+    CANNOT_REPLY_TO_DELETED_COMMENT(8006, "Không thể trả lời comment đã bị xóa", HttpStatus.BAD_REQUEST),
+    INVALID_TIMESTAMP(8007, "Timestamp không hợp lệ hoặc vượt quá độ dài track", HttpStatus.BAD_REQUEST),
+    TRACK_NOT_READY(8008, "Track chưa sẵn sàng để gửi", HttpStatus.BAD_REQUEST),
+
+    // Client Delivery errors (8017-8022)
+    PRODUCT_COUNT_EXHAUSTED(8037, "Đã hết lượt gửi sản phẩm cho milestone này", HttpStatus.BAD_REQUEST),
+    EDIT_COUNT_EXHAUSTED(8043, "Đã hết lượt chỉnh sửa cho milestone này", HttpStatus.BAD_REQUEST),
+    TRACK_ALREADY_SENT_TO_CLIENT(8038, "Track này đã được gửi cho khách hàng", HttpStatus.BAD_REQUEST),
+    CANNOT_SEND_UNAPPROVED_TRACK(8039, "Chỉ có thể gửi track đã được phê duyệt nội bộ", HttpStatus.BAD_REQUEST),
+    CLIENT_DELIVERY_NOT_FOUND(8040, "Client delivery không tồn tại", HttpStatus.NOT_FOUND),
+    INVALID_DELIVERY_STATUS_TRANSITION(8041, "Không thể chuyển đổi trạng thái delivery này", HttpStatus.BAD_REQUEST),
+    REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST);
+
 
     private final int code;
     private final String message;
