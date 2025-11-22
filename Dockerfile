@@ -1,23 +1,24 @@
 # Stage 1: Build
-FROM maven:3.9.8-amazoncorretto-21 AS build
+FROM maven:3.9.8-eclipse-temurin-21 AS build
 
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 RUN mvn package -DskipTests
 
-# Stage 2: Runtime
-FROM amazoncorretto:21.0.4
+# Stage 2: Runtime (Temurin JDK 21 - Debian)
+FROM eclipse-temurin:21-jre
 
-# Install FFmpeg static (không cần yum)
-RUN yum install -y tar gzip && \
+# Install ffmpeg static binary
+RUN apt-get update && \
+    apt-get install -y curl xz-utils && \
     curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz && \
     tar -xf ffmpeg.tar.xz && \
     mv ffmpeg-*-static/ffmpeg /usr/local/bin/ffmpeg && \
     mv ffmpeg-*-static/ffprobe /usr/local/bin/ffprobe && \
     chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
     rm -rf ffmpeg* && \
-    yum clean all
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
