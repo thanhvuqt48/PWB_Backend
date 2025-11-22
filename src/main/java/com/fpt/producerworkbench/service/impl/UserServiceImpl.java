@@ -240,8 +240,6 @@ public class UserServiceImpl implements UserService {
             String avatarUrl = fileStorageService.generatePermanentUrl(avatarKey);
             user.setAvatarUrl(avatarUrl);
             log.info("Avatar uploaded successfully. Key: {}, URL: {}", avatarKey, avatarUrl);
-        } else if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl());
         }
 
         if (request.getFirstName() != null) {
@@ -270,26 +268,42 @@ public class UserServiceImpl implements UserService {
         if (url == null || url.isEmpty()) {
             return null;
         }
-        // Nếu là CloudFront URL, extract key sau domain
-        if (url.contains("cloudfront.net/")) {
-            int index = url.indexOf("cloudfront.net/");
-            return url.substring(index + "cloudfront.net/".length());
+        
+        int queryIndex = url.indexOf('?');
+        int fragmentIndex = url.indexOf('#');
+        int endIndex = url.length();
+        if (queryIndex > 0) {
+            endIndex = queryIndex;
+        } else if (fragmentIndex > 0) {
+            endIndex = fragmentIndex;
         }
-        // Nếu là S3 URL, extract key sau bucket name
-        if (url.contains("amazonaws.com/")) {
-            String[] parts = url.split("amazonaws.com/");
-            if (parts.length > 1) {
-                String afterBucket = parts[1];
-                // Remove query parameters if any
-                int queryIndex = afterBucket.indexOf('?');
-                return queryIndex > 0 ? afterBucket.substring(0, queryIndex) : afterBucket;
+        String cleanUrl = url.substring(0, endIndex);
+        
+        String key = null;
+        
+        if (cleanUrl.contains("cloudfront.net")) {
+            int domainIndex = cleanUrl.indexOf("cloudfront.net");
+            String afterDomain = cleanUrl.substring(domainIndex + "cloudfront.net".length());
+            // Remove leading slash nếu có
+            if (afterDomain.startsWith("/")) {
+                afterDomain = afterDomain.substring(1);
             }
+            key = afterDomain.isEmpty() ? null : afterDomain;
+        } else if (cleanUrl.contains("amazonaws.com/")) {
+            String[] parts = cleanUrl.split("amazonaws.com/");
+            if (parts.length > 1) {
+                key = parts[1];
+            }
+        } else if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+            key = cleanUrl;
         }
-        // Nếu là key trực tiếp (không có http/https)
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
-            return url;
+        
+        // Normalize key: remove leading slash để đảm bảo format đúng cho S3
+        if (key != null && key.startsWith("/")) {
+            key = key.substring(1);
         }
-        return null;
+        
+        return key;
     }
 
     private UserProfileResponse mapToUserProfileResponse(User user) {
