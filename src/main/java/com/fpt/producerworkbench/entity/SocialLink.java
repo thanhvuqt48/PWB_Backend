@@ -20,6 +20,6 @@ public class SocialLink extends AbstractEntity<Long>{
     @Enumerated(EnumType.STRING)
     private SocialPlatform platform;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 1024)
     private String url;
 }
