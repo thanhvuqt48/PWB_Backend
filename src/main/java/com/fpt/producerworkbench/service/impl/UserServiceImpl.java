@@ -1,12 +1,12 @@
 package com.fpt.producerworkbench.service.impl;
 
-
 import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
 import com.fpt.producerworkbench.dto.response.ParticipantInfoDetailResponse;
+import com.fpt.producerworkbench.dto.response.UserProfileResponse;
 import com.fpt.producerworkbench.dto.response.UserResponse;
 import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
 import com.fpt.producerworkbench.entity.User;
@@ -14,9 +14,12 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.mapper.UserMapper;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.EmailService;
+import com.fpt.producerworkbench.service.FileKeyGenerator;
+import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.OtpService;
 import com.fpt.producerworkbench.service.UserService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
+import org.springframework.web.multipart.MultipartFile;
 import jakarta.mail.MessagingException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +52,8 @@ public class UserServiceImpl implements UserService {
     EmailService emailService;
     OtpService otpService;
     KafkaTemplate<String, Object> kafkaTemplate;
+    FileKeyGenerator fileKeyGenerator;
+    FileStorageService fileStorageService;
 
     @Transactional
     public UserResponse createUser(UserCreationRequest request, String otp) {
@@ -169,21 +174,21 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @PreAuthorize("isAuthenticated()")
-    public ChangePasswordResponse changePassword(ChangePasswordRequest request){
+    public ChangePasswordResponse changePassword(ChangePasswordRequest request) {
         String email = SecurityUtils.getCurrentUserLogin()
                 .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        if(! passwordEncoder.matches(request.getCurrentPassword(), user.getPassword()))
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword()))
             throw new AppException(ErrorCode.INVALID_OLD_PASSWORD);
 
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
             throw new AppException(ErrorCode.PASSWORD_EXISTED);
         }
 
-        if(! Objects.equals(request.getNewPassword(), request.getConfirmPassword()))
+        if (!Objects.equals(request.getNewPassword(), request.getConfirmPassword()))
             throw new AppException(ErrorCode.CONFIRM_PASSWORD_INVALID);
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
@@ -193,6 +198,125 @@ public class UserServiceImpl implements UserService {
                 .message("Change password successful")
                 .success(true)
                 .build();
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    public UserProfileResponse getPersonalProfile() {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        return mapToUserProfileResponse(user);
+    }
+
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public UserProfileResponse updatePersonalProfile(UpdatePersonalProfileRequest request, MultipartFile avatar) {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        if (avatar != null && !avatar.isEmpty()) {
+            log.info("Uploading avatar for user ID: {}", user.getId());
+
+            if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
+                try {
+                    String oldKey = extractKeyFromUrl(user.getAvatarUrl());
+                    if (oldKey != null) {
+                        fileStorageService.deleteFile(oldKey);
+                        log.info("Deleted old avatar: {}", oldKey);
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to delete old avatar: {}", e.getMessage());
+                }
+            }
+
+            String avatarKey = fileKeyGenerator.generateUserAvatarKey(user.getId(), avatar.getOriginalFilename());
+            fileStorageService.uploadFile(avatar, avatarKey);
+            String avatarUrl = fileStorageService.generatePermanentUrl(avatarKey);
+            user.setAvatarUrl(avatarUrl);
+            log.info("Avatar uploaded successfully. Key: {}, URL: {}", avatarKey, avatarUrl);
+        }
+
+        if (request.getFirstName() != null) {
+            user.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName());
+        }
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+        if (request.getDateOfBirth() != null) {
+            user.setDateOfBirth(request.getDateOfBirth());
+        }
+        if (request.getLocation() != null) {
+            user.setLocation(request.getLocation());
+        }
+
+        userRepository.save(user);
+        log.info("Personal profile updated for user: {}", email);
+
+        return mapToUserProfileResponse(user);
+    }
+
+    private String extractKeyFromUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return null;
+        }
+        
+        int queryIndex = url.indexOf('?');
+        int fragmentIndex = url.indexOf('#');
+        int endIndex = url.length();
+        if (queryIndex > 0) {
+            endIndex = queryIndex;
+        } else if (fragmentIndex > 0) {
+            endIndex = fragmentIndex;
+        }
+        String cleanUrl = url.substring(0, endIndex);
+        
+        String key = null;
+        
+        if (cleanUrl.contains("cloudfront.net")) {
+            int domainIndex = cleanUrl.indexOf("cloudfront.net");
+            String afterDomain = cleanUrl.substring(domainIndex + "cloudfront.net".length());
+            // Remove leading slash nếu có
+            if (afterDomain.startsWith("/")) {
+                afterDomain = afterDomain.substring(1);
+            }
+            key = afterDomain.isEmpty() ? null : afterDomain;
+        } else if (cleanUrl.contains("amazonaws.com/")) {
+            String[] parts = cleanUrl.split("amazonaws.com/");
+            if (parts.length > 1) {
+                key = parts[1];
+            }
+        } else if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+            key = cleanUrl;
+        }
+        
+        // Normalize key: remove leading slash để đảm bảo format đúng cho S3
+        if (key != null && key.startsWith("/")) {
+            key = key.substring(1);
+        }
+        
+        return key;
+    }
+
+    private UserProfileResponse mapToUserProfileResponse(User user) {
+        UserProfileResponse response = new UserProfileResponse();
+        response.setEmail(user.getEmail());
+        response.setFirstName(user.getFirstName());
+        response.setLastName(user.getLastName());
+        response.setPhoneNumber(user.getPhoneNumber());
+        response.setDateOfBirth(user.getDateOfBirth());
+        response.setAvatarUrl(user.getAvatarUrl());
+        response.setLocation(user.getLocation());
+        response.setRole(user.getRole() != null ? user.getRole().name() : null);
+        return response;
     }
 
     public List<ParticipantInfoDetailResponse> searchUser(String email) {
