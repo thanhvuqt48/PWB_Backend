@@ -23,7 +23,7 @@ public class Portfolio extends AbstractEntity<Long> {
 
     private String headline;
 
-    @Column(name = "cover_image_url")
+    @Column(name = "cover_image_url", length = 1000)
     private String coverImageUrl;
 
     @Column(name = "is_public")

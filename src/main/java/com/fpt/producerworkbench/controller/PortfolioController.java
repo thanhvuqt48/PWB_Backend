@@ -111,7 +111,7 @@ public class PortfolioController {
     }
 
     @GetMapping("/slug/{slug}")
-    public ApiResponse<PortfolioResponse> getPortfolioByUserId(@PathVariable String slug) {
+    public ApiResponse<PortfolioResponse> getPortfolioBySlug(@PathVariable String slug) {
         log.info("Getting portfolio by slug: {}", slug);
 
         PortfolioResponse result = portfolioService.getPortfolioByCustomUrlSlug(slug);
