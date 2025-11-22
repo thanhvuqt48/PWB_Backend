@@ -1,28 +1,25 @@
-# Stage 1: build
-# Start with a Maven image that includes JDK 21
+# Stage 1: Build
 FROM maven:3.9.8-amazoncorretto-21 AS build
 
-# Copy source code and pom.xml file to /app folder
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
-
-# Build source code with maven
 RUN mvn package -DskipTests
 
-#Stage 2: create image
-# Start with Amazon Correto JDK 21
+# Stage 2: Runtime
 FROM amazoncorretto:21.0.4
 
-# Cài đặt FFmpeg
-RUN yum update -y && \
-    yum install -y ffmpeg && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install FFmpeg static (không cần yum)
+RUN yum install -y tar gzip && \
+    curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o ffmpeg.tar.xz && \
+    tar -xf ffmpeg.tar.xz && \
+    mv ffmpeg-*-static/ffmpeg /usr/local/bin/ffmpeg && \
+    mv ffmpeg-*-static/ffprobe /usr/local/bin/ffprobe && \
+    chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
+    rm -rf ffmpeg* && \
+    yum clean all
 
-# Set working folder to App and copy complied file from above step
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
-# Command to run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
