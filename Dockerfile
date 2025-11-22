@@ -1,28 +1,22 @@
-# Stage 1: build
-# Start with a Maven image that includes JDK 21
+# Stage 1: Build
 FROM maven:3.9.8-amazoncorretto-21 AS build
 
-# Copy source code and pom.xml file to /app folder
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 
-# Build source code with maven
 RUN mvn package -DskipTests
 
-#Stage 2: create image
-# Start with Amazon Correto JDK 21
-FROM amazoncorretto:21.0.4
+# Stage 2: Runtime (Ubuntu hỗ trợ ffmpeg tốt)
+FROM ubuntu:22.04
 
-# Cài đặt FFmpeg
-RUN yum update -y && \
-    yum install -y ffmpeg && \
-    yum clean all && \
-    rm -rf /var/cache/yum
+# Install dependencies + ffmpeg
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set working folder to App and copy complied file from above step
+# Copy jar
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
-# Command to run the application
 ENTRYPOINT ["java", "-jar", "app.jar"]
