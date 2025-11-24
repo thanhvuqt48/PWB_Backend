@@ -53,6 +53,9 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "product_count")
     private Integer productCount;
 
+    @Column(name = "compensation_percentage", precision = 5, scale = 2)
+    private BigDecimal compensationPercentage;
+
     // ====== Bổ sung cho SignNow / ký điện tử ======
     @Column(name = "signnow_template_id", length = 128)
     private String signnowTemplateId;
