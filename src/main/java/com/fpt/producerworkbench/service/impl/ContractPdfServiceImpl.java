@@ -143,6 +143,11 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     public byte[] fillTemplate(Authentication auth, Long projectId, ContractPdfFillRequest req) {
         if (req.getPercent() == null || req.getPercent().isBlank()) throw new AppException(ErrorCode.BAD_REQUEST);
 
+        BigDecimal compensationPercentage = parsePercent(req.getPercent());
+        if (compensationPercentage == null || compensationPercentage.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
         var permissions = projectPermissionService.checkContractPermissions(auth, projectId);
         if (!permissions.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
@@ -185,9 +190,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         contract.setTotalAmount(totals.sum);
         contract.setPitTax(totals.pit);
         contract.setVatTax(totals.vat);
+        contract.setCompensationPercentage(compensationPercentage);
         contract.setStatus(ContractStatus.DRAFT);
         contract.setFpEditAmount(req.getFpEditAmount());
-        // Reset SignNow fields khi tạo hợp đồng mới (hoặc reset hợp đồng cũ)
         contract.setSignnowDocumentId(null);
         contract.setSignnowStatus(ContractStatus.DRAFT);
 
@@ -729,6 +734,18 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         String digits = s.replaceAll("[^0-9-]", "");
         if (digits.isBlank()) return BigDecimal.ZERO;
         return new BigDecimal(digits);
+    }
+
+    private BigDecimal parsePercent(String s) {
+        if (s == null || s.isBlank()) return null;
+        String cleaned = s.replace("%", "").trim();
+        if (cleaned.isBlank()) return null;
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException ex) {
+            log.warn("Cannot parse percent from '{}'", s);
+            return null;
+        }
     }
 
     private String formatMoney(BigDecimal v) {
