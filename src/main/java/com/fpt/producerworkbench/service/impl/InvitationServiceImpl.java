@@ -8,27 +8,29 @@ import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.response.PageResponse;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
 import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
+import com.fpt.producerworkbench.dto.response.FollowResponse;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
+import com.fpt.producerworkbench.dto.response.InvitationSuggestionResponse;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.mapper.InvitationMapper;
 import com.fpt.producerworkbench.repository.*;
+import com.fpt.producerworkbench.service.FollowService;
 import com.fpt.producerworkbench.service.InvitationService;
 import com.fpt.producerworkbench.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -43,6 +45,7 @@ public class InvitationServiceImpl implements InvitationService {
     private final InvitationMapper invitationMapper;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final FollowService followService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -398,6 +401,73 @@ public class InvitationServiceImpl implements InvitationService {
         if (!invitation.getEmail().equalsIgnoreCase(acceptingUser.getEmail())) {
             throw new AppException(ErrorCode.INVITATION_NOT_ACCEPTED);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<InvitationSuggestionResponse> getSuggestedUsersForInvitation(Long projectId, User currentUser, Pageable pageable) {
+        // 1. Kiểm tra quyền - chỉ owner mới có thể xem suggestions
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
+        
+        if (!project.getCreator().getId().equals(currentUser.getId())) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+        
+        // 2. Lấy danh sách người đã follow
+        Page<FollowResponse> followingPage = followService.getFollowing(currentUser.getId(), pageable);
+        
+        if (followingPage.isEmpty()) {
+            return PageResponse.fromPage(Page.empty(pageable));
+        }
+        
+        // 3. Lấy danh sách userIds đã là thành viên của project
+        List<ProjectMember> existingMembers = projectMemberRepository.findByProjectId(projectId);
+        Set<Long> existingUserIds = existingMembers.stream()
+                .map(member -> member.getUser().getId())
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        
+        // Thêm creator và client vào danh sách đã có
+        if (project.getCreator() != null && project.getCreator().getId() != null) {
+            existingUserIds.add(project.getCreator().getId());
+        }
+        if (project.getClient() != null && project.getClient().getId() != null) {
+            existingUserIds.add(project.getClient().getId());
+        }
+        
+        // 4. Lọc và map sang InvitationSuggestionResponse
+        List<InvitationSuggestionResponse> suggestions = followingPage.getContent().stream()
+                .filter(followResponse -> !existingUserIds.contains(followResponse.getId()))
+                .map(followResponse -> {
+                    // Lấy thông tin đầy đủ từ User để có email
+                    User user = userRepository.findById(followResponse.getId())
+                            .orElse(null);
+                    
+                    if (user == null || user.getEmail() == null) {
+                        return null; // Bỏ qua nếu không tìm thấy user hoặc không có email
+                    }
+                    
+                    return InvitationSuggestionResponse.builder()
+                            .id(user.getId())
+                            .firstName(user.getFirstName())
+                            .lastName(user.getLastName())
+                            .fullName(user.getFullName())
+                            .email(user.getEmail())
+                            .avatarUrl(user.getAvatarUrl())
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        
+        // 5. Tạo Page mới với dữ liệu đã lọc
+        Page<InvitationSuggestionResponse> filteredPage = new PageImpl<>(
+                suggestions,
+                pageable,
+                followingPage.getTotalElements() // Giữ nguyên total để phân trang đúng
+        );
+        
+        return PageResponse.fromPage(filteredPage);
     }
 
     // Dọn dẹp định kỳ: chuyển các lời mời PENDING đã hết hạn sang EXPIRED

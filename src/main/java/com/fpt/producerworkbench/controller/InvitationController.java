@@ -5,6 +5,7 @@ import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
+import com.fpt.producerworkbench.dto.response.InvitationSuggestionResponse;
 import com.fpt.producerworkbench.dto.response.PageResponse;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
@@ -118,6 +119,34 @@ public class InvitationController {
         invitationService.cancelInvitation(invitationId, owner);
         return ResponseEntity.ok(ApiResponse.<Void>builder()
                 .message("Lời mời đã được hủy thành công.")
+                .build());
+    }
+
+    /**
+     * Lấy danh sách gợi ý người dùng để mời vào project (từ danh sách đã follow).
+     * Loại trừ những người đã là thành viên của project.
+     * Chỉ người có quyền mời thành viên mới có thể xem.
+     */
+    @GetMapping("/suggestions")
+    public ResponseEntity<ApiResponse<PageResponse<InvitationSuggestionResponse>>> getInvitationSuggestions(
+            @PathVariable Long projectId,
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication auth,
+            Pageable pageable) {
+        
+        var permissions = projectPermissionService.checkProjectPermissions(auth, projectId);
+        if (permissions.getProject() == null || !permissions.getProject().isCanInviteMembers()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+        
+        User currentUser = userRepository.findByEmail(jwt.getSubject())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        
+        PageResponse<InvitationSuggestionResponse> suggestions = invitationService
+                .getSuggestedUsersForInvitation(projectId, currentUser, pageable);
+        
+        return ResponseEntity.ok(ApiResponse.<PageResponse<InvitationSuggestionResponse>>builder()
+                .result(suggestions)
                 .build());
     }
 }
