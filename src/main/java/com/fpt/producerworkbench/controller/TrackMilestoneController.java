@@ -190,24 +190,24 @@ public class TrackMilestoneController {
     }
 
     /**
-     * Xóa track
+     * Xóa track trong milestone (phòng nội bộ)
      */
-//    @DeleteMapping("/tracks/{trackId}")
-//    public ApiResponse<Void> deleteTrack(
-//            @PathVariable Long trackId,
-//            Authentication authentication) {
-//
-//        if (trackId == null || trackId <= 0) {
-//            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
-//        }
-//
-//        trackService.deleteTrack(authentication, trackId);
-//
-//        return ApiResponse.<Void>builder()
-//                .code(HttpStatus.OK.value())
-//                .message("Xóa track thành công")
-//                .build();
-//    }
+    @DeleteMapping("/milestones/tracks/{trackId}")
+    public ApiResponse<Void> deleteTrack(
+            @PathVariable Long trackId,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        trackService.deleteTrack(authentication, trackId);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Xóa track thành công")
+                .build();
+    }
 
     /**
      * Lấy HLS playback URL để phát track preview

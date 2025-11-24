@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.ClientDeliveryStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProcessingStatus;
@@ -12,17 +13,23 @@ import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
+import com.fpt.producerworkbench.entity.ClientDelivery;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.ProjectMember;
 import com.fpt.producerworkbench.entity.Track;
+import com.fpt.producerworkbench.entity.TrackComment;
+import com.fpt.producerworkbench.entity.TrackStatusTransitionLog;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ClientDeliveryRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.MilestoneMoneySplitRepository;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
+import com.fpt.producerworkbench.repository.TrackCommentRepository;
 import com.fpt.producerworkbench.repository.TrackMilestoneRepository;
+import com.fpt.producerworkbench.repository.TrackStatusTransitionLogRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AudioProcessingService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
@@ -50,6 +57,9 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final MilestoneMoneySplitRepository milestoneMoneySplitRepository;
+    private final ClientDeliveryRepository clientDeliveryRepository;
+    private final TrackCommentRepository trackCommentRepository;
+    private final TrackStatusTransitionLogRepository trackStatusTransitionLogRepository;
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
     private final AudioProcessingService audioProcessingService;
@@ -287,11 +297,52 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         User currentUser = loadUser(auth);
         Track track = trackRepository.findById(trackId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+                .orElseThrow(() -> new AppException(ErrorCode.TRACK_NOT_FOUND));
 
-        // Kiểm tra quyền xóa: chỉ Owner
+        // Kiểm tra quyền xóa: Owner hoặc người tải track lên
         Project project = track.getMilestone().getContract().getProject();
-        checkDeletePermission(currentUser, project);
+        checkDeletePermission(currentUser, project, track);
+
+        // Kiểm tra track đã được gửi cho khách hàng chưa
+        List<ClientDelivery> clientDeliveries = clientDeliveryRepository.findByTrackIdOrderBySentAtDesc(trackId);
+        
+        if (!clientDeliveries.isEmpty()) {
+            // Track đã được gửi cho khách hàng
+            // Kiểm tra xem có delivery nào đã được khách hàng chấp nhận (ACCEPTED) không
+            boolean hasAcceptedDelivery = clientDeliveries.stream()
+                    .anyMatch(delivery -> delivery.getStatus() == ClientDeliveryStatus.ACCEPTED);
+            
+            if (hasAcceptedDelivery) {
+                log.warn("Không thể xóa track {} vì đã được khách hàng chấp nhận (ACCEPTED)", trackId);
+                throw new AppException(ErrorCode.CANNOT_DELETE_ACCEPTED_TRACK);
+            }
+            
+            // Nếu track đã gửi nhưng chưa được chấp nhận (status = DELIVERED, REJECTED, hoặc REQUEST_EDIT)
+            // thì cho phép xóa, nhưng cần xóa ClientDelivery trước
+            log.info("Track {} đã được gửi cho khách hàng nhưng chưa được chấp nhận. Sẽ xóa ClientDelivery trước.", trackId);
+            
+            // Xóa tất cả ClientDelivery của track này
+            // MilestoneDelivery sẽ tự động bị xóa do cascade = CascadeType.ALL
+            for (ClientDelivery delivery : clientDeliveries) {
+                clientDeliveryRepository.delete(delivery);
+                log.info("Đã xóa ClientDelivery {} cho track {}", delivery.getId(), trackId);
+            }
+        }
+
+        // Xóa các related records khác để tránh foreign key constraint violation
+        // Xóa TrackComment (hard delete vì đã có soft delete flag)
+        List<TrackComment> comments = trackCommentRepository.findAllByTrackId(trackId);
+        if (comments != null && !comments.isEmpty()) {
+            trackCommentRepository.deleteAll(comments);
+            log.info("Đã xóa {} TrackComment cho track {}", comments.size(), trackId);
+        }
+        
+        // Xóa TrackStatusTransitionLog (audit trail)
+        List<TrackStatusTransitionLog> transitionLogs = trackStatusTransitionLogRepository.findByTrackIdOrderByCreatedAtDesc(trackId);
+        if (transitionLogs != null && !transitionLogs.isEmpty()) {
+            trackStatusTransitionLogRepository.deleteAll(transitionLogs);
+            log.info("Đã xóa {} TrackStatusTransitionLog cho track {}", transitionLogs.size(), trackId);
+        }
 
         // Xóa files trên S3
         try {
@@ -557,10 +608,13 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền cập nhật track này");
     }
 
-    private void checkDeletePermission(User user, Project project) {
+    private void checkDeletePermission(User user, Project project, Track track) {
         boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
-        if (!isOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ Owner mới có thể xóa track");
+        boolean isTrackCreator = track.getUser() != null && user.getId().equals(track.getUser().getId());
+        
+        if (!isOwner && !isTrackCreator) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, 
+                "Chỉ chủ dự án hoặc người tải track lên mới có thể xóa track");
         }
     }
 

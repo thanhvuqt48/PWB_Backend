@@ -173,6 +173,9 @@ public interface TrackCommentRepository extends JpaRepository<TrackComment, Long
            "AND tc.parentComment IS NULL AND tc.isDeleted = false " +
            "ORDER BY tc.timestamp ASC, tc.createdAt ASC")
     Page<TrackComment> findRootCommentsByTrackIdInternal(@Param("trackId") Long trackId, Pageable pageable);
+
+    @Query("SELECT tc FROM TrackComment tc WHERE tc.track.id = :trackId")
+    List<TrackComment> findAllByTrackId(@Param("trackId") Long trackId);
 }
 
 
