@@ -15,13 +15,7 @@ import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
 import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest;
-import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
-import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneMemberResponse;
-import com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.Conversation;
 import com.fpt.producerworkbench.entity.Milestone;
@@ -395,6 +389,29 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .isFunded(project != null ? project.getIsFunded() : null)
                 .members(members)
                 .build();
+    }
+
+    @Override
+    public List<MilestoneSummaryResponse> getMilestoneSummariesByContractId(Authentication auth, Long contractId) {
+        if (contractId == null) throw new AppException(ErrorCode.BAD_REQUEST);
+
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+        var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
+        if (!perms.isCanViewContract() && !perms.isCanCreateContract()) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        List<Milestone> milestones =
+                milestoneRepository.findByContractIdOrderBySequenceAsc(contractId);
+
+        return milestones.stream()
+                .map(ms -> MilestoneSummaryResponse.builder()
+                        .description(ms.getDescription())
+                        .amount(ms.getAmount())
+                        .build())
+                .toList();
     }
 
     private void validateMilestoneRequest(Contract contract, MilestoneRequest request, Long excludeMilestoneId) {

@@ -6,6 +6,7 @@ import com.fpt.producerworkbench.common.SigningOrderType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -28,9 +29,6 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column()
     private String title;
 
-    @Column(columnDefinition = "TEXT")
-    private String content;
-
     private int version;
 
     @Column(name = "effective_date")
@@ -51,6 +49,15 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_order_type", length = 16, nullable = false)
     private SigningOrderType signingOrderType = SigningOrderType.SEQUENTIAL;
+
+    @Column(name = "num_of_money", precision = 15, scale = 2)
+    private BigDecimal numOfMoney;
+
+    @Column(name = "num_of_edit")
+    private Integer numOfEdit;
+
+    @Column(name = "num_of_refresh")
+    private Integer numOfRefresh;
 
     @PrePersist
     void prePersist() {

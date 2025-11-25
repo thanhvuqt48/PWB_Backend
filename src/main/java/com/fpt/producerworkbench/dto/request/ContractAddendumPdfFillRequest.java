@@ -7,7 +7,9 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Setter @Getter @Builder
 @AllArgsConstructor @NoArgsConstructor
@@ -35,9 +37,7 @@ public class ContractAddendumPdfFillRequest {
     @NotBlank @JsonProperty("aIdIssuePlace") String aIdIssuePlace;
     @NotBlank @JsonProperty("aAddress")      String aAddress;
     @JsonProperty("aPhone")          String aPhone;
-    @JsonProperty("aRepresentative") String aRepresentative;
-    @JsonProperty("aTitle")          String aTitle;
-    @JsonProperty("aPoANo")          String aPoANo;
+
 
     // BÊN B
     @NotBlank @JsonProperty("bName")  String bName;
@@ -48,13 +48,20 @@ public class ContractAddendumPdfFillRequest {
     @NotBlank @JsonProperty("bIdIssuePlace") String bIdIssuePlace;
     @NotBlank @JsonProperty("bAddress")      String bAddress;
     @JsonProperty("bPhone")          String bPhone;
-    @JsonProperty("bRepresentative") String bRepresentative;
-    @JsonProperty("bTitle")          String bTitle;
-    @JsonProperty("bPoANo")          String bPoANo;
+
 
 
     @JsonProperty("additional")
     String additional;
+
+    @JsonProperty("numofmoney")
+    BigDecimal numOfMoney;
+
+    @JsonProperty("numofedit")
+    Integer numOfEdit;
+
+    @JsonProperty("numofrefresh")
+    Integer numOfRefresh;
 
     @NotBlank @JsonProperty("title")
     String title;
@@ -62,4 +69,7 @@ public class ContractAddendumPdfFillRequest {
     @JsonProperty("effectiveDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     LocalDate effectiveDate;
+
+    @JsonProperty("milestones")
+    List<ContractAddendumMilestoneItemRequest> milestones;
 }

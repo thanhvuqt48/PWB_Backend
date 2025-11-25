@@ -52,14 +52,10 @@ public class ContractPdfFillRequest {
     @JsonProperty("signPlace") String signPlace;
 
     @JsonProperty("aPhone")          String aPhone;
-    @JsonProperty("aRepresentative") String aRepresentative;
-    @JsonProperty("aTitle")          String aTitle;
-    @JsonProperty("aPoANo")          String aPoANo;
+
 
     @JsonProperty("bPhone")          String bPhone;
-    @JsonProperty("bRepresentative") String bRepresentative;
-    @JsonProperty("bTitle")          String bTitle;
-    @JsonProperty("bPoANo")          String bPoANo;
+
 
     @JsonProperty("line2Item")   String line2Item;
     @JsonProperty("line2Unit")   String line2Unit;

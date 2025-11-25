@@ -1,19 +1,23 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractDocumentType;
+import com.fpt.producerworkbench.common.PaymentType;
+import com.fpt.producerworkbench.dto.request.ContractAddendumMilestoneItemRequest;
 import com.fpt.producerworkbench.dto.request.ContractAddendumPdfFillRequest;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
+import com.fpt.producerworkbench.entity.ContractAddendumMilestone;
 import com.fpt.producerworkbench.entity.ContractDocument;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ContractAddendumMilestoneRepository;
 import com.fpt.producerworkbench.repository.ContractAddendumRepository;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractAddendumPdfService;
-import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.itextpdf.forms.PdfAcroForm;
 import com.itextpdf.forms.fields.PdfFormField;
 import com.itextpdf.forms.fields.PdfTextFormField;
@@ -53,22 +57,32 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
 
     private final ContractRepository contractRepository;
     private final ContractAddendumRepository addendumRepository;
+    private final ContractAddendumMilestoneRepository addendumMilestoneRepository;
     private final ContractDocumentRepository contractDocumentRepository;
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
     private final ProjectPermissionService projectPermissionService;
 
-    @Value("${pwb.addendum.template}") private Resource addendumTemplate;
-    @Value("${pwb.contract.font}")     private Resource fontResource;
+    @Value("${pwb.addendum.template}")
+    private Resource addendumTemplate;
+
+    @Value("${pwb.addendum.milestone-template}")
+    private Resource addendumMilestoneTemplate;
+
+    @Value("${pwb.contract.font}")
+    private Resource fontResource;
 
     static final float INCH = 72f;
-    static Rectangle inchRect(float l, float b, float w, float h) {
-        return new Rectangle(l*INCH, b*INCH, w*INCH, h*INCH);
-    }
-    static final Rectangle ADD_FIRST_FALLBACK_RECT = inchRect(1.0f, 2.6f, 6.5f, 5.8f);
-    static final Rectangle ADD_CONT_RECT          = inchRect(1.0f, 2.4f, 6.5f, 7.8f);
 
-    private record PageAndRect(PdfPage page, Rectangle rect) {}
+    static Rectangle inchRect(float l, float b, float w, float h) {
+        return new Rectangle(l * INCH, b * INCH, w * INCH, h * INCH);
+    }
+
+    static final Rectangle ADD_FIRST_FALLBACK_RECT = inchRect(1.0f, 2.6f, 6.5f, 5.8f);
+    static final Rectangle ADD_CONT_RECT = inchRect(1.0f, 2.4f, 6.5f, 7.8f);
+
+    private record PageAndRect(PdfPage page, Rectangle rect) {
+    }
 
     private PageAndRect resolveAdditionalFirstArea(PdfDocument pdf, PdfAcroForm acro) {
         PdfFormField f = (acro != null) ? acro.getField("additional") : null;
@@ -107,6 +121,8 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
         if (!perms.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
+        boolean milestoneMode = PaymentType.MILESTONE.equals(contract.getPaymentType());
+
         ContractAddendum add = addendumRepository
                 .findFirstByContractIdOrderByVersionDesc(contractId)
                 .orElse(null);
@@ -115,17 +131,43 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             add = ContractAddendum.builder()
                     .contract(contract)
                     .title("Phụ lục hợp đồng")
-                    .content(Optional.ofNullable(req.getAdditional()).orElse(""))
                     .version(1)
                     .effectiveDate(null)
                     .build();
-        } else {
-            add.setContent(Optional.ofNullable(req.getAdditional()).orElse(""));
-            if (add.getVersion() == 0) add.setVersion(1);
+        } else if (add.getVersion() == 0) {
+            add.setVersion(1);
         }
+
+        if (!milestoneMode) {
+            add.setNumOfMoney(req.getNumOfMoney());
+            add.setNumOfEdit(req.getNumOfEdit());
+            add.setNumOfRefresh(req.getNumOfRefresh());
+        }
+
         add = addendumRepository.save(add);
 
-        try (InputStream in = addendumTemplate.getInputStream();
+        if (milestoneMode) {
+            addendumMilestoneRepository.deleteByAddendumId(add.getId());
+            if (req.getMilestones() != null && !req.getMilestones().isEmpty()) {
+                int idx = 1;
+                for (ContractAddendumMilestoneItemRequest item : req.getMilestones()) {
+                    if (item == null) continue;
+                    ContractAddendumMilestone ms = ContractAddendumMilestone.builder()
+                            .addendum(add)
+                            .itemIndex(idx++)
+                            .description(item.getDescription())
+                            .numOfMoney(item.getNumOfMoney())
+                            .numOfEdit(item.getNumOfEdit())
+                            .numOfRefresh(item.getNumOfRefresh())
+                            .build();
+                    addendumMilestoneRepository.save(ms);
+                }
+            }
+        }
+
+        Resource template = milestoneMode ? addendumMilestoneTemplate : addendumTemplate;
+
+        try (InputStream in = template.getInputStream();
              ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
 
             PdfReader reader = new PdfReader(in);
@@ -143,31 +185,31 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
 
             var d = DateTimeFormatter.ofPattern("dd/MM/yyyy");
             Map<String, String> m = new LinkedHashMap<>();
-            m.put("Box 1",  ns(req.getAddendumNo()));
-            m.put("Box 2",  req.getSignDate() != null ? req.getSignDate().format(d) : "");
-            m.put("Box 3",  ns(req.getSignPlace()));
+            m.put("Box 1", ns(req.getAddendumNo()));
+            m.put("Box 2", req.getSignDate() != null ? req.getSignDate().format(d) : "");
+            m.put("Box 3", ns(req.getSignPlace()));
 
             // Bên A
-            m.put("Box 4",  ns(req.getAName()));
-            m.put("Box 5",  ns(req.getAId()));
-            m.put("Box 6",  req.getAIdIssueDate()!=null?req.getAIdIssueDate().format(d):"");
-            m.put("Box 7",  ns(req.getAIdIssuePlace()));
-            m.put("Box 8",  ns(req.getAAddress()));
-            m.put("Box 9",  ns(req.getAPhone()));
-            m.put("Box 10", ns(req.getARepresentative()));
-            m.put("Box 11", ns(req.getATitle()));
-            m.put("Box 12", ns(req.getAPoANo()));
+            m.put("Box 4", ns(req.getAName()));
+            m.put("Box 5", ns(req.getAId()));
+            m.put("Box 6", req.getAIdIssueDate() != null ? req.getAIdIssueDate().format(d) : "");
+            m.put("Box 7", ns(req.getAIdIssuePlace()));
+            m.put("Box 8", ns(req.getAAddress()));
+            m.put("Box 9", ns(req.getAPhone()));
 
             // Bên B
             m.put("Box 13", ns(req.getBName()));
             m.put("Box 14", ns(req.getBId()));
-            m.put("Box 15", req.getBIdIssueDate()!=null?req.getBIdIssueDate().format(d):"");
+            m.put("Box 15", req.getBIdIssueDate() != null ? req.getBIdIssueDate().format(d) : "");
             m.put("Box 16", ns(req.getBIdIssuePlace()));
             m.put("Box 17", ns(req.getBAddress()));
             m.put("Box 18", ns(req.getBPhone()));
-            m.put("Box 19", ns(req.getBRepresentative()));
-            m.put("Box 20", ns(req.getBTitle()));
-            m.put("Box 21", ns(req.getBPoANo()));
+
+            if (!milestoneMode) {
+                m.put("numofmoney", req.getNumOfMoney() != null ? req.getNumOfMoney().toPlainString() : "");
+                m.put("numofedit", req.getNumOfEdit() != null ? String.valueOf(req.getNumOfEdit()) : "");
+                m.put("numofrefresh", req.getNumOfRefresh() != null ? String.valueOf(req.getNumOfRefresh()) : "");
+            }
 
             m.put("additional", "");
 
@@ -183,18 +225,22 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                 f.setValue(e.getValue() == null ? "" : e.getValue());
             }
 
+            PageAndRect first = resolveAdditionalFirstArea(pdf, acro);
             acro.flattenFields();
 
-            PageAndRect first = resolveAdditionalFirstArea(pdf, acro);
-            drawAdditionalBlockNoHeading(first.page(), first.rect(), font, req.getAdditional(), pdf);
+            if (milestoneMode) {
+                drawMilestonesAndAdditional(first.page(), first.rect(), font,
+                        req.getMilestones(), req.getAdditional(), pdf);
+            } else {
+                drawAdditionalBlockWithHeading(first.page(), first.rect(), font,
+                        req.getAdditional(), pdf);
+            }
 
             pdf.close();
             byte[] out = baos.toByteArray();
 
-
             String key = fileKeyGenerator.generateContractDocumentKey(contractId, "addendum.pdf");
             String url = fileStorageService.uploadBytes(out, key, "application/pdf");
-
 
             ContractDocument doc = contractDocumentRepository
                     .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.ADDENDUM)
@@ -221,7 +267,14 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         }
     }
 
-    private void drawAdditionalBlockNoHeading(PdfPage startPage, Rectangle rectFirst, PdfFont font, String raw, PdfDocument pdf) {
+
+    private void drawAdditionalBlockWithHeading(
+            PdfPage startPage,
+            Rectangle rectFirst,
+            PdfFont font,
+            String raw,
+            PdfDocument pdf
+    ) {
         PdfPage page = startPage;
         Rectangle rect = rectFirst;
         int pageNum = pdf.getPageNumber(page);
@@ -234,12 +287,32 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             return;
         }
 
+        Paragraph heading = new Paragraph("Điều khoản bổ sung")
+                .setFont(font).setFontSize(11f)
+                .setBold()
+                .setMultipliedLeading(1.2f)
+                .setMarginTop(0).setMarginBottom(4)
+                .setMarginLeft(0).setMarginRight(0);
+
+        float headNeed = measureHeight(divOf(heading, rect.getWidth()), rect);
+        if (headNeed > remaining) {
+            canvas.close();
+            PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+            pageNum += 1;
+            page = newPage;
+            rect = ADD_CONT_RECT;
+            canvas = new Canvas(page, rect);
+            remaining = rect.getHeight();
+        }
+        canvas.add(heading);
+        remaining -= headNeed;
+
         for (int i = 0; i < clauses.size(); i++) {
             String body = clauses.get(i);
             Paragraph p = new Paragraph()
                     .setFont(font).setFontSize(11f)
                     .setMultipliedLeading(1.2f)
-                    .setMarginTop(i == 0 ? 0 : 0).setMarginBottom(0)
+                    .setMarginTop(0).setMarginBottom(0)
                     .setMarginLeft(0).setMarginRight(0);
 
             p.add(new Text("Điều " + (i + 1) + ". ").setBold());
@@ -261,6 +334,161 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         canvas.close();
     }
 
+
+    private void drawMilestonesAndAdditional(
+            PdfPage startPage,
+            Rectangle rectFirst,
+            PdfFont font,
+            List<ContractAddendumMilestoneItemRequest> milestones,
+            String additional,
+            PdfDocument pdf
+    ) {
+        PdfPage page = startPage;
+        Rectangle rect = rectFirst;
+        int pageNum = pdf.getPageNumber(page);
+        Canvas canvas = new Canvas(page, rect);
+        float remaining = rect.getHeight();
+
+        boolean hasMilestones = milestones != null && !milestones.isEmpty();
+
+        if (hasMilestones) {
+            Paragraph heading = new Paragraph("Cột mốc bổ sung")
+                    .setFont(font).setFontSize(11f)
+                    .setBold()
+                    .setMultipliedLeading(1.2f)
+                    .setMarginTop(0).setMarginBottom(4)
+                    .setMarginLeft(0).setMarginRight(0);
+
+            float headNeed = measureHeight(divOf(heading, rect.getWidth()), rect);
+            if (headNeed > remaining) {
+                canvas.close();
+                PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                pageNum += 1;
+                page = newPage;
+                rect = ADD_CONT_RECT;
+                canvas = new Canvas(page, rect);
+                remaining = rect.getHeight();
+            }
+            canvas.add(heading);
+            remaining -= headNeed;
+
+            int index = 1;
+            for (ContractAddendumMilestoneItemRequest it : milestones) {
+                if (it == null) continue;
+
+                String desc = (it.getDescription() != null && !it.getDescription().isBlank())
+                        ? it.getDescription().trim()
+                        : ("Cột mốc " + index);
+
+                Paragraph p = new Paragraph()
+                        .setFont(font).setFontSize(11f)
+                        .setMultipliedLeading(1.2f)
+                        .setMarginTop(0).setMarginBottom(0)
+                        .setMarginLeft(0).setMarginRight(0);
+
+                p.add(new Text("Cột mốc " + index + ". ").setBold());
+                p.add(new Text(desc));
+
+                if (it.getNumOfMoney() != null) {
+                    p.add(new Text("\n- Giá trị cột mốc: " + it.getNumOfMoney().toPlainString()));
+                }
+                if (it.getNumOfEdit() != null) {
+                    p.add(new Text("\n- Số lần chỉnh sửa: " + it.getNumOfEdit()));
+                }
+                if (it.getNumOfRefresh() != null) {
+                    p.add(new Text("\n- Số lần refresh: " + it.getNumOfRefresh()));
+                }
+
+                float need = measureHeight(divOf(p, rect.getWidth()), rect);
+                if (need > remaining) {
+                    canvas.close();
+                    PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                    pageNum += 1;
+                    page = newPage;
+                    rect = ADD_CONT_RECT;
+                    canvas = new Canvas(page, rect);
+                    remaining = rect.getHeight();
+                }
+                canvas.add(p);
+                remaining -= need;
+
+                index++;
+            }
+        }
+
+        List<String> clauses = splitClauses(additional);
+        if (clauses.isEmpty()) {
+            canvas.close();
+            return;
+        }
+
+        if (hasMilestones) {
+            Paragraph spacer = new Paragraph("\n")
+                    .setFont(font).setFontSize(11f)
+                    .setMargin(0);
+            float spNeed = measureHeight(divOf(spacer, rect.getWidth()), rect);
+            if (spNeed > remaining) {
+                canvas.close();
+                PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                pageNum += 1;
+                page = newPage;
+                rect = ADD_CONT_RECT;
+                canvas = new Canvas(page, rect);
+                remaining = rect.getHeight();
+            }
+            canvas.add(spacer);
+            remaining -= spNeed;
+        }
+
+        Paragraph heading2 = new Paragraph("Điều khoản bổ sung")
+                .setFont(font).setFontSize(11f)
+                .setBold()
+                .setMultipliedLeading(1.2f)
+                .setMarginTop(0).setMarginBottom(4)
+                .setMarginLeft(0).setMarginRight(0);
+
+        float headNeed2 = measureHeight(divOf(heading2, rect.getWidth()), rect);
+        if (headNeed2 > remaining) {
+            canvas.close();
+            PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+            pageNum += 1;
+            page = newPage;
+            rect = ADD_CONT_RECT;
+            canvas = new Canvas(page, rect);
+            remaining = rect.getHeight();
+        }
+        canvas.add(heading2);
+        remaining -= headNeed2;
+
+        for (int i = 0; i < clauses.size(); i++) {
+            String body = clauses.get(i);
+            Paragraph p = new Paragraph()
+                    .setFont(font).setFontSize(11f)
+                    .setMultipliedLeading(1.2f)
+                    .setMarginTop(0).setMarginBottom(0)
+                    .setMarginLeft(0).setMarginRight(0);
+
+            p.add(new Text("Điều " + (i + 1) + ". ").setBold());
+            p.add(new Text(body));
+
+            float need = measureHeight(divOf(p, rect.getWidth()), rect);
+            if (need > remaining) {
+                canvas.close();
+                PdfPage newPage = pdf.addNewPage(pageNum + 1, new PageSize(page.getPageSize()));
+                pageNum += 1;
+                page = newPage;
+                rect = ADD_CONT_RECT;
+                canvas = new Canvas(page, rect);
+                remaining = rect.getHeight();
+            }
+            canvas.add(p);
+            remaining -= need;
+        }
+
+        canvas.close();
+    }
+
+
     private com.itextpdf.layout.element.Div divOf(IBlockElement el, float width) {
         com.itextpdf.layout.element.Div d = new com.itextpdf.layout.element.Div()
                 .setWidth(width)
@@ -279,8 +507,8 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             var r = block.createRendererSubTree();
             r.setParent(scratchDoc.getRenderer());
             var area = new com.itextpdf.layout.layout.LayoutArea(1, new Rectangle(rect));
-            var ctx  = new com.itextpdf.layout.layout.LayoutContext(area);
-            var res  = r.layout(ctx);
+            var ctx = new com.itextpdf.layout.layout.LayoutContext(area);
+            var res = r.layout(ctx);
             if (res == null || res.getOccupiedArea() == null || res.getOccupiedArea().getBBox() == null) {
                 return 14f;
             }
@@ -293,7 +521,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     private List<String> splitClauses(String raw) {
         List<String> out = new ArrayList<>();
         if (raw == null) return out;
-        String txt = raw.replace("\r\n","\n").trim();
+        String txt = raw.replace("\r\n", "\n").trim();
         if (txt.isBlank()) return out;
         String[] parts = txt.split("\\n\\s*\\n");
         for (String p : parts) {
@@ -304,5 +532,8 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         return out;
     }
 
-    private String ns(Object o) { return o == null ? "" : String.valueOf(o); }
+    private String ns(Object o) {
+        return o == null ? "" : String.valueOf(o);
+    }
 }
+

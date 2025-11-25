@@ -4,11 +4,7 @@ import com.fpt.producerworkbench.common.MilestoneChatType;
 import com.fpt.producerworkbench.dto.request.AddMilestoneMemberRequest;
 import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
-import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
-import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -44,5 +40,7 @@ public interface MilestoneService {
             Long projectId, Long milestoneId,
             com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest request,
             Authentication auth);
+
+    List<MilestoneSummaryResponse> getMilestoneSummariesByContractId(Authentication auth, Long contractId);
 }
 
