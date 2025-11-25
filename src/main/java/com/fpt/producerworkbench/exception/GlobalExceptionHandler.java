@@ -11,6 +11,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+
+import java.io.IOException;
 
 
 import lombok.extern.slf4j.Slf4j;
@@ -187,6 +190,37 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(IOException.class)
+    ResponseEntity<ApiResponse> handleIOException(IOException e) {
+        log.error("IO Exception occurred: ", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.builder()
+                        .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                        .message("Lỗi xử lý file: " + (e.getMessage() != null ? e.getMessage() : "Không thể đọc/ghi file"))
+                        .build());
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    ResponseEntity<ApiResponse> handleRuntimeException(RuntimeException e) {
+        log.error("Runtime Exception occurred: ", e);
+        
+        // Kiểm tra nếu là lỗi từ VNPT API
+        String message = e.getMessage();
+        if (message != null && (message.contains("VNPT") || message.contains("VNPT API"))) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.builder()
+                            .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                            .message("Lỗi kết nối đến dịch vụ xác thực: " + message)
+                            .build());
+        }
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.builder()
+                        .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                        .message(message != null ? message : "Đã có lỗi xảy ra. Vui lòng thử lại sau.")
+                        .build());
     }
 
     private String mapAttribute(String message, Map<String, Object> attributes) {

@@ -4,7 +4,7 @@ import com.fpt.producerworkbench.dto.request.ConversationCreationRequest;
 import com.fpt.producerworkbench.dto.request.ConversationMemberAdditionRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
-import com.fpt.producerworkbench.service.impl.ConversationService;
+import com.fpt.producerworkbench.service.ConversationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;

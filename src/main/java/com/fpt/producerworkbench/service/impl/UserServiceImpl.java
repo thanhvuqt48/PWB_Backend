@@ -4,11 +4,7 @@ import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.*;
-import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
-import com.fpt.producerworkbench.dto.response.ParticipantInfoDetailResponse;
-import com.fpt.producerworkbench.dto.response.UserProfileResponse;
-import com.fpt.producerworkbench.dto.response.UserResponse;
-import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.mapper.UserMapper;
@@ -18,6 +14,7 @@ import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.OtpService;
 import com.fpt.producerworkbench.service.UserService;
+import com.fpt.producerworkbench.service.VnptEkycService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.mail.MessagingException;
@@ -31,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +52,7 @@ public class UserServiceImpl implements UserService {
     KafkaTemplate<String, Object> kafkaTemplate;
     FileKeyGenerator fileKeyGenerator;
     FileStorageService fileStorageService;
+    VnptEkycService vnptEkycService;
 
     @Transactional
     public UserResponse createUser(UserCreationRequest request, String otp) {
@@ -79,7 +78,7 @@ public class UserServiceImpl implements UserService {
                 .channel("EMAIL")
                 .recipient(user.getEmail())
                 .templateCode("welcome-email")
-                .subject("Welcome to PWB")
+                .subject("Chào mừng bạn đến với PWB!")
                 .build();
 
         kafkaTemplate.send("notification-delivery", event);
@@ -101,11 +100,11 @@ public class UserServiceImpl implements UserService {
 
         String subject = "Your OTP Code";
         String content = String.format(
-                "<p>Hello,</p>"
-                        + "<p>We received a request to reset your password. Use the following OTP to reset it:</p>"
+                "<p>Xin chào,</p>"
+                        + "<p>Chúng tôi nhận thấy bạn đã yêu cầu mã OTP để đặt lại mật khẩu.</p>"
                         + "<h2>%s</h2>"
-                        + "<p>If you did not request this, please ignore this email.</p>"
-                        + "<p>Best regards,<br/>Your Company</p>",
+                        + "<p>Nếu bạn không yêu cầu mã OTP, vui lòng bỏ qua email này.</p>"
+                        + "<p>Trân trọng,<br/>PWB</p>",
                 otp);
         emailService.sendEmail(subject, content, List.of(user.getEmail()));
     }
@@ -195,7 +194,7 @@ public class UserServiceImpl implements UserService {
 
         return ChangePasswordResponse
                 .builder()
-                .message("Change password successful")
+                .message("Đổi mật khẩu thành công!")
                 .success(true)
                 .build();
     }
@@ -208,7 +207,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        return mapToUserProfileResponse(user);
+        return userMapper.toUserProfileResponse(user);
     }
 
     @Transactional
@@ -261,14 +260,117 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
         log.info("Personal profile updated for user: {}", email);
 
-        return mapToUserProfileResponse(user);
+        return userMapper.toUserProfileResponse(user);
+    }
+
+    @Transactional
+    public CccdInfoResponse verifyCccd(MultipartFile front, MultipartFile back, MultipartFile face) throws IOException {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Step 1: Upload 3 ảnh → lấy 3 hash
+        log.info("Step 1: Uploading 3 images...");
+        var frontUpload = vnptEkycService.uploadFile(front);
+        var backUpload = vnptEkycService.uploadFile(back);
+        String frontHash = frontUpload.getHash();
+        String backHash = backUpload.getHash();
+        String faceHash = null;
+
+        if (face != null && !face.isEmpty()) {
+            var faceUpload = vnptEkycService.uploadFile(face);
+            faceHash = faceUpload.getHash();
+        }
+
+        CccdInfoResponse dto = new CccdInfoResponse();
+
+        // Step 2: classify/id (với front hash)
+        log.info("Step 2: Calling classify/id...");
+        try {
+            var classifyResult = vnptEkycService.classifyCccd(frontHash);
+            dto.setClassify(classifyResult);
+        } catch (Exception e) {
+            log.warn("Classify failed: {}", e.getMessage());
+        }
+
+        // Step 3: card/liveness (với front hash)
+        log.info("Step 3: Calling card/liveness...");
+        try {
+            var cardLivenessResult = vnptEkycService.liveness(frontHash);
+            dto.setCardLiveness(cardLivenessResult);
+        } catch (Exception e) {
+            log.warn("Card liveness check failed: {}", e.getMessage());
+        }
+
+        // Step 4: ocr/id (với front hash và back hash)
+        log.info("Step 4: Calling ocr/id...");
+        var ocrResult = vnptEkycService.ocrCccd(frontHash, backHash);
+        CccdInfoResponse ocrDto = CccdInfoResponse.from(ocrResult);
+        // Copy OCR data to main DTO
+        dto.setId(ocrDto.getId());
+        dto.setName(ocrDto.getName());
+        dto.setBirthDay(ocrDto.getBirthDay());
+        dto.setGender(ocrDto.getGender());
+        dto.setOriginLocation(ocrDto.getOriginLocation());
+        dto.setRecentLocation(ocrDto.getRecentLocation());
+        dto.setIssueDate(ocrDto.getIssueDate());
+        dto.setIssuePlace(ocrDto.getIssuePlace());
+        dto.setCardType(ocrDto.getCardType());
+
+        // Step 5: face/liveness (với face hash) - chỉ khi có face image
+        if (faceHash != null) {
+            log.info("Step 5: Calling face/liveness...");
+            try {
+                var faceLivenessResult = vnptEkycService.faceLiveness(faceHash);
+                dto.setFaceLiveness(faceLivenessResult);
+            } catch (Exception e) {
+                log.warn("Face liveness check failed: {}", e.getMessage());
+            }
+
+            // Step 6: face/compare (với front hash và face hash)
+            log.info("Step 6: Calling face/compare...");
+            try {
+                var compareFaceResult = vnptEkycService.compareFace(frontHash, faceHash);
+                dto.setCompareFace(compareFaceResult);
+            } catch (Exception e) {
+                log.warn("Compare face failed: {}", e.getMessage());
+            }
+        }
+
+        String frontKey = fileKeyGenerator.generateCccdKey(user.getId(), "front", front.getOriginalFilename());
+        String backKey = fileKeyGenerator.generateCccdKey(user.getId(), "back", back.getOriginalFilename());
+
+        fileStorageService.uploadFile(front, frontKey);
+        fileStorageService.uploadFile(back, backKey);
+
+        String frontUrl = fileStorageService.generatePermanentUrl(frontKey);
+        String backUrl = fileStorageService.generatePermanentUrl(backKey);
+
+        user.setCccdNumber(dto.getId());
+        user.setCccdFullName(dto.getName());
+        user.setCccdBirthDay(dto.getBirthDay());
+        user.setCccdGender(dto.getGender());
+        user.setCccdOriginLocation(dto.getOriginLocation());
+        user.setCccdRecentLocation(dto.getRecentLocation());
+        user.setCccdIssueDate(dto.getIssueDate());
+        user.setCccdIssuePlace(dto.getIssuePlace());
+        user.setIsVerified(true);
+        user.setVerifiedAt(LocalDateTime.now());
+        user.setCccdFrontImageUrl(frontUrl);
+        user.setCccdBackImageUrl(backUrl);
+
+        userRepository.save(user);
+
+        return dto;
     }
 
     private String extractKeyFromUrl(String url) {
         if (url == null || url.isEmpty()) {
             return null;
         }
-        
+
         int queryIndex = url.indexOf('?');
         int fragmentIndex = url.indexOf('#');
         int endIndex = url.length();
@@ -278,9 +380,9 @@ public class UserServiceImpl implements UserService {
             endIndex = fragmentIndex;
         }
         String cleanUrl = url.substring(0, endIndex);
-        
+
         String key = null;
-        
+
         if (cleanUrl.contains("cloudfront.net")) {
             int domainIndex = cleanUrl.indexOf("cloudfront.net");
             String afterDomain = cleanUrl.substring(domainIndex + "cloudfront.net".length());
@@ -297,26 +399,13 @@ public class UserServiceImpl implements UserService {
         } else if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
             key = cleanUrl;
         }
-        
+
         // Normalize key: remove leading slash để đảm bảo format đúng cho S3
         if (key != null && key.startsWith("/")) {
             key = key.substring(1);
         }
-        
-        return key;
-    }
 
-    private UserProfileResponse mapToUserProfileResponse(User user) {
-        UserProfileResponse response = new UserProfileResponse();
-        response.setEmail(user.getEmail());
-        response.setFirstName(user.getFirstName());
-        response.setLastName(user.getLastName());
-        response.setPhoneNumber(user.getPhoneNumber());
-        response.setDateOfBirth(user.getDateOfBirth());
-        response.setAvatarUrl(user.getAvatarUrl());
-        response.setLocation(user.getLocation());
-        response.setRole(user.getRole() != null ? user.getRole().name() : null);
-        return response;
+        return key;
     }
 
     public List<ParticipantInfoDetailResponse> searchUser(String email) {
