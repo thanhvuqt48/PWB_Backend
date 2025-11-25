@@ -186,6 +186,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeleteTrack(false)
                         .canPlayTrack(false)
                         .canApproveTrackStatus(false)
+                        .canDownloadTrack(false)
                         .build())
                 .clientDelivery(ProjectPermissionResponse.ClientDeliveryPermissions.builder()
                         .canSendTrackToClient(false)
@@ -303,6 +304,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeleteTrack(canDeleteTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canPlayTrack(canPlayTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canApproveTrackStatus(canApproveTrackStatus(context.isProjectOwner))
+                        .canDownloadTrack(canDownloadTrack(context.isProjectOwner))
                         .build())
 
                 // Client Delivery permissions
@@ -741,6 +743,15 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
      * - Chỉ chủ dự án (OWNER) mới có quyền phê duyệt/từ chối trạng thái track
      */
     private boolean canApproveTrackStatus(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    /**
+     * Download track (original file without voice tag):
+     * - Chỉ chủ dự án (OWNER) mới có quyền download track mặc định
+     * - Hoặc milestone members được chỉ định (logic này check ở service layer)
+     */
+    private boolean canDownloadTrack(boolean isProjectOwner) {
         return isProjectOwner;
     }
 

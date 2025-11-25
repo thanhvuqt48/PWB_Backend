@@ -1,10 +1,12 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
+import com.fpt.producerworkbench.dto.request.TrackDownloadPermissionRequest;
 import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.dto.response.TrackDownloadPermissionResponse;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
 import com.fpt.producerworkbench.exception.AppException;
@@ -231,6 +233,120 @@ public class TrackMilestoneController {
                 .code(HttpStatus.OK.value())
                 .message("Lấy playback URL thành công")
                 .result(result)
+                .build();
+    }
+
+    /**
+     * Lấy download URL cho track (bản gốc không có voice tag)
+     * Chỉ chủ dự án hoặc users được chỉ định quyền download cho track này mới có quyền download
+     */
+    @GetMapping("/tracks/{trackId}/download-url")
+    public ApiResponse<Map<String, String>> getDownloadUrl(
+            @PathVariable Long trackId,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        String downloadUrl = trackService.getDownloadUrl(authentication, trackId);
+
+        Map<String, String> result = new HashMap<>();
+        result.put("downloadUrl", downloadUrl);
+        result.put("expiresIn", "900"); // 15 minutes
+
+        return ApiResponse.<Map<String, String>>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy download URL thành công")
+                .result(result)
+                .build();
+    }
+
+    /**
+     * Chủ dự án xem danh sách users có quyền download track
+     */
+    @GetMapping("/tracks/{trackId}/download-permissions")
+    public ApiResponse<TrackDownloadPermissionResponse> getDownloadPermissions(
+            @PathVariable Long trackId,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        TrackDownloadPermissionResponse response = trackService.getDownloadPermissions(authentication, trackId);
+
+        return ApiResponse.<TrackDownloadPermissionResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy danh sách quyền download thành công")
+                .result(response)
+                .build();
+    }
+
+    /**
+     * Chủ dự án cấp/quản lý quyền download cho track
+     * Sẽ thay thế toàn bộ danh sách users được cấp quyền bằng danh sách mới
+     */
+    @PutMapping("/tracks/{trackId}/download-permissions")
+    public ApiResponse<Void> manageDownloadPermissions(
+            @PathVariable Long trackId,
+            @Valid @RequestBody TrackDownloadPermissionRequest request,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        trackService.manageDownloadPermissions(authentication, trackId, request);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Cập nhật quyền download thành công")
+                .build();
+    }
+
+    /**
+     * Chủ dự án thêm quyền download cho users (không thay thế danh sách hiện có)
+     */
+    @PostMapping("/tracks/{trackId}/download-permissions")
+    public ApiResponse<Void> grantDownloadPermissions(
+            @PathVariable Long trackId,
+            @Valid @RequestBody TrackDownloadPermissionRequest request,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+
+        trackService.grantDownloadPermissions(authentication, trackId, request);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Thêm quyền download thành công")
+                .build();
+    }
+
+    /**
+     * Chủ dự án hủy quyền download cho user
+     */
+    @DeleteMapping("/tracks/{trackId}/download-permissions/{userId}")
+    public ApiResponse<Void> revokeDownloadPermission(
+            @PathVariable Long trackId,
+            @PathVariable Long userId,
+            Authentication authentication) {
+
+        if (trackId == null || trackId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Track ID không hợp lệ");
+        }
+        if (userId == null || userId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "User ID không hợp lệ");
+        }
+
+        trackService.revokeDownloadPermission(authentication, trackId, userId);
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Hủy quyền download thành công")
                 .build();
     }
 }

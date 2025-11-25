@@ -8,11 +8,14 @@ import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
+import com.fpt.producerworkbench.dto.request.TrackDownloadPermissionRequest;
 import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
+import com.fpt.producerworkbench.dto.response.TrackDownloadPermissionResponse;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
+import com.fpt.producerworkbench.entity.TrackDownloadPermission;
 import com.fpt.producerworkbench.entity.ClientDelivery;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.Project;
@@ -28,6 +31,7 @@ import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.MilestoneMoneySplitRepository;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.TrackCommentRepository;
+import com.fpt.producerworkbench.repository.TrackDownloadPermissionRepository;
 import com.fpt.producerworkbench.repository.TrackMilestoneRepository;
 import com.fpt.producerworkbench.repository.TrackStatusTransitionLogRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
@@ -45,6 +49,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,6 +65,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final ClientDeliveryRepository clientDeliveryRepository;
     private final TrackCommentRepository trackCommentRepository;
     private final TrackStatusTransitionLogRepository trackStatusTransitionLogRepository;
+    private final TrackDownloadPermissionRepository trackDownloadPermissionRepository;
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
     private final AudioProcessingService audioProcessingService;
@@ -344,6 +350,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             log.info("Đã xóa {} TrackStatusTransitionLog cho track {}", transitionLogs.size(), trackId);
         }
 
+        // Xóa TrackDownloadPermission
+        trackDownloadPermissionRepository.deleteByTrackId(trackId);
+        log.info("Đã xóa tất cả quyền download cho track {}", trackId);
+
         // Xóa files trên S3
         try {
             if (track.getS3OriginalKey() != null) {
@@ -530,6 +540,226 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         return mapToResponse(track);
     }
 
+    @Override
+    public String getDownloadUrl(Authentication auth, Long trackId) {
+        log.info("Lấy download URL cho track {}", trackId);
+
+        User currentUser = loadUser(auth);
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Kiểm tra quyền download
+        Project project = track.getMilestone().getContract().getProject();
+        checkDownloadPermission(currentUser, project, track);
+
+        // Kiểm tra track đã có file gốc chưa
+        if (track.getS3OriginalKey() == null) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Track chưa có file gốc để download");
+        }
+
+        // Kiểm tra processing status
+        if (track.getProcessingStatus() == ProcessingStatus.UPLOADING) {
+            throw new AppException(ErrorCode.BAD_REQUEST, 
+                    "Track đang được upload. Vui lòng đợi hoàn tất trước khi download.");
+        }
+
+        // Tạo tên file cho download (sanitize tên track)
+        String fileName = sanitizeFileName(track.getName()) + getExtensionFromContentType(track.getContentType());
+
+        // Tạo presigned download URL (15 phút)
+        String downloadUrl = fileStorageService.generatePresignedUrl(
+                track.getS3OriginalKey(),
+                true, // forDownload = true
+                fileName
+        );
+
+        log.info("Đã tạo presigned download URL cho track {}", trackId);
+        return downloadUrl;
+    }
+
+    @Override
+    @Transactional
+    public void manageDownloadPermissions(Authentication auth, Long trackId, TrackDownloadPermissionRequest request) {
+        log.info("Quản lý quyền download cho track {}: userIds={}", trackId, request.getUserIds());
+
+        User currentUser = loadUser(auth);
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Kiểm tra quyền: chỉ chủ dự án mới được quản lý quyền download
+        Project project = track.getMilestone().getContract().getProject();
+        checkOwnerPermission(currentUser, project);
+
+        // Validate request
+        if (request.getUserIds() == null || request.getUserIds().isEmpty()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Danh sách user IDs không được để trống");
+        }
+
+        // Xóa tất cả quyền download hiện tại của track
+        trackDownloadPermissionRepository.deleteByTrackId(trackId);
+        log.info("Đã xóa tất cả quyền download hiện tại của track {}", trackId);
+
+        // Kiểm tra và tạo quyền download mới cho từng user
+        for (Long userId : request.getUserIds()) {
+            // Kiểm tra user tồn tại
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, 
+                            "User với ID " + userId + " không tồn tại"));
+
+            // Kiểm tra user có phải là thành viên của project không
+            Optional<ProjectMember> projectMemberOpt = projectMemberRepository.findByProjectIdAndUserId(
+                    project.getId(), userId);
+            if (projectMemberOpt.isEmpty()) {
+                log.warn("User {} không phải là thành viên của project {}, bỏ qua", userId, project.getId());
+                continue;
+            }
+
+            // Tạo quyền download mới
+            TrackDownloadPermission permission = TrackDownloadPermission.builder()
+                    .track(track)
+                    .user(user)
+                    .grantedBy(currentUser)
+                    .build();
+            trackDownloadPermissionRepository.save(permission);
+            log.info("Đã cấp quyền download track {} cho user {}", trackId, userId);
+        }
+
+        log.info("Hoàn thành quản lý quyền download cho track {}", trackId);
+    }
+
+    @Override
+    @Transactional
+    public void grantDownloadPermissions(Authentication auth, Long trackId, TrackDownloadPermissionRequest request) {
+        log.info("Thêm quyền download cho track {}: userIds={}", trackId, request.getUserIds());
+
+        User currentUser = loadUser(auth);
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Kiểm tra quyền: chỉ chủ dự án mới được cấp quyền download
+        Project project = track.getMilestone().getContract().getProject();
+        checkOwnerPermission(currentUser, project);
+
+        // Validate request
+        if (request.getUserIds() == null || request.getUserIds().isEmpty()) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Danh sách user IDs không được để trống");
+        }
+
+        // Thêm quyền download cho từng user (không xóa quyền hiện có)
+        for (Long userId : request.getUserIds()) {
+            // Kiểm tra user đã có quyền chưa
+            boolean alreadyHasPermission = trackDownloadPermissionRepository.existsByTrackIdAndUserId(trackId, userId);
+            if (alreadyHasPermission) {
+                log.info("User {} đã có quyền download track {}, bỏ qua", userId, trackId);
+                continue;
+            }
+
+            // Kiểm tra user tồn tại
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, 
+                            "User với ID " + userId + " không tồn tại"));
+
+            // Kiểm tra user có phải là thành viên của project không
+            Optional<ProjectMember> projectMemberOpt = projectMemberRepository.findByProjectIdAndUserId(
+                    project.getId(), userId);
+            if (projectMemberOpt.isEmpty()) {
+                log.warn("User {} không phải là thành viên của project {}, bỏ qua", userId, project.getId());
+                continue;
+            }
+
+            // Tạo quyền download mới
+            TrackDownloadPermission permission = TrackDownloadPermission.builder()
+                    .track(track)
+                    .user(user)
+                    .grantedBy(currentUser)
+                    .build();
+            trackDownloadPermissionRepository.save(permission);
+            log.info("Đã cấp quyền download track {} cho user {}", trackId, userId);
+        }
+
+        log.info("Hoàn thành thêm quyền download cho track {}", trackId);
+    }
+
+    @Override
+    @Transactional
+    public void revokeDownloadPermission(Authentication auth, Long trackId, Long userId) {
+        log.info("Hủy quyền download track {} cho user {}", trackId, userId);
+
+        User currentUser = loadUser(auth);
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Kiểm tra quyền: chỉ chủ dự án mới được hủy quyền download
+        Project project = track.getMilestone().getContract().getProject();
+        checkOwnerPermission(currentUser, project);
+
+        // Kiểm tra user tồn tại
+        userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, 
+                        "User với ID " + userId + " không tồn tại"));
+
+        // Kiểm tra user có quyền download không
+        boolean hasPermission = trackDownloadPermissionRepository.existsByTrackIdAndUserId(trackId, userId);
+        if (!hasPermission) {
+            throw new AppException(ErrorCode.BAD_REQUEST, 
+                    "User này không có quyền download track này");
+        }
+
+        // Xóa quyền download
+        trackDownloadPermissionRepository.deleteByTrackIdAndUserId(trackId, userId);
+        log.info("Đã hủy quyền download track {} cho user {}", trackId, userId);
+    }
+
+    @Override
+    public TrackDownloadPermissionResponse getDownloadPermissions(Authentication auth, Long trackId) {
+        log.info("Lấy danh sách users có quyền download track {}", trackId);
+
+        User currentUser = loadUser(auth);
+        Track track = trackRepository.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
+
+        // Kiểm tra quyền: chỉ chủ dự án mới được xem danh sách quyền download
+        Project project = track.getMilestone().getContract().getProject();
+        checkOwnerPermission(currentUser, project);
+
+        // Lấy danh sách permissions
+        List<TrackDownloadPermission> permissions = trackDownloadPermissionRepository.findByTrackId(trackId);
+
+        // Map sang response
+        List<TrackDownloadPermissionResponse.DownloadPermissionUser> users = permissions.stream()
+                .map(permission -> {
+                    User user = permission.getUser();
+                    User grantedBy = permission.getGrantedBy();
+                    
+                    String userName = (user.getFirstName() != null ? user.getFirstName() : "") + 
+                                     " " + (user.getLastName() != null ? user.getLastName() : "").trim();
+                    if (userName.isBlank()) {
+                        userName = user.getEmail();
+                    }
+
+                    String grantedByName = (grantedBy.getFirstName() != null ? grantedBy.getFirstName() : "") + 
+                                          " " + (grantedBy.getLastName() != null ? grantedBy.getLastName() : "").trim();
+                    if (grantedByName.isBlank()) {
+                        grantedByName = grantedBy.getEmail();
+                    }
+
+                    return TrackDownloadPermissionResponse.DownloadPermissionUser.builder()
+                            .userId(user.getId())
+                            .userName(userName)
+                            .userEmail(user.getEmail())
+                            .userAvatarUrl(user.getAvatarUrl())
+                            .grantedByUserId(grantedBy.getId())
+                            .grantedByUserName(grantedByName)
+                            .grantedAt(permission.getCreatedAt())
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return TrackDownloadPermissionResponse.builder()
+                .users(users)
+                .build();
+    }
+
     // ========== Helper Methods ==========
 
     private User loadUser(Authentication auth) {
@@ -628,6 +858,26 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private void checkPlayPermission(User user, Project project) {
         // Same as view permission
         checkViewPermission(user, project);
+    }
+
+    private void checkDownloadPermission(User user, Project project, Track track) {
+        boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
+        
+        // Owner luôn được download
+        if (isOwner) {
+            return;
+        }
+
+        // Kiểm tra xem user có được cấp quyền download cho track này không
+        boolean hasDownloadPermission = trackDownloadPermissionRepository.existsByTrackIdAndUserId(
+                track.getId(), user.getId());
+        
+        if (hasDownloadPermission) {
+            log.info("User {} được cấp quyền download track {}", user.getId(), track.getId());
+            return;
+        }
+
+        throw new AppException(ErrorCode.TRACK_DOWNLOAD_PERMISSION_DENIED);
     }
 
     /**
@@ -842,6 +1092,17 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             case "audio/ogg" -> ".ogg";
             default -> ".wav";
         };
+    }
+
+    /**
+     * Sanitize file name để tránh ký tự đặc biệt
+     */
+    private String sanitizeFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            return "track";
+        }
+        // Loại bỏ các ký tự không hợp lệ cho tên file
+        return fileName.replaceAll("[^a-zA-Z0-9._-]", "_").trim();
     }
 
     /**

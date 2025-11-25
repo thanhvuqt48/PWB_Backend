@@ -257,7 +257,8 @@ public enum ErrorCode {
     INVALID_DELIVERY_STATUS_TRANSITION(8041, "Không thể chuyển đổi trạng thái delivery này", HttpStatus.BAD_REQUEST),
     REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST),
     CANNOT_DELETE_ACCEPTED_TRACK(8044, "Không thể xóa track đã được khách hàng chấp nhận. Track này đã được bàn giao cho khách hàng.", HttpStatus.BAD_REQUEST),
-    CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS(8045, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành", HttpStatus.BAD_REQUEST);
+    CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS(8045, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành", HttpStatus.BAD_REQUEST),
+    TRACK_DOWNLOAD_PERMISSION_DENIED(8046, "Bạn không có quyền download track này. Chỉ chủ dự án hoặc thành viên được chỉ định quyền download mới có thể tải xuống.", HttpStatus.FORBIDDEN);
 
 
     private final int code;

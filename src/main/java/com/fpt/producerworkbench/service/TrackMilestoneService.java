@@ -1,9 +1,11 @@
 package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
+import com.fpt.producerworkbench.dto.request.TrackDownloadPermissionRequest;
 import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackUpdateRequest;
 import com.fpt.producerworkbench.dto.request.TrackVersionUploadRequest;
+import com.fpt.producerworkbench.dto.response.TrackDownloadPermissionResponse;
 import com.fpt.producerworkbench.dto.response.TrackResponse;
 import com.fpt.producerworkbench.dto.response.TrackUploadUrlResponse;
 import org.springframework.security.core.Authentication;
@@ -100,6 +102,53 @@ public interface TrackMilestoneService {
      * @return Track đã cập nhật
      */
     TrackResponse updateTrackStatus(Authentication auth, Long trackId, TrackStatusUpdateRequest request);
+
+    /**
+     * Lấy download URL cho track (bản gốc không có voice tag)
+     * Chỉ chủ dự án hoặc users được chỉ định quyền download cho track này mới có quyền download
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track
+     * @return Presigned download URL
+     */
+    String getDownloadUrl(Authentication auth, Long trackId);
+
+    /**
+     * Chủ dự án cấp/quản lý quyền download cho track
+     * Sẽ thay thế toàn bộ danh sách users được cấp quyền bằng danh sách mới
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track
+     * @param request Danh sách user IDs được cấp quyền download
+     */
+    void manageDownloadPermissions(Authentication auth, Long trackId, TrackDownloadPermissionRequest request);
+
+    /**
+     * Chủ dự án thêm quyền download cho users (không thay thế danh sách hiện có)
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track
+     * @param request Danh sách user IDs được cấp quyền download
+     */
+    void grantDownloadPermissions(Authentication auth, Long trackId, TrackDownloadPermissionRequest request);
+
+    /**
+     * Chủ dự án hủy quyền download cho user
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track
+     * @param userId ID của user bị hủy quyền
+     */
+    void revokeDownloadPermission(Authentication auth, Long trackId, Long userId);
+
+    /**
+     * Lấy danh sách users có quyền download track
+     * 
+     * @param auth Authentication
+     * @param trackId ID của track
+     * @return Danh sách users có quyền download
+     */
+    TrackDownloadPermissionResponse getDownloadPermissions(Authentication auth, Long trackId);
 }
 
 
