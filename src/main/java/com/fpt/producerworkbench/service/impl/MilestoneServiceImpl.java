@@ -391,29 +391,6 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .build();
     }
 
-    @Override
-    public List<MilestoneSummaryResponse> getMilestoneSummariesByContractId(Authentication auth, Long contractId) {
-        if (contractId == null) throw new AppException(ErrorCode.BAD_REQUEST);
-
-        Contract contract = contractRepository.findById(contractId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
-
-        var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
-        if (!perms.isCanViewContract() && !perms.isCanCreateContract()) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
-        List<Milestone> milestones =
-                milestoneRepository.findByContractIdOrderBySequenceAsc(contractId);
-
-        return milestones.stream()
-                .map(ms -> MilestoneSummaryResponse.builder()
-                        .description(ms.getDescription())
-                        .amount(ms.getAmount())
-                        .build())
-                .toList();
-    }
-
     private void validateMilestoneRequest(Contract contract, MilestoneRequest request, Long excludeMilestoneId) {
         Optional<Milestone> existingMilestoneWithSameTitle = milestoneRepository
                 .findByContractIdAndTitleIgnoreCase(contract.getId(), request.getTitle());

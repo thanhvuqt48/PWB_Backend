@@ -212,6 +212,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 milestoneRepository.deleteByContract(contract);
             }
 
+            int totalEditCount = 0;
+            int totalProductCount = 0;
+
             int idx = 0;
             for (MilestoneRequest m : req.getMilestones()) {
                 BigDecimal amtPreVat = parseMoney(m.getAmount());
@@ -233,8 +236,20 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                         .build();
 
                 milestoneRepository.save(ms);
+
+                if (m.getEditCount() != null) {
+                    totalEditCount += m.getEditCount();
+                }
+                if (m.getProductCount() != null) {
+                    totalProductCount += m.getProductCount();
+                }
+
                 idx++;
             }
+
+            contract.setFpEditAmount(totalEditCount);
+            contract.setProductCount(totalProductCount);
+            contractRepository.save(contract);
         }
 
         try (InputStream in = templateResource.getInputStream();

@@ -24,4 +24,6 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
     Optional<Milestone> findByContractIdAndTitleIgnoreCase(@Param("contractId") Long contractId, @Param("title") String title);
 
     void deleteByContract(Contract contract);
+
+    long countByContract(Contract contract);
 }

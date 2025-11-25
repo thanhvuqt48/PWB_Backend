@@ -21,11 +21,16 @@ public class ContractAddendumMilestone extends AbstractEntity<Long> {
     @JoinColumn(name = "addendum_id", nullable = false)
     private ContractAddendum addendum;
 
-    /** Thứ tự hiển thị của cột mốc trong phụ lục */
     @Column(name = "item_index")
     private Integer itemIndex;
 
-    /** Nội dung chính của cột mốc */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_id")
+    private Milestone milestone;
+
+    @Column(name = "title")
+    private String title;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
@@ -37,4 +42,10 @@ public class ContractAddendumMilestone extends AbstractEntity<Long> {
 
     @Column(name = "num_of_refresh")
     private Integer numOfRefresh;
+
+    @Column(name = "pit_tax", precision = 15, scale = 2)
+    private BigDecimal pitTax;
+
+    @Column(name = "vat_tax", precision = 15, scale = 2)
+    private BigDecimal vatTax;
 }

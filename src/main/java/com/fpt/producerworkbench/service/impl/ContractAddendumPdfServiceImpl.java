@@ -1,6 +1,8 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractDocumentType;
+import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.dto.request.ContractAddendumMilestoneItemRequest;
 import com.fpt.producerworkbench.dto.request.ContractAddendumPdfFillRequest;
@@ -8,12 +10,10 @@ import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.entity.ContractAddendumMilestone;
 import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
-import com.fpt.producerworkbench.repository.ContractAddendumMilestoneRepository;
-import com.fpt.producerworkbench.repository.ContractAddendumRepository;
-import com.fpt.producerworkbench.repository.ContractDocumentRepository;
-import com.fpt.producerworkbench.repository.ContractRepository;
+import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.ContractAddendumPdfService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
@@ -47,6 +47,8 @@ import org.springframework.util.StreamUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -55,6 +57,9 @@ import java.util.*;
 @Slf4j
 public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfService {
 
+    private static final BigDecimal VAT_RATE = new BigDecimal("0.05");
+    private static final BigDecimal PIT_RATE = new BigDecimal("0.02");
+
     private final ContractRepository contractRepository;
     private final ContractAddendumRepository addendumRepository;
     private final ContractAddendumMilestoneRepository addendumMilestoneRepository;
@@ -62,6 +67,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
     private final ProjectPermissionService projectPermissionService;
+    private final MilestoneRepository milestoneRepository;
 
     @Value("${pwb.addendum.template}")
     private Resource addendumTemplate;
@@ -79,7 +85,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     }
 
     static final Rectangle ADD_FIRST_FALLBACK_RECT = inchRect(1.0f, 2.6f, 6.5f, 5.8f);
-    static final Rectangle ADD_CONT_RECT = inchRect(1.0f, 2.4f, 6.5f, 7.8f);
+    static final Rectangle ADD_CONT_RECT          = inchRect(1.0f, 2.4f, 6.5f, 7.8f);
 
     private record PageAndRect(PdfPage page, Rectangle rect) {
     }
@@ -123,46 +129,164 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
 
         boolean milestoneMode = PaymentType.MILESTONE.equals(contract.getPaymentType());
 
-        ContractAddendum add = addendumRepository
+        if (milestoneMode) {
+            if (req.getMilestones() == null || req.getMilestones().isEmpty()) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+        } else {
+            if (req.getMilestones() != null && !req.getMilestones().isEmpty()) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+            if (req.getNumOfMoney() == null || req.getNumOfMoney().signum() <= 0) {
+                throw new AppException(ErrorCode.BAD_REQUEST);
+            }
+        }
+
+        ContractAddendum latestAddendum = addendumRepository
                 .findFirstByContractIdOrderByVersionDesc(contractId)
                 .orElse(null);
 
-        if (add == null) {
+        ContractAddendum add;
+
+        if (latestAddendum != null && ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
             add = ContractAddendum.builder()
                     .contract(contract)
-                    .title("Phụ lục hợp đồng")
-                    .version(1)
-                    .effectiveDate(null)
+                    .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
+                    .version(latestAddendum.getVersion() + 1)
+                    .effectiveDate(req.getEffectiveDate())
+                    .signnowStatus(ContractStatus.DRAFT)
                     .build();
-        } else if (add.getVersion() == 0) {
-            add.setVersion(1);
+        } else if (latestAddendum == null) {
+            add = ContractAddendum.builder()
+                    .contract(contract)
+                    .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
+                    .version(1)
+                    .effectiveDate(req.getEffectiveDate())
+                    .signnowStatus(ContractStatus.DRAFT)
+                    .build();
+        } else {
+            add = latestAddendum;
+            if (add.getVersion() == 0) add.setVersion(1);
+            add.setTitle(req.getTitle() != null ? req.getTitle() : add.getTitle());
+            add.setEffectiveDate(req.getEffectiveDate() != null ? req.getEffectiveDate() : add.getEffectiveDate());
+
         }
 
+        add.setPitTax(BigDecimal.ZERO);
+        add.setVatTax(BigDecimal.ZERO);
+
         if (!milestoneMode) {
-            add.setNumOfMoney(req.getNumOfMoney());
+            BigDecimal base = req.getNumOfMoney() != null ? req.getNumOfMoney() : BigDecimal.ZERO;
+            add.setNumOfMoney(base);
             add.setNumOfEdit(req.getNumOfEdit());
             add.setNumOfRefresh(req.getNumOfRefresh());
+
+            BigDecimal pit = base.multiply(PIT_RATE).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal vat = base.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+            add.setPitTax(pit);
+            add.setVatTax(vat);
         }
 
         add = addendumRepository.save(add);
 
+        int pdfStartIndex = 1;
+
         if (milestoneMode) {
             addendumMilestoneRepository.deleteByAddendumId(add.getId());
-            if (req.getMilestones() != null && !req.getMilestones().isEmpty()) {
-                int idx = 1;
-                for (ContractAddendumMilestoneItemRequest item : req.getMilestones()) {
-                    if (item == null) continue;
-                    ContractAddendumMilestone ms = ContractAddendumMilestone.builder()
-                            .addendum(add)
-                            .itemIndex(idx++)
-                            .description(item.getDescription())
-                            .numOfMoney(item.getNumOfMoney())
-                            .numOfEdit(item.getNumOfEdit())
-                            .numOfRefresh(item.getNumOfRefresh())
-                            .build();
-                    addendumMilestoneRepository.save(ms);
+
+            BigDecimal totalPit     = BigDecimal.ZERO;
+            BigDecimal totalVat     = BigDecimal.ZERO;
+            BigDecimal totalMoney   = BigDecimal.ZERO;
+            int        totalEdit    = 0;
+            int        totalRefresh = 0;
+
+            List<ContractAddendumMilestoneItemRequest> items =
+                    Optional.ofNullable(req.getMilestones()).orElse(Collections.emptyList());
+
+            long existingCount = milestoneRepository.countByContract(contract);
+            int newIndex = (int) existingCount + 1;
+            pdfStartIndex = newIndex;
+
+            for (ContractAddendumMilestoneItemRequest item : items) {
+                if (item == null) continue;
+
+                boolean existing = item.getMilestoneId() != null;
+
+                Integer editDelta    = item.getNumOfEdit()    != null ? item.getNumOfEdit()    : 0;
+                Integer refreshDelta = item.getNumOfRefresh() != null ? item.getNumOfRefresh() : 0;
+
+                if (editDelta < 0 || refreshDelta < 0) {
+                    throw new AppException(ErrorCode.BAD_REQUEST);
+                }
+
+                BigDecimal baseMoney = item.getNumOfMoney() != null ? item.getNumOfMoney() : BigDecimal.ZERO;
+
+                if (baseMoney.signum() < 0) {
+                    throw new AppException(ErrorCode.BAD_REQUEST);
+                }
+
+                BigDecimal pit = baseMoney.multiply(PIT_RATE).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal vat = baseMoney.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP);
+
+                ContractAddendumMilestone.ContractAddendumMilestoneBuilder msBuilder = ContractAddendumMilestone.builder()
+                        .addendum(add)
+                        .numOfMoney(baseMoney)
+                        .numOfEdit(editDelta)
+                        .numOfRefresh(refreshDelta)
+                        .pitTax(pit)
+                        .vatTax(vat)
+                        .description(item.getDescription());
+
+                if (existing) {
+                    Milestone baseMs = milestoneRepository.findById(item.getMilestoneId())
+                            .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+                    if (!baseMs.getContract().getId().equals(contract.getId())) {
+                        throw new AppException(ErrorCode.ACCESS_DENIED);
+                    }
+                    if (MilestoneStatus.COMPLETED.equals(baseMs.getStatus())) {
+                        throw new AppException(ErrorCode.BAD_REQUEST);
+                    }
+
+                    msBuilder.milestone(baseMs);
+
+                    String finalTitle = (item.getTitle() != null && !item.getTitle().isBlank())
+                            ? item.getTitle()
+                            : baseMs.getTitle();
+                    msBuilder.title(finalTitle);
+
+                } else {
+                    if (item.getTitle() == null || item.getTitle().isBlank()) {
+                        throw new AppException(ErrorCode.BAD_REQUEST);
+                    }
+                    if (baseMoney.signum() <= 0) {
+                        throw new AppException(ErrorCode.BAD_REQUEST);
+                    }
+
+                    msBuilder.milestone(null);
+                    msBuilder.title(item.getTitle());
+                    msBuilder.itemIndex(newIndex++);
+                }
+
+                ContractAddendumMilestone ms = msBuilder.build();
+                addendumMilestoneRepository.save(ms);
+
+                totalPit     = totalPit.add(pit);
+                totalVat     = totalVat.add(vat);
+                totalMoney   = totalMoney.add(baseMoney);
+
+                if (!existing) {
+                    totalEdit    += editDelta;
+                    totalRefresh += refreshDelta;
                 }
             }
+
+            add.setPitTax(totalPit);
+            add.setVatTax(totalVat);
+            add.setNumOfMoney(totalMoney);
+            add.setNumOfEdit(totalEdit);
+            add.setNumOfRefresh(totalRefresh);
+            addendumRepository.save(add);
         }
 
         Resource template = milestoneMode ? addendumMilestoneTemplate : addendumTemplate;
@@ -206,9 +330,9 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             m.put("Box 18", ns(req.getBPhone()));
 
             if (!milestoneMode) {
-                m.put("numofmoney", req.getNumOfMoney() != null ? req.getNumOfMoney().toPlainString() : "");
-                m.put("numofedit", req.getNumOfEdit() != null ? String.valueOf(req.getNumOfEdit()) : "");
-                m.put("numofrefresh", req.getNumOfRefresh() != null ? String.valueOf(req.getNumOfRefresh()) : "");
+                m.put("numofmoney",  req.getNumOfMoney()  != null ? req.getNumOfMoney().toPlainString() : "");
+                m.put("numofedit",   req.getNumOfEdit()   != null ? String.valueOf(req.getNumOfEdit())   : "");
+                m.put("numofrefresh",req.getNumOfRefresh()!= null ? String.valueOf(req.getNumOfRefresh()): "");
             }
 
             m.put("additional", "");
@@ -229,8 +353,15 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             acro.flattenFields();
 
             if (milestoneMode) {
+                List<ContractAddendumMilestoneItemRequest> newMilestonesForPdf =
+                        Optional.ofNullable(req.getMilestones())
+                                .orElse(Collections.emptyList())
+                                .stream()
+                                .filter(it -> it != null && it.getMilestoneId() == null)
+                                .toList();
+
                 drawMilestonesAndAdditional(first.page(), first.rect(), font,
-                        req.getMilestones(), req.getAdditional(), pdf);
+                        newMilestonesForPdf, req.getAdditional(), pdf, pdfStartIndex);
             } else {
                 drawAdditionalBlockWithHeading(first.page(), first.rect(), font,
                         req.getAdditional(), pdf);
@@ -246,16 +377,17 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                     .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.ADDENDUM)
                     .orElse(null);
 
-            if (doc == null) {
+            boolean createNewDoc = (doc == null) || (add.getVersion() > doc.getVersion());
+
+            if (createNewDoc) {
                 doc = ContractDocument.builder()
                         .contract(contract)
                         .type(ContractDocumentType.ADDENDUM)
-                        .version(1)
+                        .version(add.getVersion()) // Sync version với Addendum
                         .storageUrl(url)
                         .build();
             } else {
                 doc.setStorageUrl(url);
-                if (doc.getVersion() == null || doc.getVersion() <= 0) doc.setVersion(1);
             }
             contractDocumentRepository.save(doc);
 
@@ -334,14 +466,14 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         canvas.close();
     }
 
-
     private void drawMilestonesAndAdditional(
             PdfPage startPage,
             Rectangle rectFirst,
             PdfFont font,
             List<ContractAddendumMilestoneItemRequest> milestones,
             String additional,
-            PdfDocument pdf
+            PdfDocument pdf,
+            int startIndex
     ) {
         PdfPage page = startPage;
         Rectangle rect = rectFirst;
@@ -372,13 +504,18 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             canvas.add(heading);
             remaining -= headNeed;
 
-            int index = 1;
+            int index = startIndex;
+
             for (ContractAddendumMilestoneItemRequest it : milestones) {
                 if (it == null) continue;
 
+                String title = (it.getTitle() != null && !it.getTitle().isBlank())
+                        ? it.getTitle().trim()
+                        : ("Cột mốc " + index);
+
                 String desc = (it.getDescription() != null && !it.getDescription().isBlank())
                         ? it.getDescription().trim()
-                        : ("Cột mốc " + index);
+                        : null;
 
                 Paragraph p = new Paragraph()
                         .setFont(font).setFontSize(11f)
@@ -387,8 +524,11 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                         .setMarginLeft(0).setMarginRight(0);
 
                 p.add(new Text("Cột mốc " + index + ". ").setBold());
-                p.add(new Text(desc));
+                p.add(new Text(title));
 
+                if (desc != null) {
+                    p.add(new Text("\n- Mô tả: " + desc));
+                }
                 if (it.getNumOfMoney() != null) {
                     p.add(new Text("\n- Giá trị cột mốc: " + it.getNumOfMoney().toPlainString()));
                 }
@@ -488,7 +628,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         canvas.close();
     }
 
-
     private com.itextpdf.layout.element.Div divOf(IBlockElement el, float width) {
         com.itextpdf.layout.element.Div d = new com.itextpdf.layout.element.Div()
                 .setWidth(width)
@@ -536,4 +675,3 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         return o == null ? "" : String.valueOf(o);
     }
 }
-

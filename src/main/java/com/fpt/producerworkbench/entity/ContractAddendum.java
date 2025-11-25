@@ -59,6 +59,12 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column(name = "num_of_refresh")
     private Integer numOfRefresh;
 
+    @Column(name = "pit_tax", precision = 15, scale = 2)
+    private BigDecimal pitTax;
+
+    @Column(name = "vat_tax", precision = 15, scale = 2)
+    private BigDecimal vatTax;
+
     @PrePersist
     void prePersist() {
         if (signingMode == null) signingMode = SigningMode.EMAIL;

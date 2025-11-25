@@ -1,4 +1,3 @@
-// [NEW] src/main/java/com/fpt/producerworkbench/dto/request/ContractAddendumPdfFillRequest.java
 package com.fpt.producerworkbench.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;

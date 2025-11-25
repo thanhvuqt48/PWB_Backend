@@ -25,6 +25,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -81,11 +82,9 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
-        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE)
         if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE) {
             throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
         }
-        // Kiểm tra nếu đã có signnowDocumentId và chưa completed thì có nghĩa là đã gửi lời mời rồi
         if (addendum.getSignnowDocumentId() != null && !addendum.getSignnowDocumentId().isBlank()
                 && addendum.getSignnowStatus() != ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.INVITE_ALREADY_SENT);

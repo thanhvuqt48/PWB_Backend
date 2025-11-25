@@ -41,6 +41,5 @@ public interface MilestoneService {
             com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest request,
             Authentication auth);
 
-    List<MilestoneSummaryResponse> getMilestoneSummariesByContractId(Authentication auth, Long contractId);
 }
 
