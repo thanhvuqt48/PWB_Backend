@@ -65,6 +65,11 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column(name = "vat_tax", precision = 15, scale = 2)
     private BigDecimal vatTax;
 
+    /** Lý do từ chối phụ lục hợp đồng */
+    @Lob
+    @Column(name = "decline_reason")
+    private String declineReason;
+
     @PrePersist
     void prePersist() {
         if (signingMode == null) signingMode = SigningMode.EMAIL;

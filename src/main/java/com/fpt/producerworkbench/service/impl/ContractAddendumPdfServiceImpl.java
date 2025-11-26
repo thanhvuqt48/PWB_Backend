@@ -1,15 +1,16 @@
 package com.fpt.producerworkbench.service.impl;
 
-import com.fpt.producerworkbench.common.ContractDocumentType;
+import com.fpt.producerworkbench.common.AddendumDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.dto.request.ContractAddendumMilestoneItemRequest;
 import com.fpt.producerworkbench.dto.request.ContractAddendumPdfFillRequest;
+import com.fpt.producerworkbench.entity.AddendumDocument;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.entity.ContractAddendumMilestone;
-import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.ContractParty;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
@@ -63,11 +64,12 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     private final ContractRepository contractRepository;
     private final ContractAddendumRepository addendumRepository;
     private final ContractAddendumMilestoneRepository addendumMilestoneRepository;
-    private final ContractDocumentRepository contractDocumentRepository;
+    private final AddendumDocumentRepository addendumDocumentRepository;
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
     private final ProjectPermissionService projectPermissionService;
     private final MilestoneRepository milestoneRepository;
+    private final com.fpt.producerworkbench.repository.ContractPartyRepository contractPartyRepository;
 
     @Value("${pwb.addendum.template}")
     private Resource addendumTemplate;
@@ -126,6 +128,11 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
 
         var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
         if (!perms.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
+
+        // Tự động load snapshot thông tin Bên A/B từ ContractParty để không phải nhập lại khi soạn phụ lục
+        ContractParty party = contractPartyRepository.findByContractId(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+        applyPartyToAddendumRequest(party, req);
 
         boolean milestoneMode = PaymentType.MILESTONE.equals(contract.getPaymentType());
 
@@ -373,23 +380,23 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             String key = fileKeyGenerator.generateContractDocumentKey(contractId, "addendum.pdf");
             String url = fileStorageService.uploadBytes(out, key, "application/pdf");
 
-            ContractDocument doc = contractDocumentRepository
-                    .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.ADDENDUM)
+            AddendumDocument doc = addendumDocumentRepository
+                    .findFirstByAddendumIdAndTypeOrderByVersionDesc(add.getId(), AddendumDocumentType.FILLED)
                     .orElse(null);
 
-            boolean createNewDoc = (doc == null) || (add.getVersion() > doc.getVersion());
+            boolean createNewDoc = (doc == null) || (add.getVersion() > (doc.getVersion() != null ? doc.getVersion() : 0));
 
             if (createNewDoc) {
-                doc = ContractDocument.builder()
-                        .contract(contract)
-                        .type(ContractDocumentType.ADDENDUM)
+                doc = AddendumDocument.builder()
+                        .addendum(add)
+                        .type(AddendumDocumentType.FILLED)
                         .version(add.getVersion()) // Sync version với Addendum
                         .storageUrl(url)
                         .build();
             } else {
                 doc.setStorageUrl(url);
             }
-            contractDocumentRepository.save(doc);
+            addendumDocumentRepository.save(doc);
 
             return out;
 
@@ -673,5 +680,29 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
 
     private String ns(Object o) {
         return o == null ? "" : String.valueOf(o);
+    }
+
+    /**
+     * Gán thông tin Bên A/B từ snapshot ContractParty vào request phụ lục.
+     * Mục tiêu: khi soạn phụ lục không cần nhập lại thông tin hai bên, luôn dùng dữ liệu đã lưu ở hợp đồng.
+     */
+    private void applyPartyToAddendumRequest(ContractParty party, ContractAddendumPdfFillRequest req) {
+        if (party == null || req == null) return;
+
+        // Bên A
+        req.setAName(party.getAName());
+        req.setAId(party.getAIdNumber());
+        req.setAIdIssueDate(party.getAIdIssueDate());
+        req.setAIdIssuePlace(party.getAIdIssuePlace());
+        req.setAAddress(party.getAAddress());
+        req.setAPhone(party.getAPhone());
+
+        // Bên B
+        req.setBName(party.getBName());
+        req.setBId(party.getBIdNumber());
+        req.setBIdIssueDate(party.getBIdIssueDate());
+        req.setBIdIssuePlace(party.getBIdIssuePlace());
+        req.setBAddress(party.getBAddress());
+        req.setBPhone(party.getBPhone());
     }
 }

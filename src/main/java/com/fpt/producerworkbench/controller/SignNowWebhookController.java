@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.configuration.SignNowProperties;
+import com.fpt.producerworkbench.common.AddendumDocumentType;
+import com.fpt.producerworkbench.entity.AddendumDocument;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.exception.AppException;
@@ -11,6 +13,7 @@ import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.entity.ContractDocument;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.AddendumDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractAddendumRepository;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
@@ -41,8 +44,9 @@ public class SignNowWebhookController {
 
     private final SignNowProperties props;
     private final ContractRepository contractRepository;
-    private final ContractAddendumRepository contractAddendumRepository; // NEW
+    private final ContractAddendumRepository contractAddendumRepository;
     private final ContractDocumentRepository contractDocumentRepository;
+    private final AddendumDocumentRepository addendumDocumentRepository;
     private final SignNowClient signNowClient;
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
@@ -300,32 +304,31 @@ public class SignNowWebhookController {
             throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
         }
 
-        Long contractId = a.getContract().getId();
-
-        ContractDocument existing = contractDocumentRepository
-                .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.SIGNED)
+        AddendumDocument existing = addendumDocumentRepository
+                .findFirstByAddendumIdAndTypeOrderByVersionDesc(a.getId(), AddendumDocumentType.SIGNED)
                 .orElse(null);
 
-        String key = fileKeyGenerator.generateContractDocumentKey(contractId, "addendum-signed.pdf");
+        if (existing != null) {
+            log.warn("[Webhook][Addendum] Addendum {} already has signed document, skipping", a.getId());
+            return;
+        }
+
+        String key = fileKeyGenerator.generateContractDocumentKey(a.getContract().getId(), "addendum-signed.pdf");
         fileStorageService.uploadBytes(pdf, key, "application/pdf");
 
-        if (existing == null) {
-            existing = ContractDocument.builder()
-                    .contract(a.getContract())
-                    .type(ContractDocumentType.SIGNED)
-                    .version(1)
-                    .storageUrl(key)
-                    .build();
-        } else {
-            existing.setStorageUrl(key);
-            if (existing.getVersion() == null || existing.getVersion() <= 0) existing.setVersion(1);
-        }
-        contractDocumentRepository.save(existing);
+        AddendumDocument doc = AddendumDocument.builder()
+                .addendum(a)
+                .type(AddendumDocumentType.SIGNED)
+                .version(a.getVersion())
+                .storageUrl(key)
+                .signnowDocumentId(a.getSignnowDocumentId())
+                .build();
+        addendumDocumentRepository.save(doc);
 
         a.setSignnowStatus(ContractStatus.COMPLETED);
         contractAddendumRepository.save(a);
 
-        log.info("[Webhook] Successfully saved signed addendum for contract {} (addendumId={})",
-                contractId, a.getId());
+        log.info("[Webhook] Successfully saved signed addendum for contract {} (addendumId={}, version={})",
+                a.getContract().getId(), a.getId(), a.getVersion());
     }
 }

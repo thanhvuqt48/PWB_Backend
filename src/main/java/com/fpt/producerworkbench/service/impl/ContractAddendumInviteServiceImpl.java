@@ -1,31 +1,40 @@
 package com.fpt.producerworkbench.service.impl;
 
-import com.fpt.producerworkbench.common.ContractDocumentType;
+import com.fpt.producerworkbench.common.AddendumDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
+import com.fpt.producerworkbench.entity.AddendumDocument;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.AddendumDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractAddendumRepository;
-import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.ContractAddendumInviteService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.SignNowWebhookService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
+import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.entity.User;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
-import java.math.BigDecimal;
 import java.util.*;
 
 @Service
@@ -35,12 +44,18 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
 
     private final ContractRepository contractRepository;
     private final ContractAddendumRepository addendumRepository;
-    private final ContractDocumentRepository contractDocumentRepository;
+    private final AddendumDocumentRepository addendumDocumentRepository;
     private final FileStorageService fileStorageService;
     private final SignNowClient signNowClient;
     private final SignNowWebhookService signNowWebhookService;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final ProjectPermissionService projectPermissionService;
+    private final NotificationService notificationService;
+    private final UserRepository userRepository;
+    
+    @Lazy
+    @Autowired
+    private ContractAddendumInviteServiceImpl self;
 
     private static boolean eqIgnore(String a, String b) {
         return a != null && b != null && a.trim().equalsIgnoreCase(b.trim());
@@ -65,6 +80,42 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         return signers;
     }
 
+    @Async
+    public void sendInviteEmailsAsync(Contract contract, ContractAddendum addendum, List<ContractInviteRequest.Signer> signers) {
+        try {
+            String previewUrl = null;
+            try {
+                var addDoc = addendumDocumentRepository
+                        .findFirstByAddendumIdAndTypeOrderByVersionDesc(addendum.getId(), AddendumDocumentType.FILLED)
+                        .orElse(null);
+                if (addDoc != null) {
+                    previewUrl = fileStorageService.generatePresignedUrl(addDoc.getStorageUrl(), false, null);
+                }
+            } catch (Exception ignore) { }
+
+            for (var s : signers) {
+                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
+                NotificationEvent event = NotificationEvent.builder()
+                        .subject("Yêu cầu ký phụ lục - Project #" + contract.getProject().getId())
+                        .recipient(s.getEmail().trim())
+                        .templateCode("contract-addendum-invite-sent.html")
+                        .param(new HashMap<>())
+                        .build();
+                event.getParam().put("projectId", String.valueOf(contract.getProject().getId()));
+                event.getParam().put("projectTitle", contract.getProject().getTitle());
+                event.getParam().put("contractId", String.valueOf(contract.getId()));
+                event.getParam().put("recipient", s.getFullName() == null ? s.getEmail() : s.getFullName());
+                if (previewUrl != null) {
+                    event.getParam().put("previewUrl", previewUrl);
+                }
+                kafkaTemplate.send("notification-delivery", event);
+            }
+            log.info("[Addendum] Sent invite emails for contract {} to {} signers", contract.getId(), signers.size());
+        } catch (Exception mailEx) {
+            log.error("[Addendum] Failed to send invite emails for contract {}: {}", contract.getId(), mailEx.getMessage(), mailEx);
+        }
+    }
+
     @Override
     @Transactional
     public StartSigningResponse inviteAddendum(Authentication auth, Long contractId, ContractInviteRequest req) {
@@ -78,22 +129,39 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 .findFirstByContractIdOrderByVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
+        // Kiểm tra phụ lục đã hoàn thành (COMPLETED) - không cho phép mời ký lại
         if (addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
-        if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE) {
-            throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
+        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE)
+        // Nếu status là DRAFT, cho phép gửi lại lời mời (phụ lục mới hoặc đã reset)
+        if (addendum.getSignnowStatus() != ContractStatus.DRAFT) {
+            if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE) {
+                throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
+            }
         }
+
+        // Kiểm tra nếu đã có signnowDocumentId nhưng chưa COMPLETED → đã có invite
         if (addendum.getSignnowDocumentId() != null && !addendum.getSignnowDocumentId().isBlank()
                 && addendum.getSignnowStatus() != ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
         }
 
+        // Nếu status là DRAFT và đã có signnowDocumentId, reset để upload document mới
+        // (tránh dùng document cũ có thể đã có invite)
+        if (addendum.getSignnowStatus() == ContractStatus.DRAFT 
+                && addendum.getSignnowDocumentId() != null 
+                && !addendum.getSignnowDocumentId().isBlank()) {
+            log.info("[Addendum] Resetting signnowDocumentId for DRAFT addendum {} to allow new document upload", addendum.getId());
+            addendum.setSignnowDocumentId(null);
+            addendumRepository.save(addendum);
+        }
+
         byte[] pdfBytes;
         try {
-            var addDoc = contractDocumentRepository
-                    .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.ADDENDUM)
+            var addDoc = addendumDocumentRepository
+                    .findFirstByAddendumIdAndTypeOrderByVersionDesc(addendum.getId(), AddendumDocumentType.FILLED)
                     .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_FILLED_PDF_NOT_FOUND));
             pdfBytes = fileStorageService.downloadBytes(addDoc.getStorageUrl());
         } catch (RuntimeException ex) {
@@ -162,33 +230,37 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         addendum.setSignnowStatus(ContractStatus.OUT_FOR_SIGNATURE);
         addendumRepository.save(addendum);
 
-        try {
-            String previewUrl = null;
-            try {
-                var addDoc = contractDocumentRepository
-                        .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.ADDENDUM)
-                        .orElse(null);
-                if (addDoc != null) {
-                    previewUrl = fileStorageService.generatePresignedUrl(addDoc.getStorageUrl(), false, null);
-                }
-            } catch (Exception ignore) { }
+        // Gửi email async để không block request (gọi qua self để Spring proxy hoạt động)
+        self.sendInviteEmailsAsync(contract, addendum, filtered);
 
-            for (var s : filtered) {
-                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
-                NotificationEvent event = NotificationEvent.builder()
-                        .subject("Yêu cầu ký phụ lục - Project #" + contract.getProject().getId())
-                        .recipient(s.getEmail().trim())
-                        .templateCode("contract-addendum-invite-sent.html")
-                        .param(new HashMap<>())
-                        .build();
-                event.getParam().put("projectId", String.valueOf(contract.getProject().getId()));
-                event.getParam().put("projectTitle", contract.getProject().getTitle());
-                event.getParam().put("contractId", String.valueOf(contract.getId()));
-                if (previewUrl != null) event.getParam().put("previewUrl", previewUrl);
-                kafkaTemplate.send("notification-delivery", event);
+        // Gửi notification realtime cho các signers
+        try {
+            User currentUser = userRepository.findByEmail(auth.getName())
+                    .orElse(null);
+            String inviterName = currentUser != null 
+                    ? (currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail())
+                    : "Hệ thống";
+            
+            for (var signer : filtered) {
+                if (signer.getEmail() == null || signer.getEmail().isBlank()) continue;
+                
+                userRepository.findByEmail(signer.getEmail()).ifPresent(user -> {
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(user.getId())
+                                    .type(NotificationType.CONTRACT_SIGNING)
+                                    .title("Yêu cầu ký phụ lục hợp đồng")
+                                    .message(String.format("%s đã gửi yêu cầu ký phụ lục cho dự án \"%s\". Vui lòng ký phụ lục để tiếp tục.",
+                                            inviterName,
+                                            contract.getProject().getTitle()))
+                                    .relatedEntityType(RelatedEntityType.CONTRACT)
+                                    .relatedEntityId(contract.getId())
+                                    .build()
+                    );
+                });
             }
-        } catch (Exception mailEx) {
-            log.warn("[Addendum] publish invite emails failed: {}", mailEx.getMessage());
+        } catch (Exception e) {
+            log.error("[Addendum] Gặp lỗi khi gửi notification realtime cho addendum signing: {}", e.getMessage());
         }
 
         return resp;

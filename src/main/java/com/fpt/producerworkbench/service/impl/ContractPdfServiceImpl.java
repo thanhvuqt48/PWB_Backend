@@ -8,11 +8,13 @@ import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.ContractParty;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
+import com.fpt.producerworkbench.repository.ContractPartyRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
@@ -111,6 +113,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     ProjectRepository projectRepository;
     ContractRepository contractRepository;
     MilestoneRepository milestoneRepository;
+    ContractPartyRepository contractPartyRepository;
     ContractDocumentRepository contractDocumentRepository;
     FileStorageService fileStorageService;
     FileKeyGenerator fileKeyGenerator;
@@ -126,6 +129,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             FileKeyGenerator fileKeyGenerator,
             ProjectPermissionService projectPermissionService,
             MilestoneRepository milestoneRepository,
+            ContractPartyRepository contractPartyRepository,
             @Value("${pwb.contract.template}") Resource templateResource,
             @Value("${pwb.contract.font}") Resource fontResource
     ) {
@@ -136,6 +140,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         this.fileKeyGenerator = fileKeyGenerator;
         this.projectPermissionService = projectPermissionService;
         this.milestoneRepository = milestoneRepository;
+        this.contractPartyRepository = contractPartyRepository;
         this.templateResource = templateResource;
         this.fontResource = fontResource;
     }
@@ -205,6 +210,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         boolean existedBefore = contract.getId() != null;
 
         contract = contractRepository.save(contract);
+
+        // Lưu / cập nhật thông tin Bên A/B gắn với hợp đồng (snapshot ở mức Contract)
+        upsertContractPartyForContract(contract, req);
 
         if (payMilestone && req.getMilestones() != null) {
 
@@ -804,4 +812,51 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     private String ns(Object o) { return o == null ? "" : String.valueOf(o); }
     private boolean isBlank(String s) { return s == null || s.isBlank(); }
     private String nvl(String s, String def) { return isBlank(s) ? def : s; }
+
+    /**
+     * Lưu hoặc cập nhật snapshot thông tin Bên A/B cho hợp đồng.
+     * - Khi hợp đồng còn DRAFT: cho phép ghi đè (vì user có thể fill lại nhiều lần trước khi ký).
+     * - Khi hợp đồng đã COMPLETED: giữ nguyên snapshot cũ, không cho ghi đè.
+     */
+    private void upsertContractPartyForContract(Contract contract, ContractPdfFillRequest req) {
+        boolean completed = ContractStatus.COMPLETED.equals(contract.getStatus());
+
+        ContractParty party = contractPartyRepository.findByContract(contract).orElse(null);
+        if (party == null) {
+            party = new ContractParty();
+            party.setContract(contract);
+        }
+
+        if (completed) {
+            // Đã ký thì coi như snapshot đã cố định, không update nữa
+            if (party.getId() == null) {
+                // Hợp đồng completed nhưng chưa có bản ghi party (trường hợp migrate), tạo snapshot một lần
+                fillPartyFromRequest(party, req);
+                contractPartyRepository.save(party);
+            }
+            return;
+        }
+
+        // Hợp đồng chưa ký: cho phép cập nhật thông tin Bên A/B mỗi lần fill lại hợp đồng
+        fillPartyFromRequest(party, req);
+        contractPartyRepository.save(party);
+    }
+
+    private void fillPartyFromRequest(ContractParty party, ContractPdfFillRequest req) {
+        // Map Bên A từ ContractPdfFillRequest => ContractParty
+        party.setAName(req.getAName());
+        party.setAIdNumber(req.getACccd());
+        party.setAIdIssueDate(req.getACccdIssueDate());
+        party.setAIdIssuePlace(req.getACccdIssuePlace());
+        party.setAAddress(req.getAAddress());
+        party.setAPhone(req.getAPhone());
+
+        // Map Bên B
+        party.setBName(req.getBName());
+        party.setBIdNumber(req.getBCccd());
+        party.setBIdIssueDate(req.getBCccdIssueDate());
+        party.setBIdIssuePlace(req.getBCccdIssuePlace());
+        party.setBAddress(req.getBAddress());
+        party.setBPhone(req.getBPhone());
+    }
 }
