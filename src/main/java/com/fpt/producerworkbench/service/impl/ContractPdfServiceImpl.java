@@ -45,6 +45,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StreamUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -140,6 +141,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     }
 
     @Override
+    @Transactional
     public byte[] fillTemplate(Authentication auth, Long projectId, ContractPdfFillRequest req) {
         if (req.getPercent() == null || req.getPercent().isBlank()) throw new AppException(ErrorCode.BAD_REQUEST);
 
@@ -200,9 +202,19 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             contract.setProductCount(totalQtyFromLines);
         }
 
+        boolean existedBefore = contract.getId() != null;
+
         contract = contractRepository.save(contract);
 
         if (payMilestone && req.getMilestones() != null) {
+
+            if (existedBefore) {
+                milestoneRepository.deleteByContract(contract);
+            }
+
+            int totalEditCount = 0;
+            int totalProductCount = 0;
+
             int idx = 0;
             for (MilestoneRequest m : req.getMilestones()) {
                 BigDecimal amtPreVat = parseMoney(m.getAmount());
@@ -222,9 +234,22 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                         .editCount(m.getEditCount())
                         .productCount(m.getProductCount())
                         .build();
+
                 milestoneRepository.save(ms);
+
+                if (m.getEditCount() != null) {
+                    totalEditCount += m.getEditCount();
+                }
+                if (m.getProductCount() != null) {
+                    totalProductCount += m.getProductCount();
+                }
+
                 idx++;
             }
+
+            contract.setFpEditAmount(totalEditCount);
+            contract.setProductCount(totalProductCount);
+            contractRepository.save(contract);
         }
 
         try (InputStream in = templateResource.getInputStream();
@@ -530,9 +555,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         m.put("Text Box 7",  ns(req.getACccdIssuePlace()));
         m.put("Text Box 8",  ns(req.getAAddress()));
         m.put("Text Box 9",  ns(req.getAPhone()));
-        m.put("Text Box 10", ns(req.getARepresentative()));
-        m.put("Text Box 11", ns(req.getATitle()));
-        m.put("Text Box 12", ns(req.getAPoANo()));
 
         m.put("Text Box 13", ns(req.getBName()));
         m.put("Text Box 14", ns(req.getBCccd()));
@@ -540,9 +562,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         m.put("Text Box 16", ns(req.getBCccdIssuePlace()));
         m.put("Text Box 17", ns(req.getBAddress()));
         m.put("Text Box 18", ns(req.getBPhone()));
-        m.put("Text Box 19", ns(req.getBRepresentative()));
-        m.put("Text Box 20", ns(req.getBTitle()));
-        m.put("Text Box 21", ns(req.getBPoANo()));
 
         List<Line> lines = collectLines(req);
         for (int i = 0; i < TABLE_FIELDS.length; i++) {
@@ -627,7 +646,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
         float remaining = rect.getHeight();
 
-        Paragraph heading = new Paragraph(new Text("Bổ sung điều khoản").setBold())
+        Paragraph heading = new Paragraph(new Text("Điều khoản bổ sung").setBold())
                 .setFont(font).setFontSize(11.5f)
                 .setMargin(0).setPadding(0)
                 .setMultipliedLeading(1.25f);
