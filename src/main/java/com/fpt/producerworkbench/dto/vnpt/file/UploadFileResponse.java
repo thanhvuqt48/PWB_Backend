@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class UploadFileReponse {
+public class UploadFileResponse {
 
     private String message;
     private UploadFileObject object;

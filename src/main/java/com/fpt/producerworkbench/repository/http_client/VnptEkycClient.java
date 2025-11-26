@@ -12,8 +12,7 @@ import com.fpt.producerworkbench.dto.vnpt.liveness.FaceLivenessRequest;
 import com.fpt.producerworkbench.dto.vnpt.liveness.FaceLivenessResponse;
 import com.fpt.producerworkbench.dto.vnpt.ocrid.OcrIdRequest;
 import com.fpt.producerworkbench.dto.vnpt.ocrid.OcrIdReponse;
-
-import java.util.Map;
+import com.fpt.producerworkbench.dto.vnpt.file.UploadFileResponse;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
@@ -28,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 )
 public interface VnptEkycClient {
 
-    @PostMapping(value = "/auth/oauth/token", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE,
+    @PostMapping(value = "/auth/oauth/token", consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     TokenExchangeResponse authenticate(@RequestBody TokenExchangeRequest request);
 
@@ -37,7 +36,7 @@ public interface VnptEkycClient {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE
     )
-    Map<String, Object> uploadFile(
+    UploadFileResponse uploadFile(
             @RequestHeader("Authorization") String authorization,
             @RequestHeader("Token-id") String tokenId,
             @RequestHeader("Token-key") String tokenKey,

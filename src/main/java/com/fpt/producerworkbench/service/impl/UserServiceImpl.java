@@ -33,6 +33,7 @@ import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import com.fpt.producerworkbench.exception.ErrorCode;
 
@@ -273,15 +274,17 @@ public class UserServiceImpl implements UserService {
 
         // Step 1: Upload 3 ảnh → lấy 3 hash
         log.info("Step 1: Uploading 3 images...");
-        var frontUpload = vnptEkycService.uploadFile(front);
-        var backUpload = vnptEkycService.uploadFile(back);
-        String frontHash = frontUpload.getHash();
-        String backHash = backUpload.getHash();
-        String faceHash = null;
+        var frontUploadResponse = vnptEkycService.uploadFile(front);
+        var backUploadResponse = vnptEkycService.uploadFile(back);
+        String frontHash = frontUploadResponse.getObject().getHash();
+        String backHash = backUploadResponse.getObject().getHash();
+        final String faceHash;
 
         if (face != null && !face.isEmpty()) {
-            var faceUpload = vnptEkycService.uploadFile(face);
-            faceHash = faceUpload.getHash();
+            var faceUploadResponse = vnptEkycService.uploadFile(face);
+            faceHash = faceUploadResponse.getObject().getHash();
+        } else {
+            faceHash = null;
         }
 
         CccdInfoResponse dto = new CccdInfoResponse();
@@ -289,8 +292,10 @@ public class UserServiceImpl implements UserService {
         // Step 2: classify/id (với front hash)
         log.info("Step 2: Calling classify/id...");
         try {
-            var classifyResult = vnptEkycService.classifyCccd(frontHash);
-            dto.setClassify(classifyResult);
+            var classifyResponse = safeCall(() -> vnptEkycService.classifyCccd(frontHash), "Classify");
+            if (classifyResponse != null && classifyResponse.getObject() != null) {
+                dto.setClassify(classifyResponse.getObject());
+            }
         } catch (Exception e) {
             log.warn("Classify failed: {}", e.getMessage());
         }
@@ -298,33 +303,38 @@ public class UserServiceImpl implements UserService {
         // Step 3: card/liveness (với front hash)
         log.info("Step 3: Calling card/liveness...");
         try {
-            var cardLivenessResult = vnptEkycService.liveness(frontHash);
-            dto.setCardLiveness(cardLivenessResult);
+            var cardLivenessResponse = safeCall(() -> vnptEkycService.liveness(frontHash), "Card Liveness");
+            if (cardLivenessResponse != null && cardLivenessResponse.getObject() != null) {
+                dto.setCardLiveness(cardLivenessResponse.getObject());
+            }
         } catch (Exception e) {
             log.warn("Card liveness check failed: {}", e.getMessage());
         }
 
         // Step 4: ocr/id (với front hash và back hash)
         log.info("Step 4: Calling ocr/id...");
-        var ocrResult = vnptEkycService.ocrCccd(frontHash, backHash);
-        CccdInfoResponse ocrDto = CccdInfoResponse.from(ocrResult);
-        // Copy OCR data to main DTO
-        dto.setId(ocrDto.getId());
-        dto.setName(ocrDto.getName());
-        dto.setBirthDay(ocrDto.getBirthDay());
-        dto.setGender(ocrDto.getGender());
-        dto.setOriginLocation(ocrDto.getOriginLocation());
-        dto.setRecentLocation(ocrDto.getRecentLocation());
-        dto.setIssueDate(ocrDto.getIssueDate());
-        dto.setIssuePlace(ocrDto.getIssuePlace());
-        dto.setCardType(ocrDto.getCardType());
+        var ocrResponse = vnptEkycService.ocrCccd(frontHash, backHash);
+        if (ocrResponse != null && ocrResponse.getObject() != null) {
+            var ocrObject = ocrResponse.getObject();
+            dto.setId(ocrObject.getId());
+            dto.setName(ocrObject.getName());
+            dto.setBirthDay(ocrObject.getBirthDay());
+            dto.setGender(ocrObject.getGender());
+            dto.setOriginLocation(ocrObject.getOriginLocation());
+            dto.setRecentLocation(ocrObject.getRecentLocation());
+            dto.setIssueDate(ocrObject.getIssueDate());
+            dto.setIssuePlace(ocrObject.getIssuePlace());
+            dto.setCardType(ocrObject.getCardType());
+        }
 
         // Step 5: face/liveness (với face hash) - chỉ khi có face image
         if (faceHash != null) {
             log.info("Step 5: Calling face/liveness...");
             try {
-                var faceLivenessResult = vnptEkycService.faceLiveness(faceHash);
-                dto.setFaceLiveness(faceLivenessResult);
+                var faceLivenessResponse = safeCall(() -> vnptEkycService.faceLiveness(faceHash), "Face Liveness");
+                if (faceLivenessResponse != null && faceLivenessResponse.getObject() != null) {
+                    dto.setFaceLiveness(faceLivenessResponse.getObject());
+                }
             } catch (Exception e) {
                 log.warn("Face liveness check failed: {}", e.getMessage());
             }
@@ -332,8 +342,10 @@ public class UserServiceImpl implements UserService {
             // Step 6: face/compare (với front hash và face hash)
             log.info("Step 6: Calling face/compare...");
             try {
-                var compareFaceResult = vnptEkycService.compareFace(frontHash, faceHash);
-                dto.setCompareFace(compareFaceResult);
+                var compareFaceResponse = safeCall(() -> vnptEkycService.compareFace(frontHash, faceHash), "Compare Face");
+                if (compareFaceResponse != null && compareFaceResponse.getObject() != null) {
+                    dto.setCompareFace(compareFaceResponse.getObject());
+                }
             } catch (Exception e) {
                 log.warn("Compare face failed: {}", e.getMessage());
             }
@@ -418,4 +430,14 @@ public class UserServiceImpl implements UserService {
                         .build())
                 .toList();
     }
+
+    private <T> T safeCall(Supplier<T> fn, String name) {
+        try {
+            return fn.get();
+        } catch (Exception e) {
+            log.warn("{} failed: {}", name, e.getMessage());
+            return null;
+        }
+    }
+
 }

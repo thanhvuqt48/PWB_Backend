@@ -1,10 +1,7 @@
 package com.fpt.producerworkbench.dto.vnpt.liveness;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.io.Serializable;
 
@@ -12,6 +9,7 @@ import java.io.Serializable;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class CardLivenessObject implements Serializable {
 
     private String liveness;

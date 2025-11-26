@@ -33,7 +33,6 @@ public class OcrIdObject {
     @JsonProperty("expire_warning")
     private String expireWarning;
 
-
     @JsonProperty("issue_place")
     private String issuePlace;
 

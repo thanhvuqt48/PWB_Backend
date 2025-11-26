@@ -1,23 +1,21 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.configuration.VnptProperties;
-import com.fpt.producerworkbench.dto.vnpt.classify.ClassifyObject;
+import com.fpt.producerworkbench.dto.vnpt.auth.TokenExchangeRequest;
+import com.fpt.producerworkbench.dto.vnpt.auth.TokenExchangeResponse;
 import com.fpt.producerworkbench.dto.vnpt.classify.ClassifyRequest;
 import com.fpt.producerworkbench.dto.vnpt.classify.ClassifyResponse;
-import com.fpt.producerworkbench.dto.vnpt.compare.CompareFaceObject;
 import com.fpt.producerworkbench.dto.vnpt.compare.CompareFaceRequest;
 import com.fpt.producerworkbench.dto.vnpt.compare.CompareFaceResponse;
-import com.fpt.producerworkbench.dto.vnpt.file.UploadFileObject;
-import com.fpt.producerworkbench.dto.vnpt.liveness.CardLivenessObject;
+import com.fpt.producerworkbench.dto.vnpt.file.UploadFileResponse;
 import com.fpt.producerworkbench.dto.vnpt.liveness.CardLivenessRequest;
 import com.fpt.producerworkbench.dto.vnpt.liveness.CardLivenessResponse;
-import com.fpt.producerworkbench.dto.vnpt.liveness.FaceLivenessObject;
 import com.fpt.producerworkbench.dto.vnpt.liveness.FaceLivenessRequest;
 import com.fpt.producerworkbench.dto.vnpt.liveness.FaceLivenessResponse;
-import com.fpt.producerworkbench.dto.vnpt.ocrid.OcrIdObject;
 import com.fpt.producerworkbench.dto.vnpt.ocrid.OcrIdRequest;
 import com.fpt.producerworkbench.dto.vnpt.ocrid.OcrIdReponse;
 import com.fpt.producerworkbench.repository.http_client.VnptEkycClient;
+import com.fpt.producerworkbench.service.EkycTokenService;
 import com.fpt.producerworkbench.service.VnptEkycService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,18 +23,54 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class VnptEkycServiceImpl implements VnptEkycService {
 
+    private static final String TOKEN_KEY = "vnpt:access_token";
+    private static final String CLIENT_ID = "8_hour";
+    private static final String CLIENT_SECRET = "password";
+    private static final String GRANT_TYPE = "password";
+    private static final String MAC_ADDRESS = "TEST1";
+
     private final VnptEkycClient vnptEkycClient;
     private final VnptProperties vnptProperties;
+    private final EkycTokenService ekycTokenService;
 
-    public UploadFileObject uploadFile(MultipartFile file) throws IOException {
+    public String getAccessToken(){
+        String accessToken = ekycTokenService.getToken(TOKEN_KEY);
+
+        if (accessToken != null && !accessToken.isBlank()) {
+            return accessToken;
+        }
+
+        try {
+            TokenExchangeResponse response = vnptEkycClient.authenticate(TokenExchangeRequest.builder()
+                    .username(vnptProperties.getUsername())
+                    .password(vnptProperties.getPassword())
+                    .grantType(GRANT_TYPE)
+                    .clientId(CLIENT_ID)
+                    .clientSecret(CLIENT_SECRET)
+                    .build());
+
+            ekycTokenService.saveToken(response.getAccessToken(), response.getExpiresIn(), TimeUnit.HOURS);
+
+            log.info("Token VNPT mới được lấy từ VNPT API. Expires in {} hours", response.getExpiresIn());
+
+            return response.getAccessToken();
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy token từ VNPT API: {}", e.getMessage(), e);
+            throw new RuntimeException("Không thể lấy token từ VNPT API: " + e.getMessage(), e);
+        }
+
+
+    }
+
+    public UploadFileResponse uploadFile(MultipartFile file) throws IOException {
         log.info("Uploading file to VNPT API via Feign Client");
         log.info("File name: {}, size: {} bytes", file.getOriginalFilename(), file.getSize());
 
@@ -53,11 +87,11 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             throw new RuntimeException("VNPT tokenKey is not configured");
         }
 
-        String authorization = "Bearer " + vnptProperties.getAccessToken();
+        String authorization = "Bearer " + getAccessToken();
         String macAddress = "PWB_EKYC_1.0.0";
 
         try {
-            Map<String, Object> response = vnptEkycClient.uploadFile(
+            UploadFileResponse response = vnptEkycClient.uploadFile(
                     authorization,
                     vnptProperties.getTokenId(),
                     vnptProperties.getTokenKey(),
@@ -71,33 +105,20 @@ public class VnptEkycServiceImpl implements VnptEkycService {
                 throw new RuntimeException("VNPT API returned null response");
             }
 
-            Object objectObj = response.get("object");
-            if (objectObj == null || !(objectObj instanceof Map)) {
-                log.error("VNPT API response missing 'object' field or invalid format: {}", response);
-                throw new RuntimeException("VNPT API response format invalid");
+            if (response.getObject() == null) {
+                log.error("VNPT API response missing 'object' field: {}", response);
+                throw new RuntimeException("VNPT API response format invalid: missing object");
             }
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> objectMap = (Map<String, Object>) objectObj;
-
-            UploadFileObject uploadFileObject = new UploadFileObject();
-            uploadFileObject.setFileName((String) objectMap.get("fileName"));
-            uploadFileObject.setTitle((String) objectMap.get("title"));
-            uploadFileObject.setDescription((String) objectMap.get("description"));
-            String hash = (String) objectMap.get("hash");
+            String hash = response.getObject().getHash();
             if (hash == null || hash.trim().isEmpty()) {
                 log.error("VNPT API returned null or empty hash in response: {}", response);
                 throw new RuntimeException("VNPT API returned invalid hash. Cannot proceed with verification.");
             }
-            uploadFileObject.setHash(hash);
-            uploadFileObject.setFileType((String) objectMap.get("fileType"));
-            uploadFileObject.setUploadedDate((String) objectMap.get("uploadedDate"));
-            uploadFileObject.setStorageType((String) objectMap.get("storageType"));
-            uploadFileObject.setTokenId((String) objectMap.get("tokenId"));
 
             log.info("File uploaded successfully, hash: {} (length: {})",
                     hash.substring(0, Math.min(20, hash.length())) + "...", hash.length());
-            return uploadFileObject;
+            return response;
         } catch (feign.FeignException.Unauthorized e) {
             log.error("=== VNPT API 401 Unauthorized Error ===");
             log.error("Response status: {}", e.status());
@@ -116,7 +137,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
         }
     }
 
-    public OcrIdObject ocrCccd(String frontHash, String backHash) {
+    public OcrIdReponse ocrCccd(String frontHash, String backHash) {
         log.info("Calling VNPT OCR API via Feign Client - frontHash: {}, backHash: {}",
                 frontHash != null ? frontHash.substring(0, Math.min(10, frontHash.length())) + "..." : "null",
                 backHash != null ? backHash.substring(0, Math.min(10, backHash.length())) + "..." : "null");
@@ -134,15 +155,16 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             throw new RuntimeException("VNPT tokenKey is not configured");
         }
 
-        OcrIdRequest request = new OcrIdRequest();
-        request.setImgFront(frontHash);
-        request.setImgBack(backHash);
-        request.setClientSession("PWB_EKYC_" + System.currentTimeMillis());
-        request.setType(-1);
-        request.setValidatePostcode(true);
-        request.setToken(UUID.randomUUID().toString());
+        OcrIdRequest request = OcrIdRequest.builder()
+                .imgFront(frontHash)
+                .imgBack(backHash)
+                .clientSession("PWB_EKYC_" + System.currentTimeMillis())
+                .type(-1)
+                .validatePostcode(true)
+                .token(UUID.randomUUID().toString())
+                .build();
 
-        String authorization = "Bearer " + vnptProperties.getAccessToken();
+        String authorization = "Bearer " + getAccessToken();
         String macAddress = "PWB_EKYC_1.0.0";
 
         try {
@@ -168,7 +190,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             }
 
             log.info("OCR completed successfully");
-            return response.getObject();
+            return response;
         } catch (feign.FeignException e) {
             log.error("Error calling VNPT OCR API: {}", e.getMessage(), e);
             log.error("Response status: {}, body: {}", e.status(), e.contentUTF8());
@@ -176,7 +198,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
         }
     }
 
-    public ClassifyObject classifyCccd(String imgCardHash) {
+    public ClassifyResponse classifyCccd(String imgCardHash) {
         log.info("Calling VNPT Classify API via Feign Client - imgCardHash: {}",
                 imgCardHash != null ? imgCardHash.substring(0, Math.min(10, imgCardHash.length())) + "..." : "null");
 
@@ -193,12 +215,13 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             throw new RuntimeException("VNPT tokenKey is not configured");
         }
 
-        ClassifyRequest request = new ClassifyRequest();
-        request.setImgCard(imgCardHash);
-        request.setClientSession("PWB_EKYC_" + System.currentTimeMillis());
-        request.setToken(UUID.randomUUID().toString());
+        ClassifyRequest request = ClassifyRequest.builder()
+                .imgCard(imgCardHash)
+                .clientSession("PWB_EKYC_" + System.currentTimeMillis())
+                .token(UUID.randomUUID().toString())
+                .build();
 
-        String authorization = "Bearer " + vnptProperties.getAccessToken();
+        String authorization = "Bearer " + getAccessToken();
         String macAddress = "PWB_EKYC_1.0.0";
 
         try {
@@ -216,7 +239,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
 
             log.info("Classify completed successfully - type: {}, name: {}",
                     response.getObject().getType(), response.getObject().getName());
-            return response.getObject();
+            return response;
         } catch (feign.FeignException e) {
             log.error("Error calling VNPT Classify API: {}", e.getMessage(), e);
             log.error("Response status: {}, body: {}", e.status(), e.contentUTF8());
@@ -224,7 +247,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
         }
     }
 
-    public CompareFaceObject compareFace(String imgFrontHash, String imgFaceHash) {
+    public CompareFaceResponse compareFace(String imgFrontHash, String imgFaceHash) {
         log.info("Calling VNPT Compare Face API via Feign Client - imgFrontHash: {}, imgFaceHash: {}",
                 imgFrontHash != null ? imgFrontHash.substring(0, Math.min(10, imgFrontHash.length())) + "..." : "null",
                 imgFaceHash != null ? imgFaceHash.substring(0, Math.min(10, imgFaceHash.length())) + "..." : "null");
@@ -242,13 +265,14 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             throw new RuntimeException("VNPT tokenKey is not configured");
         }
 
-        CompareFaceRequest request = new CompareFaceRequest();
-        request.setImgFront(imgFrontHash);
-        request.setImgFace(imgFaceHash);
-        request.setClientSession("PWB_EKYC_" + System.currentTimeMillis());
-        request.setToken(UUID.randomUUID().toString());
+        CompareFaceRequest request = CompareFaceRequest.builder()
+                .imgFront(imgFrontHash)
+                .imgFace(imgFaceHash)
+                .clientSession("PWB_EKYC_" + System.currentTimeMillis())
+                .token(UUID.randomUUID().toString())
+                .build();
 
-        String authorization = "Bearer " + vnptProperties.getAccessToken();
+        String authorization = "Bearer " + getAccessToken();
         String macAddress = "PWB_EKYC_1.0.0";
 
         try {
@@ -266,7 +290,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
 
             log.info("Compare Face completed successfully - result: {}, msg: {}",
                     response.getObject().getResult(), response.getObject().getMsg());
-            return response.getObject();
+            return response;
         } catch (feign.FeignException.Unauthorized e) {
             log.error("=== VNPT Compare Face API 401 Unauthorized Error ===");
             log.error("Response status: {}", e.status());
@@ -287,7 +311,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
         }
     }
 
-    public CardLivenessObject liveness(String imgCardHash) {
+    public CardLivenessResponse liveness(String imgCardHash) {
         log.info("Calling VNPT Liveness API via Feign Client - imgCardHash: {}",
                 imgCardHash != null ? imgCardHash.substring(0, Math.min(10, imgCardHash.length())) + "..." : "null");
 
@@ -310,15 +334,16 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             throw new RuntimeException("VNPT tokenKey is not configured");
         }
 
-        CardLivenessRequest request = new CardLivenessRequest();
-        request.setImg(imgCardHash);
-        request.setClientSession("PWB_EKYC_" + System.currentTimeMillis());
+        CardLivenessRequest request = CardLivenessRequest.builder()
+                .img(imgCardHash)
+                .clientSession("PWB_EKYC_" + System.currentTimeMillis())
+                .build();
 
         log.debug("VNPT Liveness Request - img: {}, clientSession: {}",
                 imgCardHash.substring(0, Math.min(20, imgCardHash.length())) + "...",
                 request.getClientSession());
 
-        String authorization = "Bearer " + vnptProperties.getAccessToken();
+        String authorization = "Bearer " + getAccessToken();
         String macAddress = "PWB_EKYC_1.0.0";
 
         try {
@@ -336,7 +361,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
 
             log.info("Liveness completed successfully - liveness: {}, fakeLiveness: {}",
                     response.getObject().getLiveness(), response.getObject().getFakeLiveness());
-            return response.getObject();
+            return response;
         } catch (feign.FeignException.BadRequest e) {
             log.error("=== VNPT Liveness API 400 Bad Request Error ===");
             log.error("Response status: {}", e.status());
@@ -372,7 +397,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
         }
     }
 
-    public FaceLivenessObject faceLiveness(String imgHash) {
+    public FaceLivenessResponse faceLiveness(String imgHash) {
         log.info("Calling VNPT Face Liveness API via Feign Client - imgHash: {}",
                 imgHash != null ? imgHash.substring(0, Math.min(10, imgHash.length())) + "..." : "null");
 
@@ -389,12 +414,13 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             throw new RuntimeException("VNPT tokenKey is not configured");
         }
 
-        FaceLivenessRequest request = new FaceLivenessRequest();
-        request.setImg(imgHash);
-        request.setClientSession("PWB_EKYC_" + System.currentTimeMillis());
-        request.setToken(UUID.randomUUID().toString());
+        FaceLivenessRequest request = FaceLivenessRequest.builder()
+                .img(imgHash)
+                .clientSession("PWB_EKYC_" + System.currentTimeMillis())
+                .token(UUID.randomUUID().toString())
+                .build();
 
-        String authorization = "Bearer " + vnptProperties.getAccessToken();
+        String authorization = "Bearer " + getAccessToken();
         String macAddress = "PWB_EKYC_1.0.0";
 
         try {
@@ -412,7 +438,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
 
             log.info("Face Liveness completed successfully - liveness: {}, isEyeOpen: {}",
                     response.getObject().getLiveness(), response.getObject().getIsEyeOpen());
-            return response.getObject();
+            return response;
         } catch (feign.FeignException e) {
             log.error("Error calling VNPT Face Liveness API: {}", e.getMessage(), e);
             log.error("Response status: {}, body: {}", e.status(), e.contentUTF8());

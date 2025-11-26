@@ -14,4 +14,6 @@ public class VnptProperties {
     private String tokenId;
     private String tokenKey;
     private String accessToken;
+    private String username;
+    private String password;
 }
