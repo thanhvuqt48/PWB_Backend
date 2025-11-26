@@ -1226,7 +1226,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         // Kiểm tra milestone có ít nhất 1 track
         long trackCount = trackRepository.countByMilestoneId(milestoneId);
         if (trackCount < 1) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành");
+            throw new AppException(ErrorCode.CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS);
         }
 
         // Kiểm tra milestone chưa được hoàn thành và đang ở trạng thái hợp lệ để complete

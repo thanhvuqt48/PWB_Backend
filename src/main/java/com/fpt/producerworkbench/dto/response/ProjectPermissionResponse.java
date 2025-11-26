@@ -153,6 +153,7 @@ public class ProjectPermissionResponse {
         private boolean canDeleteTrack;
         private boolean canPlayTrack;
         private boolean canApproveTrackStatus; // Chỉ chủ dự án mới có quyền phê duyệt/từ chối trạng thái track
+        private boolean canDownloadTrack; // Chỉ chủ dự án hoặc milestone members được chỉ định mới có quyền download
     }
     
     @Data
