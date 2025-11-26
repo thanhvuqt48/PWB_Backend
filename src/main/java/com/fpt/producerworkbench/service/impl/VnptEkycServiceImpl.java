@@ -41,7 +41,7 @@ public class VnptEkycServiceImpl implements VnptEkycService {
     private final VnptProperties vnptProperties;
     private final EkycTokenService ekycTokenService;
 
-    public String getAccessToken(){
+    public String getAccessToken() {
         String accessToken = ekycTokenService.getToken(TOKEN_KEY);
 
         if (accessToken != null && !accessToken.isBlank()) {
@@ -66,7 +66,6 @@ public class VnptEkycServiceImpl implements VnptEkycService {
             log.error("Lỗi khi lấy token từ VNPT API: {}", e.getMessage(), e);
             throw new RuntimeException("Không thể lấy token từ VNPT API: " + e.getMessage(), e);
         }
-
 
     }
 

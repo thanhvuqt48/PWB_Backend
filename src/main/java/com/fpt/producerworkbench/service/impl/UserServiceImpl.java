@@ -291,24 +291,16 @@ public class UserServiceImpl implements UserService {
 
         // Step 2: classify/id (với front hash)
         log.info("Step 2: Calling classify/id...");
-        try {
-            var classifyResponse = safeCall(() -> vnptEkycService.classifyCccd(frontHash), "Classify");
-            if (classifyResponse != null && classifyResponse.getObject() != null) {
-                dto.setClassify(classifyResponse.getObject());
-            }
-        } catch (Exception e) {
-            log.warn("Classify failed: {}", e.getMessage());
+        var classifyResponse = safeCall(() -> vnptEkycService.classifyCccd(frontHash), "Classify");
+        if (classifyResponse != null && classifyResponse.getObject() != null) {
+            dto.setClassify(classifyResponse.getObject());
         }
 
         // Step 3: card/liveness (với front hash)
         log.info("Step 3: Calling card/liveness...");
-        try {
-            var cardLivenessResponse = safeCall(() -> vnptEkycService.liveness(frontHash), "Card Liveness");
-            if (cardLivenessResponse != null && cardLivenessResponse.getObject() != null) {
-                dto.setCardLiveness(cardLivenessResponse.getObject());
-            }
-        } catch (Exception e) {
-            log.warn("Card liveness check failed: {}", e.getMessage());
+        var cardLivenessResponse = safeCall(() -> vnptEkycService.liveness(frontHash), "Card Liveness");
+        if (cardLivenessResponse != null && cardLivenessResponse.getObject() != null) {
+            dto.setCardLiveness(cardLivenessResponse.getObject());
         }
 
         // Step 4: ocr/id (với front hash và back hash)
@@ -330,24 +322,16 @@ public class UserServiceImpl implements UserService {
         // Step 5: face/liveness (với face hash) - chỉ khi có face image
         if (faceHash != null) {
             log.info("Step 5: Calling face/liveness...");
-            try {
-                var faceLivenessResponse = safeCall(() -> vnptEkycService.faceLiveness(faceHash), "Face Liveness");
-                if (faceLivenessResponse != null && faceLivenessResponse.getObject() != null) {
-                    dto.setFaceLiveness(faceLivenessResponse.getObject());
-                }
-            } catch (Exception e) {
-                log.warn("Face liveness check failed: {}", e.getMessage());
+            var faceLivenessResponse = safeCall(() -> vnptEkycService.faceLiveness(faceHash), "Face Liveness");
+            if (faceLivenessResponse != null && faceLivenessResponse.getObject() != null) {
+                dto.setFaceLiveness(faceLivenessResponse.getObject());
             }
 
             // Step 6: face/compare (với front hash và face hash)
             log.info("Step 6: Calling face/compare...");
-            try {
-                var compareFaceResponse = safeCall(() -> vnptEkycService.compareFace(frontHash, faceHash), "Compare Face");
-                if (compareFaceResponse != null && compareFaceResponse.getObject() != null) {
-                    dto.setCompareFace(compareFaceResponse.getObject());
-                }
-            } catch (Exception e) {
-                log.warn("Compare face failed: {}", e.getMessage());
+            var compareFaceResponse = safeCall(() -> vnptEkycService.compareFace(frontHash, faceHash), "Compare Face");
+            if (compareFaceResponse != null && compareFaceResponse.getObject() != null) {
+                dto.setCompareFace(compareFaceResponse.getObject());
             }
         }
 
