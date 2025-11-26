@@ -5,7 +5,7 @@ import com.fpt.producerworkbench.dto.request.ChatRequest;
 import com.fpt.producerworkbench.dto.request.MediaAttachment;
 import com.fpt.producerworkbench.dto.response.ChatResponse;
 import com.fpt.producerworkbench.kafka.producer.ChatProducer;
-import com.fpt.producerworkbench.service.impl.ChatMessageService;
+import com.fpt.producerworkbench.service.ChatMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;

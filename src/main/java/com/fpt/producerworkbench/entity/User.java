@@ -64,6 +64,42 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     @Column(name = "otp_expiry_date")
     LocalDateTime otpExpiryDate;
 
+    @Column(name = "cccd_number", unique = true)
+    private String cccdNumber;
+
+    @Column(name = "cccd_full_name")
+    private String cccdFullName;
+
+    @Column(name = "cccd_birth_day")
+    private String cccdBirthDay;
+
+    @Column(name = "cccd_gender")
+    private String cccdGender;
+
+    @Column(name = "cccd_origin_location")
+    private String cccdOriginLocation;
+
+    @Column(name = "cccd_recent_location")
+    private String cccdRecentLocation;
+
+    @Column(name = "cccd_issue_date")
+    private String cccdIssueDate;
+
+    @Column(name = "cccd_issue_place")
+    private String cccdIssuePlace;
+
+    @Column(name = "is_verified", nullable = false)
+    private Boolean isVerified = false;
+
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
+    @Column(name = "cccd_front_image_url", length = 1000)
+    private String cccdFrontImageUrl;
+
+    @Column(name = "cccd_back_image_url", length = 1000)
+    private String cccdBackImageUrl;
+
     @Transient
     public String getFullName() {
         if (firstName == null && lastName == null) {
@@ -106,7 +142,6 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     public boolean isEnabled() {
         return UserDetails.super.isEnabled();
     }
-
 
 
 }

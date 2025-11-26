@@ -48,4 +48,14 @@ public interface FileKeyGenerator {
      * @return S3 key cho file voice tag
      */
     String generateTrackVoiceTagKey(Long trackId);
+
+    /**
+     * Sinh key cho file CCCD của user
+     *
+     * @param userId ID của user
+     * @param side Mặt CCCD: "front" hoặc "back"
+     * @param originalFilename Tên file gốc
+     * @return S3 key cho file CCCD
+     */
+    String generateCccdKey(Long userId, String side, String originalFilename);
 }
