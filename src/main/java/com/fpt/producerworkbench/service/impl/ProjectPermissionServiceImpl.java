@@ -186,6 +186,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeleteTrack(false)
                         .canPlayTrack(false)
                         .canApproveTrackStatus(false)
+                        .canDownloadTrack(false)
                         .build())
                 .clientDelivery(ProjectPermissionResponse.ClientDeliveryPermissions.builder()
                         .canSendTrackToClient(false)
@@ -300,9 +301,10 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canUploadTrack(canUploadTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canViewTrack(canViewTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canUpdateTrack(canUpdateTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
-                        .canDeleteTrack(canDeleteTrack(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canDeleteTrack(canDeleteTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canPlayTrack(canPlayTrack(context.userRole, context.projectRole, context.isProjectOwner, hasApprovedMoneySplit))
                         .canApproveTrackStatus(canApproveTrackStatus(context.isProjectOwner))
+                        .canDownloadTrack(canDownloadTrack(context.isProjectOwner))
                         .build())
 
                 // Client Delivery permissions
@@ -713,11 +715,16 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
     /**
      * Delete track:
-     * - Chỉ OWNER có thể xóa track
+     * - OWNER: luôn được phép xóa track
+     * - COLLABORATOR: chỉ khi đã APPROVED Money Split
+     *   (check "chỉ được xóa track của chính mình" nằm ở TrackMilestoneServiceImpl)
      */
-    private boolean canDeleteTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
-        // Chỉ Owner có thể xóa track
-        return isProjectOwner;
+    private boolean canDeleteTrack(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner, boolean hasApprovedMoneySplit) {
+        if (isProjectOwner) {
+            return true;
+        }
+        // COLLABORATOR có thể xóa track của chính mình (logic chi tiết check ở service layer)
+        return projectRole == ProjectRole.COLLABORATOR && hasApprovedMoneySplit;
     }
 
     /**
@@ -736,6 +743,15 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
      * - Chỉ chủ dự án (OWNER) mới có quyền phê duyệt/từ chối trạng thái track
      */
     private boolean canApproveTrackStatus(boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    /**
+     * Download track (original file without voice tag):
+     * - Chỉ chủ dự án (OWNER) mới có quyền download track mặc định
+     * - Hoặc milestone members được chỉ định (logic này check ở service layer)
+     */
+    private boolean canDownloadTrack(boolean isProjectOwner) {
         return isProjectOwner;
     }
 

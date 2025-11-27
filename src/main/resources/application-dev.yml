@@ -128,6 +128,7 @@ pwb:
     font: classpath:/templates/NotoSerif-Regular.ttf
   addendum:
     template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac.pdf
+    milestone-template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac-milestone.pdf
     font: classpath:templates/NotoSerif-Regular.ttf
 
 storage:
