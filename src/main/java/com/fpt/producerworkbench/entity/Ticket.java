@@ -5,6 +5,9 @@ import com.fpt.producerworkbench.common.TicketStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "tickets")
 @Getter
@@ -19,7 +22,7 @@ public class Ticket  extends AbstractEntity<Long>{
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id") // Nullable
+    @JoinColumn(name = "project_id")
     private Project project;
 
     @Column(nullable = false)
@@ -29,8 +32,10 @@ public class Ticket  extends AbstractEntity<Long>{
     @Column(nullable = false)
     private TicketStatus status;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private TicketPriority priority;
+
+    @ElementCollection
+    @CollectionTable(name = "ticket_attachments", joinColumns = @JoinColumn(name = "ticket_id"))
+    @Column(name = "s3_key")
+    private List<String> attachmentKeys = new ArrayList<>();
 
 }
