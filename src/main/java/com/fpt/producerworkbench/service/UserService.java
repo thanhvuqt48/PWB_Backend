@@ -30,4 +30,6 @@ public interface UserService {
     List<ParticipantInfoDetailResponse> searchUser(String username);
 
     CccdInfoResponse verifyCccd(MultipartFile front, MultipartFile back, MultipartFile face) throws IOException;
+
+    void saveCccdInfo(CccdRequest request);
 }

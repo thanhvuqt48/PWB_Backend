@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.controller;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.CccdInfoResponse;
 import com.fpt.producerworkbench.service.UserService;
+import com.fpt.producerworkbench.service.VnptEkycService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import java.io.IOException;
 public class EkycController {
 
     private final UserService userService;
+    private final VnptEkycService vnptEkycService;
 
     @PostMapping(value = "/verify-cccd", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
@@ -66,4 +68,15 @@ public class EkycController {
             throw e; // Re-throw để GlobalExceptionHandler xử lý
         }
     }
+
+    @GetMapping("/get-token")
+    public ApiResponse<String> getToken() {
+        String accessToken = vnptEkycService.getAccessToken();
+        return ApiResponse.<String>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy token thành công!")
+                .result(accessToken)
+                .build();
+    }
+
 }

@@ -11,6 +11,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
 public interface VnptEkycService {
+
+    String getAccessToken();
+
     UploadFileResponse uploadFile(MultipartFile file) throws IOException;
     
     OcrIdReponse ocrCccd(String frontHash, String backHash);
