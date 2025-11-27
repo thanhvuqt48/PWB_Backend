@@ -77,4 +77,12 @@ public class TicketController {
     ) {
         return ResponseEntity.ok(ticketService.updateTicketStatus(ticketId, status, principal.getName()));
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<TicketResponse> getTicketDetail(
+            @PathVariable("id") Long ticketId,
+            Principal principal
+    ) {
+        return ResponseEntity.ok(ticketService.getTicketDetail(ticketId, principal.getName()));
+    }
 }

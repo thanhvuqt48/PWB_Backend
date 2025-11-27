@@ -165,6 +165,22 @@ public class TicketServiceImpl implements TicketService {
         return mapToResponse(savedTicket);
     }
 
+    @Override
+    public TicketResponse getTicketDetail(Long ticketId, String currentEmail) {
+        User currentUser = getUserOrThrow(currentEmail);
+        Ticket ticket = getTicketOrThrow(ticketId);
+
+
+        boolean isAdmin = "ADMIN".equals(currentUser.getRole().name());
+        boolean isOwner = ticket.getUser().getId().equals(currentUser.getId());
+
+        if (!isAdmin && !isOwner) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền xem chi tiết ticket này");
+        }
+
+        return mapToResponse(ticket);
+    }
+
 
     private User getUserOrThrow(String email) {
         if (email == null || email.isBlank()) {

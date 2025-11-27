@@ -57,9 +57,9 @@ public class VnptEkycServiceImpl implements VnptEkycService {
                     .clientSecret(CLIENT_SECRET)
                     .build());
 
-            ekycTokenService.saveToken(response.getAccessToken(), response.getExpiresIn(), TimeUnit.HOURS);
+            ekycTokenService.saveToken(response.getAccessToken(), response.getExpiresIn(), TimeUnit.SECONDS);
 
-            log.info("Token VNPT mới được lấy từ VNPT API. Expires in {} hours", response.getExpiresIn());
+            log.info("Token VNPT mới được lấy từ VNPT API. Expires in {} seconds", response.getExpiresIn());
 
             return response.getAccessToken();
         } catch (Exception e) {
