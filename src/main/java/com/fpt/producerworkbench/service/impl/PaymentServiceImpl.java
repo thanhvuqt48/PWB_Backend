@@ -40,6 +40,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final MilestoneRepository milestoneRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ContractAddendumRepository contractAddendumRepository;
     private final com.fpt.producerworkbench.service.ProSubscriptionService proSubscriptionService;
 
     @Override
@@ -112,6 +113,90 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    @Override
+    @Transactional
+    public PaymentResponse createAddendumPayment(Long userId, Long projectId, Long contractId, PaymentRequest paymentRequest) {
+        log.info("Tạo thanh toán phụ lục cho người dùng: {}, dự án: {}, hợp đồng: {}", userId, projectId, contractId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
+        ProjectMember projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
+
+        if (!ProjectRole.CLIENT.equals(projectMember.getProjectRole())) throw new AppException(ErrorCode.ACCESS_DENIED);
+
+        // Lấy phụ lục mới nhất của contract
+        ContractAddendum addendum = contractAddendumRepository
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+        // Kiểm tra phụ lục đã được ký chưa
+        if (!ContractStatus.COMPLETED.equals(addendum.getSignnowStatus())) {
+            throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
+        }
+
+        // Kiểm tra phụ lục đã được thanh toán chưa
+        if (Boolean.TRUE.equals(addendum.getIsPaid())) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        // Kiểm tra số tiền có hợp lệ không
+        if (addendum.getNumOfMoney() == null || addendum.getNumOfMoney().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+
+        // Thanh toán toàn bộ số tiền trong phụ lục (numOfMoney)
+        BigDecimal amount = addendum.getNumOfMoney();
+
+        Transaction tx = Transaction.builder()
+                .user(user)
+                .relatedContract(contract)
+                .relatedAddendum(addendum)
+                .amount(amount)
+                .type(TransactionType.PAYMENT)
+                .status(TransactionStatus.PENDING)
+                .build();
+
+        Transaction saved = transactionRepository.save(tx);
+
+        Long orderCode = com.fpt.producerworkbench.utils.OrderCodeGenerator.generate();
+        saved.setTransactionCode(String.valueOf(orderCode));
+        transactionRepository.save(saved);
+
+        String returnUrl = paymentRequest.getReturnUrl() != null ? paymentRequest.getReturnUrl() : payosProperties.getReturnUrl();
+        String cancelUrl = paymentRequest.getCancelUrl() != null ? paymentRequest.getCancelUrl() : payosProperties.getCancelUrl();
+        String description = createAddendumPaymentDescription(addendum, project);
+
+        try {
+            CreatePaymentLinkRequest req = CreatePaymentLinkRequest.builder()
+                    .orderCode(orderCode)
+                    .amount(toPayOSAmountVND(amount))
+                    .description(description)
+                    .returnUrl(returnUrl)
+                    .cancelUrl(cancelUrl)
+                    .build();
+
+            CreatePaymentLinkResponse res = payOS.paymentRequests().create(req);
+            String checkoutUrl = res.getCheckoutUrl();
+
+            log.info("Tạo link thanh toán phụ lục thành công. Mã đơn hàng: {}", orderCode);
+
+            return PaymentResponse.builder()
+                    .paymentUrl(checkoutUrl)
+                    .orderCode(String.valueOf(orderCode))
+                    .amount(amount)
+                    .status("PENDING")
+                    .build();
+
+        } catch (Exception e) {
+            log.error("Tạo link thanh toán PayOS thất bại. Mã đơn hàng: {}", orderCode, e);
+            throw new AppException(ErrorCode.PAYMENT_LINK_CREATION_FAILED);
+        }
+    }
 
     @Override
     @Transactional
@@ -168,11 +253,20 @@ public class PaymentServiceImpl implements PaymentService {
             if ("00".equals(payosStatusCode)) {
                 tx.setStatus(TransactionStatus.SUCCESSFUL);
 
-                Project project = tx.getRelatedContract().getProject();
-                project.setIsFunded(true);
-                projectRepository.save(project);
-
-                log.info("Đánh dấu THÀNH CÔNG và tài trợ dự án. Mã đơn hàng: {}, ID dự án: {}", orderCode, project.getId());
+                // Xử lý thanh toán cho contract hoặc addendum
+                if (tx.getRelatedAddendum() != null) {
+                    // Thanh toán phụ lục
+                    ContractAddendum addendum = tx.getRelatedAddendum();
+                    addendum.setIsPaid(true);
+                    contractAddendumRepository.save(addendum);
+                    log.info("Đánh dấu THÀNH CÔNG thanh toán phụ lục. Mã đơn hàng: {}, Addendum ID: {}", orderCode, addendum.getId());
+                } else if (tx.getRelatedContract() != null) {
+                    // Thanh toán hợp đồng
+                    Project project = tx.getRelatedContract().getProject();
+                    project.setIsFunded(true);
+                    projectRepository.save(project);
+                    log.info("Đánh dấu THÀNH CÔNG và tài trợ dự án. Mã đơn hàng: {}, ID dự án: {}", orderCode, project.getId());
+                }
 
             } else {
                 tx.setStatus(TransactionStatus.FAILED);
@@ -200,8 +294,12 @@ public class PaymentServiceImpl implements PaymentService {
 
         Project project = null;
         Contract contract = tx.getRelatedContract();
+        ContractAddendum addendum = tx.getRelatedAddendum();
+        
         if (contract != null) {
             project = contract.getProject();
+        } else if (addendum != null && addendum.getContract() != null) {
+            project = addendum.getContract().getProject();
         }
 
         return PaymentStatusResponse.builder()
@@ -210,6 +308,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(tx.getAmount())
                 .projectId(project != null ? project.getId() : null)
                 .contractId(contract != null ? contract.getId() : null)
+                .addendumId(addendum != null ? addendum.getId() : null)
                 .build();
     }
 
@@ -237,9 +336,46 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(tx.getAmount())
                 .projectId(projectId)
                 .contractId(contractId)
+                .addendumId(tx.getRelatedAddendum() != null ? tx.getRelatedAddendum().getId() : null)
                 .paymentType(contract.getPaymentType().name())
                 .milestoneId(ms != null ? ms.getId() : null)
                 .milestoneSequence(ms != null ? ms.getSequence() : null)
+                .createdAt(tx.getCreatedAt())
+                .updatedAt(tx.getUpdatedAt())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentLatestResponse getLatestPaymentByAddendum(Long userId, Long projectId, Long contractId) {
+        // Authorize: user must be a project member
+        projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
+
+        Contract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
+        if (!contract.getProject().getId().equals(projectId)) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // Lấy phụ lục mới nhất
+        ContractAddendum addendum = contractAddendumRepository
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+
+        Transaction tx = transactionRepository.findTopByRelatedAddendum_IdOrderByCreatedAtDesc(addendum.getId())
+                .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
+
+        return PaymentLatestResponse.builder()
+                .orderCode(tx.getTransactionCode())
+                .status(tx.getStatus().name())
+                .amount(tx.getAmount())
+                .projectId(projectId)
+                .contractId(contractId)
+                .addendumId(addendum.getId())
+                .paymentType(null) // Không áp dụng cho addendum
+                .milestoneId(null) // Không áp dụng cho addendum
+                .milestoneSequence(null) // Không áp dụng cho addendum
                 .createdAt(tx.getCreatedAt())
                 .updatedAt(tx.getUpdatedAt())
                 .build();
@@ -264,5 +400,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     private String createPaymentDescription(Contract contract, Project project) {
         return String.format("PWB-%d", project.getId());
+    }
+
+    private String createAddendumPaymentDescription(ContractAddendum addendum, Project project) {
+        return String.format("PWB-Addendum-%d", project.getId());
     }
 }

@@ -42,4 +42,8 @@ public class Transaction extends AbstractEntity<Long>{
     @JoinColumn(name = "related_milestone_id")
     private Milestone relatedMilestone;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "related_addendum_id")
+    private ContractAddendum relatedAddendum;
+
 }

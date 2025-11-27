@@ -126,7 +126,7 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         if (!permissions.isCanInviteToSign()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
         ContractAddendum addendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         // Kiểm tra phụ lục đã hoàn thành (COMPLETED) - không cho phép mời ký lại

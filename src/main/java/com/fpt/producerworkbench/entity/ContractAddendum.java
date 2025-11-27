@@ -29,7 +29,10 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column()
     private String title;
 
-    private int version;
+    @Column(name = "addendum_number", nullable = false)
+    private int addendumNumber; // Số thứ tự phụ lục (1, 2, 3...)
+
+    private int version; // Version của phụ lục (1, 2, 3...)
 
     @Column(name = "effective_date")
     private LocalDate effectiveDate;
@@ -70,11 +73,17 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column(name = "decline_reason")
     private String declineReason;
 
+    /** Đánh dấu phụ lục đã được thanh toán */
+    @Builder.Default
+    @Column(name = "is_paid", nullable = false)
+    private Boolean isPaid = false;
+
     @PrePersist
     void prePersist() {
         if (signingMode == null) signingMode = SigningMode.EMAIL;
         if (signingOrderType == null) signingOrderType = SigningOrderType.SEQUENTIAL;
         if (signnowStatus == null) signnowStatus = ContractStatus.DRAFT;
+        if (isPaid == null) isPaid = false;
     }
 
 }

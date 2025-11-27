@@ -149,34 +149,51 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             }
         }
 
+        // Tìm phụ lục mới nhất (theo addendumNumber và version)
         ContractAddendum latestAddendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElse(null);
 
         ContractAddendum add;
 
-        if (latestAddendum != null && ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
+        if (latestAddendum == null) {
+            // Chưa có phụ lục nào → tạo phụ lục 1, version 1
             add = ContractAddendum.builder()
                     .contract(contract)
                     .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
-                    .version(latestAddendum.getVersion() + 1)
+                    .addendumNumber(1)
+                    .version(1)
                     .effectiveDate(req.getEffectiveDate())
                     .signnowStatus(ContractStatus.DRAFT)
                     .build();
-        } else if (latestAddendum == null) {
+        } else if (ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
+            // Phụ lục hiện tại đã COMPLETED → tạo phụ lục mới (addendumNumber + 1), version 1
+            int newAddendumNumber = latestAddendum.getAddendumNumber() + 1;
             add = ContractAddendum.builder()
                     .contract(contract)
                     .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
+                    .addendumNumber(newAddendumNumber)
                     .version(1)
                     .effectiveDate(req.getEffectiveDate())
                     .signnowStatus(ContractStatus.DRAFT)
                     .build();
         } else {
-            add = latestAddendum;
-            if (add.getVersion() == 0) add.setVersion(1);
-            add.setTitle(req.getTitle() != null ? req.getTitle() : add.getTitle());
-            add.setEffectiveDate(req.getEffectiveDate() != null ? req.getEffectiveDate() : add.getEffectiveDate());
-
+            // Phụ lục hiện tại chưa COMPLETED (DRAFT) → tạo version mới của cùng addendumNumber
+            int currentAddendumNumber = latestAddendum.getAddendumNumber();
+            // Tìm version mới nhất của addendumNumber này
+            ContractAddendum latestVersionOfAddendum = addendumRepository
+                    .findFirstByContractIdAndAddendumNumberOrderByVersionDesc(contractId, currentAddendumNumber)
+                    .orElse(latestAddendum);
+            int newVersion = latestVersionOfAddendum.getVersion() + 1;
+            
+            add = ContractAddendum.builder()
+                    .contract(contract)
+                    .title(req.getTitle() != null ? req.getTitle() : latestAddendum.getTitle())
+                    .addendumNumber(currentAddendumNumber)
+                    .version(newVersion)
+                    .effectiveDate(req.getEffectiveDate() != null ? req.getEffectiveDate() : latestAddendum.getEffectiveDate())
+                    .signnowStatus(ContractStatus.DRAFT)
+                    .build();
         }
 
         add.setPitTax(BigDecimal.ZERO);

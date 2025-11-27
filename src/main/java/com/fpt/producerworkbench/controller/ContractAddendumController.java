@@ -78,13 +78,67 @@ public class ContractAddendumController {
     }
 
     /**
-     * Lấy thông tin phụ lục hợp đồng.
+     * Lấy tất cả phụ lục hợp đồng của một contract.
+     * Chỉ trả về phiên bản cuối cùng của mỗi phụ lục (theo addendumNumber).
+     */
+    @GetMapping("/all")
+    public ApiResponse<List<Map<String, Object>>> getAllAddendumsByContract(@PathVariable Long contractId) {
+        // Verify contract exists
+        contractRepository.findById(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
+
+        // Lấy số phụ lục lớn nhất
+        int maxAddendumNumber = addendumRepository.findMaxAddendumNumber(contractId);
+        
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        
+        // Lấy version cuối cùng của mỗi addendumNumber
+        for (int addendumNum = 1; addendumNum <= maxAddendumNumber; addendumNum++) {
+            ContractAddendum addendum = addendumRepository
+                    .findFirstByContractIdAndAddendumNumberOrderByVersionDesc(contractId, addendumNum)
+                    .orElse(null);
+            
+            if (addendum == null) continue;
+            Map<String, Object> addendumInfo = new HashMap<>();
+            addendumInfo.put("id", addendum.getId());
+            addendumInfo.put("addendumNumber", addendum.getAddendumNumber());
+            addendumInfo.put("version", addendum.getVersion());
+            addendumInfo.put("title", addendum.getTitle());
+            addendumInfo.put("effectiveDate", addendum.getEffectiveDate());
+            addendumInfo.put("signnowStatus", addendum.getSignnowStatus());
+            addendumInfo.put("isPaid", addendum.getIsPaid());
+
+            // Lấy document info (chỉ type và url)
+            var signed = addendumDocumentRepository
+                    .findFirstByAddendumIdAndTypeOrderByVersionDesc(addendum.getId(), AddendumDocumentType.SIGNED)
+                    .orElse(null);
+            if (signed != null) {
+                addendumInfo.put("documentType", "SIGNED");
+                addendumInfo.put("documentUrl", fileStorageService.generatePresignedUrl(signed.getStorageUrl(), false, null));
+            } else {
+                var filledDoc = addendumDocumentRepository
+                        .findFirstByAddendumIdAndTypeOrderByVersionDesc(addendum.getId(), AddendumDocumentType.FILLED)
+                        .orElse(null);
+                if (filledDoc != null) {
+                    addendumInfo.put("documentType", "FILLED");
+                    addendumInfo.put("documentUrl", fileStorageService.generatePresignedUrl(filledDoc.getStorageUrl(), false, null));
+                }
+            }
+
+            result.add(addendumInfo);
+        }
+
+        return ApiResponse.<List<Map<String, Object>>>builder().code(200).result(result).build();
+    }
+
+    /**
+     * Lấy thông tin phụ lục hợp đồng mới nhất.
      * Trả về trạng thái phụ lục, version, link tải file PDF (ADDENDUM hoặc SIGNED).
      */
     @GetMapping
     public ApiResponse<Map<String, Object>> getAddendumByContract(@PathVariable Long contractId) {
         ContractAddendum addendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElse(null);
 
         var resp = new HashMap<String, Object>();
@@ -96,6 +150,7 @@ public class ContractAddendumController {
 
         resp.put("exists", true);
         resp.put("id", addendum.getId());
+        resp.put("addendumNumber", addendum.getAddendumNumber());
         resp.put("title", addendum.getTitle());
         resp.put("version", addendum.getVersion());
         resp.put("effectiveDate", addendum.getEffectiveDate());
@@ -105,6 +160,7 @@ public class ContractAddendumController {
         resp.put("numOfRefresh", addendum.getNumOfRefresh());
         resp.put("pitTax", addendum.getPitTax());
         resp.put("vatTax", addendum.getVatTax());
+        resp.put("isPaid", addendum.getIsPaid());
 
         // Ưu tiên lấy SIGNED document, nếu không có thì lấy FILLED
         var signed = addendumDocumentRepository
@@ -140,7 +196,7 @@ public class ContractAddendumController {
         ensureCanViewAddendum(auth, contractId);
 
         ContractAddendum addendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         var doc = addendumDocumentRepository
@@ -158,7 +214,7 @@ public class ContractAddendumController {
     @GetMapping("/signed/file")
     public ResponseEntity<Void> viewSignedAddendumFile(@PathVariable Long contractId) {
         ContractAddendum addendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         var doc = addendumDocumentRepository
@@ -183,7 +239,7 @@ public class ContractAddendumController {
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
         ContractAddendum addendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         String email = auth == null ? null : auth.getName();
@@ -262,7 +318,7 @@ public class ContractAddendumController {
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
         ContractAddendum addendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         String email = auth == null ? null : auth.getName();
