@@ -362,6 +362,25 @@ public class UserServiceImpl implements UserService {
         return dto;
     }
 
+    public void saveCccdInfo(CccdRequest request) {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        user.setCccdNumber(request.getCccdNumber());
+        user.setCccdFullName(request.getCccdFullName());
+        user.setCccdBirthDay(request.getCccdBirthDay());
+        user.setCccdGender(request.getCccdGender());
+        user.setCccdOriginLocation(request.getCccdOriginLocation());
+        user.setCccdRecentLocation(request.getCccdRecentLocation());
+        user.setCccdIssueDate(request.getCccdIssueDate());
+        user.setCccdIssuePlace(request.getCccdIssuePlace());
+        user.setIsVerified(true);
+        user.setVerifiedAt(LocalDateTime.now());
+        userRepository.save(user);
+    }
+
     private String extractKeyFromUrl(String url) {
         if (url == null || url.isEmpty()) {
             return null;
