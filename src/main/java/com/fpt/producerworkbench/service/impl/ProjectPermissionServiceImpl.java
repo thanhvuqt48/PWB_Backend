@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.UserRole;
+import com.fpt.producerworkbench.dto.response.AddendumPermissionResponse;
 import com.fpt.producerworkbench.dto.response.ContractPermissionResponse;
 import com.fpt.producerworkbench.dto.response.MilestonePermissionResponse;
 import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
@@ -162,6 +163,14 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canDeclineContract(false)
                         .canEditContract(false)
                         .build())
+                .addendum(ProjectPermissionResponse.AddendumPermissions.builder()
+                        .canCreateAddendum(false)
+                        .canViewAddendum(false)
+                        .canInviteToSign(false)
+                        .canDeclineAddendum(false)
+                        .canEditAddendum(false)
+                        .canCreateAddendumPayment(false)
+                        .build())
                 .payment(ProjectPermissionResponse.PaymentPermissions.builder()
                         .canCreatePayment(false)
                         .canViewPayment(false)
@@ -271,6 +280,16 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
                         .canInviteToSign(canInviteToSign(context.userRole, context.projectRole, context.isProjectOwner))
                         .canDeclineContract(canDeclineContract(context.userRole, context.projectRole, context.isProjectOwner))
                         .canEditContract(canEditContract(context.userRole, context.projectRole, context.isProjectOwner))
+                        .build())
+
+                // Addendum permissions
+                .addendum(ProjectPermissionResponse.AddendumPermissions.builder()
+                        .canCreateAddendum(canCreateAddendum(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canViewAddendum(canViewAddendum(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canInviteToSign(canInviteToSignAddendum(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canDeclineAddendum(canDeclineAddendum(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canEditAddendum(canEditAddendum(context.userRole, context.projectRole, context.isProjectOwner))
+                        .canCreateAddendumPayment(canCreateAddendumPayment(context.userRole, context.projectRole))
                         .build())
 
                 // Payment permissions
@@ -587,6 +606,64 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         }
         
         return null;
+    }
+
+    @Override
+    public AddendumPermissionResponse checkAddendumPermissions(Authentication auth, Long projectId) {
+        // Lấy permissions từ ProjectPermissionResponse và convert sang AddendumPermissionResponse
+        ProjectPermissionResponse projectPerms = checkProjectPermissions(auth, projectId);
+        
+        if (projectPerms == null || projectPerms.getAddendum() == null) {
+            return AddendumPermissionResponse.builder()
+                    .canCreateAddendum(false)
+                    .canViewAddendum(false)
+                    .canInviteToSign(false)
+                    .canDeclineAddendum(false)
+                    .canEditAddendum(false)
+                    .canCreateAddendumPayment(false)
+                    .reason(projectPerms != null ? projectPerms.getReason() : "Không thể lấy permissions")
+                    .build();
+        }
+        
+        ProjectPermissionResponse.AddendumPermissions addendumPerms = projectPerms.getAddendum();
+        ProjectPermissionResponse.RoleInfo roleInfo = projectPerms.getRole();
+        
+        return AddendumPermissionResponse.builder()
+                .userRole(roleInfo != null ? roleInfo.getUserRole() : null)
+                .projectRole(roleInfo != null ? roleInfo.getProjectRole() : null)
+                .canCreateAddendum(addendumPerms.isCanCreateAddendum())
+                .canViewAddendum(addendumPerms.isCanViewAddendum())
+                .canInviteToSign(addendumPerms.isCanInviteToSign())
+                .canDeclineAddendum(addendumPerms.isCanDeclineAddendum())
+                .canEditAddendum(addendumPerms.isCanEditAddendum())
+                .canCreateAddendumPayment(addendumPerms.isCanCreateAddendumPayment())
+                .reason(projectPerms.getReason())
+                .build();
+    }
+
+    private boolean canCreateAddendum(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        return userRole == UserRole.PRODUCER && isProjectOwner;
+    }
+
+    private boolean canViewAddendum(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        return userRole == UserRole.ADMIN || isProjectOwner || projectRole == ProjectRole.CLIENT;
+    }
+
+    private boolean canInviteToSignAddendum(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        return userRole == UserRole.ADMIN || isProjectOwner;
+    }
+
+    private boolean canDeclineAddendum(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        return userRole == UserRole.ADMIN || projectRole == ProjectRole.CLIENT;
+    }
+
+    private boolean canEditAddendum(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
+        return isProjectOwner;
+    }
+
+    private boolean canCreateAddendumPayment(UserRole userRole, ProjectRole projectRole) {
+        // Chỉ CLIENT mới có quyền thanh toán phụ lục
+        return projectRole == ProjectRole.CLIENT;
     }
 
     private boolean canEditMilestone(UserRole userRole, ProjectRole projectRole, boolean isProjectOwner) {
