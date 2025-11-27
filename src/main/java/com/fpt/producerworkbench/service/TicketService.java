@@ -24,4 +24,6 @@ public interface TicketService {
     List<TicketReplyResponse> getTicketReplies(Long ticketId, String currentEmail);
 
     TicketResponse updateTicketStatus(Long ticketId, TicketStatus newStatus, String currentEmail);
+
+    TicketResponse getTicketDetail(Long ticketId, String currentEmail);
 }
