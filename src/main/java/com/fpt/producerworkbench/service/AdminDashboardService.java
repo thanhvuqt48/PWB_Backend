@@ -5,5 +5,5 @@ import java.time.LocalDate;
 
 public interface AdminDashboardService {
 
-    AdminDashboardResponse getDashboardStats(LocalDate fromDate, LocalDate toDate, String currentEmail);
+    AdminDashboardResponse getDashboardStats(LocalDate fromDate, LocalDate toDate, String groupBy, String currentEmail);
 }

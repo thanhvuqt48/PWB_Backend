@@ -10,11 +10,8 @@ import java.util.List;
 @Builder
 public class AdminDashboardResponse {
     private BigDecimal totalRevenue;
-    private Long totalSuccessTransactions;
-    private Long totalSubscriptionOrders;
+    private Long totalPackagesSold;
 
-
-    private List<DailyRevenueStat> dailyRevenueStats;
-
+    private List<RevenueStat> revenueStats;
     private List<PackageSalesStat> packageSalesStats;
 }

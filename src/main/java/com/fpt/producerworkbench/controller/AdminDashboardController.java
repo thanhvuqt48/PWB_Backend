@@ -22,8 +22,9 @@ public class AdminDashboardController {
     public ResponseEntity<AdminDashboardResponse> getDashboardStats(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(defaultValue = "day") String groupBy,
             Principal principal
     ) {
-        return ResponseEntity.ok(adminDashboardService.getDashboardStats(fromDate, toDate, principal.getName()));
+        return ResponseEntity.ok(adminDashboardService.getDashboardStats(fromDate, toDate, groupBy, principal.getName()));
     }
 }
