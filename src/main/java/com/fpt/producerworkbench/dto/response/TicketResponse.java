@@ -18,4 +18,6 @@ public class TicketResponse {
     private String projectName;
     private LocalDateTime createdAt;
     private List<String> attachmentUrls;
+
+    private String description;
 }
