@@ -255,8 +255,18 @@ public enum ErrorCode {
     CANNOT_SEND_UNAPPROVED_TRACK(8039, "Chỉ có thể gửi track đã được phê duyệt nội bộ", HttpStatus.BAD_REQUEST),
     CLIENT_DELIVERY_NOT_FOUND(8040, "Client delivery không tồn tại", HttpStatus.NOT_FOUND),
     INVALID_DELIVERY_STATUS_TRANSITION(8041, "Không thể chuyển đổi trạng thái delivery này", HttpStatus.BAD_REQUEST),
-    REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST);
+    REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST),
 
+
+    // ===== User Guide & AI Context Errors (18xxx) =====
+    USER_GUIDE_NOT_FOUND(18001, "Không tìm thấy user guide.", HttpStatus.NOT_FOUND),
+    USER_GUIDE_ALREADY_EXISTS(18002, "User guide đã tồn tại.", HttpStatus.BAD_REQUEST),
+    INVALID_GUIDE_CATEGORY(18003, "Category không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_GUIDE_DIFFICULTY(18004, "Difficulty không hợp lệ.", HttpStatus.BAD_REQUEST),
+    GUIDE_INDEXING_FAILED(18005, "Lỗi khi index guide vào vector DB.", HttpStatus.INTERNAL_SERVER_ERROR),
+    GUIDE_IMAGE_UPLOAD_FAILED(18006, "Lỗi khi upload ảnh cho guide.", HttpStatus.INTERNAL_SERVER_ERROR),
+    POSTGRESQL_CONNECTION_FAILED(18007, "Không thể kết nối PostgreSQL.", HttpStatus.INTERNAL_SERVER_ERROR),
+    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final int code;
     private final String message;
