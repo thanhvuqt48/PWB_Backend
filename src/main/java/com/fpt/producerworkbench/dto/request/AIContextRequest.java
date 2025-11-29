@@ -30,4 +30,7 @@ public class AIContextRequest {
     // Optional: Max guides to return
     @Builder.Default
     Integer maxGuides = 3;
+    
+    // Session ID for conversation memory (auto-generated if not provided)
+    String sessionId;
 }

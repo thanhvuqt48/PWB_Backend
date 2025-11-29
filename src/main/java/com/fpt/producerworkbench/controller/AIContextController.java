@@ -3,13 +3,18 @@ package com.fpt.producerworkbench.controller;
 import com.fpt.producerworkbench.dto.request.AIContextRequest;
 import com.fpt.producerworkbench.dto.response.AIContextualResponse;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.exception.AppException;
+import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.AIContextService;
+import com.fpt.producerworkbench.utils.SecurityUtils;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 
 /**
  * Controller xử lý AI Context - Trả lời câu hỏi dựa trên ngữ cảnh hệ thống
@@ -26,6 +31,7 @@ import org.springframework.web.bind.annotation.*;
 public class AIContextController {
 
     private final AIContextService aiContextService;
+    private final SecurityUtils securityUtils;
 
     /**
      * [PUBLIC - Testing] Get AI-powered contextual guidance
@@ -44,12 +50,20 @@ public class AIContextController {
             @Valid @RequestBody AIContextRequest request,
             Authentication authentication) {
         
-        log.info("AI Context request from user: {} - Query: {}", 
-                authentication.getName(), request.getQuery());
+        // Get current user ID from JWT
+        Long userId = securityUtils.getCurrentUserId();
+        
+        log.info("🔑 USER ID from JWT: {}", userId);
+        log.info("📝 Query: {}", request.getQuery());
+        
+        // ALWAYS auto-generate sessionId from userId (frontend không cần gửi)
+        String sessionId = generateSessionId(userId);
+        request.setSessionId(sessionId);
+        
+        log.info("✅ Auto-generated sessionId: {}", sessionId);
         
         // Auto-fill user role from JWT
         if (request.getUserRole() == null && authentication != null) {
-            // Extract role from authentication
             String role = authentication.getAuthorities().stream()
                     .findFirst()
                     .map(auth -> auth.getAuthority())
@@ -74,12 +88,16 @@ public class AIContextController {
             @RequestParam String query,
             Authentication authentication) {
         
-        log.info("Quick help request: {}", query);
+        // Get user ID for session
+        Long userId = securityUtils.getCurrentUserId();
+        
+        log.info("Quick help request from user {}: {}", userId, query);
         
         AIContextRequest request = AIContextRequest.builder()
                 .query(query)
                 .includeRelatedGuides(true)
                 .maxGuides(2)
+                .sessionId(generateSessionId(userId))  // Generate session for ChatClient
                 .build();
         
         // Auto-fill user role
@@ -109,5 +127,28 @@ public class AIContextController {
                 .message("AI Context service is healthy")
                 .result("OK")
                 .build();
+    }
+    
+    /**
+     * Generate session ID for conversation tracking
+     * Format: "ai-chat:user{userId}:{date}"
+     * Each user gets a new session per day
+     */
+    private String generateSessionId(Long userId) {
+        String date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
+        return String.format("ai-chat:user%d:%s", userId, date);
+    }
+    
+    /**
+     * Validate that session ID belongs to the current user
+     * Prevents users from accessing other users' conversations
+     */
+    private void validateSessionOwnership(String sessionId, Long userId) {
+        String expectedPrefix = "ai-chat:user" + userId + ":";
+        if (!sessionId.startsWith(expectedPrefix)) {
+            log.warn("Session ownership validation failed. User {} tried to access session: {}", 
+                    userId, sessionId);
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
     }
 }

@@ -14,6 +14,7 @@ import com.fpt.producerworkbench.service.AIContextService;
 import com.fpt.producerworkbench.service.UserGuideIndexingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -29,6 +30,7 @@ public class AIContextServiceImpl implements AIContextService {
     private final GeminiConfig geminiConfig;
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
+    private final ChatClient aiChatClient;
 
 
 
@@ -110,6 +112,7 @@ public class AIContextServiceImpl implements AIContextService {
             
             JSON Response:""";
 
+
     @Override
     public AIContextualResponse getContextualGuidance(AIContextRequest request) {
         long startTime = System.currentTimeMillis();
@@ -120,66 +123,45 @@ public class AIContextServiceImpl implements AIContextService {
             String intent = analyzeIntent(request.getQuery());
             log.info("   Intent detected: {}", intent);
 
-            // Step 2: Search relevant guides
-            UserGuideSearchResponse searchResponse = userGuideIndexingService.searchGuides(
-                    UserGuideSearchRequest.builder()
-                            .query(request.getQuery())
-                            .topK(request.getMaxGuides())
-                            .minScore(0.5)
-                            .includeInactive(false)
-                            .build()
-            );
+            // Step 2: Search guides with images (parallel to QuestionAnswerAdvisor RAG)
+            UserGuideSearchResponse guidesWithImages = searchGuidesWithImages(request);
+            log.info("📸 Found {} guides with images", 
+                guidesWithImages != null ? guidesWithImages.getTotalResults() : 0);
 
-            log.info("   Found {} relevant guides", searchResponse.getTotalResults());
+            // Step 3: Build enhanced prompt with images
+            String enhancedPrompt = buildPromptWithImages(request, intent, guidesWithImages);
+            log.info("📝 Built prompt: {} chars", enhancedPrompt.length());
 
-            // Step 3: Build context from guides
-            String guidesContext = buildGuidesContext(searchResponse);
-
-            // Step 4: Generate AI response with Gemini
-            String prompt = String.format(CONTEXTUAL_GUIDANCE_PROMPT,
-                    request.getQuery(),
-                    intent,
-                    request.getCurrentPage() != null ? request.getCurrentPage() : "unknown",
-                    request.getUserRole() != null ? request.getUserRole() : "user",
-                    guidesContext);
-
-            String geminiResponse = callGeminiAPI(prompt);
+            // Step 4: Use ChatClient with Advisors
+            // QuestionAnswerAdvisor will add RAG text context automatically
+            // We manually added images in the prompt above
+            log.info("🔄 Calling ChatClient with sessionId: {}", request.getSessionId());
             
-            // Extract JSON from potential markdown code blocks
-            String jsonResponse = extractJsonFromMarkdown(geminiResponse);
-            JsonNode responseJson = objectMapper.readTree(jsonResponse);
-
-            // Step 5: AI Re-ranking - Let AI choose best guide from top 3
-            List<UserGuideResponse> selectedGuides = selectBestGuides(
-                searchResponse.getGuides(),
-                request.getQuery(),
-                intent,
-                3  // Top 3 candidates
-            );
-
-            // Step 6: Build final response
-            List<String> suggestedActions = new ArrayList<>();
-            if (responseJson.has("suggestedActions")) {
-                responseJson.get("suggestedActions").forEach(action -> 
-                    suggestedActions.add(action.asText()));
+            String aiResponse;
+            try {
+                aiResponse = aiChatClient.prompt()
+                        .user(enhancedPrompt)
+                        .advisors(advisorSpec -> advisorSpec
+                                .param("conversationId", request.getSessionId())
+                        )
+                        .call()
+                        .content();
+                        
+                log.info("✅ ChatClient response received: {} chars", aiResponse.length());
+            } catch (Exception chatError) {
+                log.error("❌ ChatClient call failed: {}", chatError.getMessage(), chatError);
+                throw new RuntimeException("ChatClient error: " + chatError.getMessage(), chatError);
             }
 
-            List<String> relatedTopics = new ArrayList<>();
-            if (responseJson.has("relatedTopics")) {
-                responseJson.get("relatedTopics").forEach(topic -> 
-                    relatedTopics.add(topic.asText()));
-            }
-
+            // Step 5: Build response with guides
             long processingTime = System.currentTimeMillis() - startTime;
+            log.info("⏱️ Total processing time: {}ms", processingTime);
 
             return AIContextualResponse.builder()
-                    .answer(responseJson.get("answer").asText())
+                    .answer(aiResponse)
                     .intent(intent)
-                    .confidence(responseJson.has("confidence") ? 
-                            responseJson.get("confidence").asDouble() : 0.8)
-                    .relevantGuides(request.getIncludeRelatedGuides() ? selectedGuides : List.of())
-                    .suggestedActions(suggestedActions)
-                    .relatedTopics(relatedTopics)
+                    .confidence(0.85)
+                    .relevantGuides(guidesWithImages != null ? guidesWithImages.getGuides() : null)
                     .processingTimeMs(processingTime)
                     .model(geminiConfig.getModel())
                     .build();
@@ -188,6 +170,103 @@ public class AIContextServiceImpl implements AIContextService {
             log.error("❌ Failed to generate contextual guidance: {}", e.getMessage(), e);
             throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
         }
+    }
+    
+    /**
+     * Search guides with images from PostgreSQL
+     */
+    private UserGuideSearchResponse searchGuidesWithImages(AIContextRequest request) {
+        try {
+            int maxGuides = request.getMaxGuides() != null ? request.getMaxGuides() : 3;
+            
+            UserGuideSearchRequest searchRequest = UserGuideSearchRequest.builder()
+                    .query(request.getQuery())
+                    .topK(maxGuides)
+                    .minScore(0.7)
+                    .includeInactive(false)
+                    .build();
+            
+            return userGuideIndexingService.searchGuides(searchRequest);
+        } catch (Exception e) {
+            log.warn("⚠️ Failed to search guides with images: {}", e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Build prompt with images from PostgreSQL guides
+     * QuestionAnswerAdvisor will add RAG text context on top
+     */
+    private String buildPromptWithImages(
+            AIContextRequest request, 
+            String intent,
+            UserGuideSearchResponse guidesWithImages) {
+        
+        StringBuilder prompt = new StringBuilder();
+        
+        // System role
+        prompt.append("Bạn là AI assistant cho Producer Workbench.\n\n");
+        
+        // Context
+        prompt.append("Context:\n");
+        if (request.getCurrentPage() != null) {
+            prompt.append("- Current page: ").append(request.getCurrentPage()).append("\n");
+        }
+        if (request.getUserRole() != null) {
+            prompt.append("- User role: ").append(request.getUserRole()).append("\n");
+        }
+        prompt.append("- Intent: ").append(intent).append("\n\n");
+        
+        // ✅ AVAILABLE IMAGES (from PostgreSQL)
+        if (guidesWithImages != null && guidesWithImages.getGuides() != null && !guidesWithImages.getGuides().isEmpty()) {
+            prompt.append("---\n");
+            prompt.append("AVAILABLE IMAGES (sử dụng để minh họa):\n\n");
+            
+            for (UserGuideResponse guide : guidesWithImages.getGuides()) {
+                prompt.append("📚 Guide: \"").append(guide.getTitle()).append("\"\n");
+                
+                // Cover image
+                if (guide.getCoverImageUrl() != null && !guide.getCoverImageUrl().isEmpty()) {
+                    prompt.append("   Cover: ![")
+                          .append(guide.getTitle())
+                          .append("](")
+                          .append(guide.getCoverImageUrl())
+                          .append(")\n");
+                }
+                
+                // Step screenshots
+                if (guide.getSteps() != null && !guide.getSteps().isEmpty()) {
+                    for (var step : guide.getSteps()) {
+                        if (step.getScreenshotUrl() != null && !step.getScreenshotUrl().isEmpty()) {
+                            prompt.append("   Bước ")
+                                  .append(step.getStepOrder())
+                                  .append(": ![")
+                                  .append(step.getTitle())
+                                  .append("](")
+                                  .append(step.getScreenshotUrl())
+                                  .append(")\n");
+                        }
+                    }
+                }
+                
+                prompt.append("\n");
+            }
+            
+            prompt.append("---\n\n");
+        }
+        
+        // Instructions
+        prompt.append("Hướng dẫn:\n");
+        prompt.append("- Trả lời bằng tiếng Việt, chi tiết và dễ hiểu\n");
+        prompt.append("- Sử dụng markdown format (headers, bold, lists)\n");
+        prompt.append("- **QUAN TRỌNG**: Nhúng ảnh từ danh sách AVAILABLE IMAGES ở trên vào đúng chỗ trong câu trả lời\n");
+        prompt.append("- Sử dụng markdown syntax: ![mô tả](url) để hiển thị ảnh\n");
+        prompt.append("- Cover image nên đặt ở đầu hướng dẫn, screenshots đặt ở từng bước tương ứng\n\n");
+        
+        // User query
+        prompt.append("Câu hỏi: ").append(request.getQuery());
+        
+        return prompt.toString();
     }
 
     @Override
