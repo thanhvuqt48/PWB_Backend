@@ -18,13 +18,16 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.MilestoneBriefGroupRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
+import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.MilestoneBriefService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -37,6 +40,15 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     private final MilestoneRepository milestoneRepository;
     private final MilestoneBriefGroupRepository briefGroupRepository;
     private final ProjectPermissionService projectPermissionService;
+    private final FileStorageService storage;
+
+    private static final long MAX_SIZE = 20L * 1024 * 1024; // 20MB
+    private static final Set<String> IMAGE_MIMES = Set.of(
+            MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif"
+    );
+    private static final Set<String> AUDIO_MIMES = Set.of(
+            "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/webm", "audio/ogg"
+    );
 
 
     @Override
@@ -195,6 +207,55 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         log.info("[INTERNAL] Deleted all INTERNAL brief groups for milestoneId={}", milestone.getId());
     }
 
+    @Override
+    @Transactional
+    public String uploadBriefFile(Long projectId, Long milestoneId, MultipartFile file, String type, Authentication auth) {
+        log.info("Upload brief file: projectId={}, milestoneId={}, type={}", projectId, milestoneId, type);
+
+        // 1. Kiểm tra tồn tại milestone
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+
+        // 2. Kiểm tra quyền (Cho phép cả Client và Owner upload, quyền chi tiết sẽ chặn ở lúc Lưu Brief)
+        var roleInfo = getRoleInfo(auth, projectId);
+        boolean isClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
+        boolean isProducerOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
+
+        if (!isClient && !isProducerOwner) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // 3. Validate File
+        if (file == null || file.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+        if (file.getSize() > MAX_SIZE) {
+            throw new AppException(ErrorCode.FILE_TOO_LARGE);
+        }
+
+        String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
+        String folder;
+
+        if ("IMAGE".equalsIgnoreCase(type)) {
+            if (!IMAGE_MIMES.contains(mime)) {
+                throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Chỉ hỗ trợ ảnh (JPG, PNG, WEBP, GIF)");
+            }
+            folder = "brief-images";
+        } else if ("AUDIO".equalsIgnoreCase(type) || "HUM_MELODY".equalsIgnoreCase(type)) {
+            // Chấp nhận mime audio hoặc mime bắt đầu bằng audio/
+            if (!AUDIO_MIMES.contains(mime) && !mime.startsWith("audio/")) {
+                throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Định dạng âm thanh không hỗ trợ");
+            }
+            folder = "brief-audios";
+        } else {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Type phải là IMAGE hoặc AUDIO");
+        }
+
+        // 4. Upload
+        String key = folder + "/" + projectId + "_" + milestoneId + "_" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+        storage.uploadFile(file, key);
+
+        return key; // Trả về key để FE lưu vào JSON
+    }
 
     private Milestone loadMilestoneAndCheckAuth(Long projectId, Long milestoneId, Authentication auth) {
         if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
@@ -268,10 +329,12 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
                         String contentText = null;
                         String fileKey = null;
 
-                        switch (type) {
-                            case DESCRIPTION, HARMONY -> contentText = blockReq.getContent();
-                            case IMAGE, HUM_MELODY -> fileKey = blockReq.getContent();
-                            default -> contentText = blockReq.getContent();
+                        // MỚI: Phân loại Content vs FileKey dựa trên Type
+                        // Frontend sẽ gửi key nhận được từ API upload vào field 'content' của request
+                        if (type == MilestoneBriefBlockType.IMAGE || type == MilestoneBriefBlockType.HUM_MELODY) {
+                            fileKey = blockReq.getContent();
+                        } else {
+                            contentText = blockReq.getContent();
                         }
 
                         MilestoneBriefBlock block = MilestoneBriefBlock.builder()
@@ -341,9 +404,14 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
 
     private MilestoneBriefBlockResponse mapToBlockResponse(MilestoneBriefBlock block) {
         String content;
-        if (block.getType() == MilestoneBriefBlockType.IMAGE
-                || block.getType() == MilestoneBriefBlockType.HUM_MELODY) {
-            content = block.getFileKey();
+
+        if (block.getType() == MilestoneBriefBlockType.IMAGE || block.getType() == MilestoneBriefBlockType.HUM_MELODY) {
+            String fileKey = block.getFileKey();
+            if (fileKey != null && !fileKey.isBlank()) {
+                content = storage.generatePresignedUrl(fileKey, false, null);
+            } else {
+                content = "";
+            }
         } else {
             content = block.getContentText();
         }
@@ -368,4 +436,6 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
             case HUM_MELODY -> "Ngân nga giai điệu";
         };
     }
+
+
 }

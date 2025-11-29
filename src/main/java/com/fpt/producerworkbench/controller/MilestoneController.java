@@ -451,5 +451,26 @@ public class MilestoneController {
                 .message("Xóa miêu tả cột mốc INTERNAL thành công")
                 .build();
     }
+
+    @PostMapping(value = "/{projectId}/milestones/{milestoneId}/brief/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<String> uploadBriefFile(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("type") String type,
+            Authentication authentication) {
+
+        if (projectId == null || projectId <= 0 || milestoneId == null || milestoneId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        String fileKey = milestoneBriefService.uploadBriefFile(projectId, milestoneId, file, type, authentication);
+
+        return ApiResponse.<String>builder()
+                .code(HttpStatus.OK.value())
+                .message("Upload file thành công")
+                .result(fileKey)
+                .build();
+    }
 }
 

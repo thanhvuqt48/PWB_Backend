@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service;
 import com.fpt.producerworkbench.dto.request.MilestoneBriefUpsertRequest;
 import com.fpt.producerworkbench.dto.response.MilestoneBriefDetailResponse;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface MilestoneBriefService {
 
@@ -24,4 +25,5 @@ public interface MilestoneBriefService {
 
     void deleteInternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth);
 
+    String uploadBriefFile(Long projectId, Long milestoneId, MultipartFile file, String type, Authentication auth);
 }
