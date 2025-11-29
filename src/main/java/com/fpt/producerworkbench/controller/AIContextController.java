@@ -3,6 +3,13 @@ package com.fpt.producerworkbench.controller;
 import com.fpt.producerworkbench.dto.request.AIContextRequest;
 import com.fpt.producerworkbench.dto.response.AIContextualResponse;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.dto.response.ConversationHistoryResponse;
+import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.ArrayList;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.AIContextService;
@@ -32,6 +39,7 @@ public class AIContextController {
 
     private final AIContextService aiContextService;
     private final SecurityUtils securityUtils;
+    private final ChatMemory redisChatMemory;
 
     /**
      * [PUBLIC - Testing] Get AI-powered contextual guidance
@@ -117,6 +125,55 @@ public class AIContextController {
                 .build();
     }
 
+    /**
+     * Get conversation history from Redis
+     * GET /api/ai/context/history
+     */
+    @GetMapping("/history")
+    public ApiResponse<ConversationHistoryResponse> getHistory() {
+        Long userId = securityUtils.getCurrentUserId();
+        String sessionId = generateSessionId(userId);
+        
+        log.info("📜 Fetching conversation history for user: {}, sessionId: {}", userId, sessionId);
+        
+        try {
+            // Get messages from Redis (last 50 messages)
+            List<Message> messages = redisChatMemory.get(sessionId, 50);
+            
+            // Convert Spring AI Messages to DTOs for frontend
+            List<ConversationHistoryResponse.MessageDTO> messageDTOs = messages.stream()
+                .map(msg -> ConversationHistoryResponse.MessageDTO.builder()
+                    .role(msg instanceof UserMessage ? "user" : "assistant")
+                    .content(msg.getContent())
+                    .build())
+                .collect(Collectors.toList());
+            
+            ConversationHistoryResponse response = ConversationHistoryResponse.builder()
+                .sessionId(sessionId)
+                .messages(messageDTOs)
+                .totalMessages(messageDTOs.size())
+                .build();
+            
+            log.info("   ✅ Loaded {} messages from Redis", messageDTOs.size());
+            
+            return ApiResponse.<ConversationHistoryResponse>builder()
+                .message("History loaded successfully")
+                .result(response)
+                .build();
+        } catch (Exception e) {
+            log.error("❌ Failed to load history: {}", e.getMessage(), e);
+            // Return empty history on error
+            return ApiResponse.<ConversationHistoryResponse>builder()
+                .message("No history found")
+                .result(ConversationHistoryResponse.builder()
+                    .sessionId(sessionId)
+                    .messages(new ArrayList<>())
+                    .totalMessages(0)
+                    .build())
+                .build();
+        }
+    }
+    
     /**
      * Health check
      * GET /api/ai/context/health

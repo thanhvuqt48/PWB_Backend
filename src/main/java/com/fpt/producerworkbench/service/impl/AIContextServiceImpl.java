@@ -31,6 +31,7 @@ public class AIContextServiceImpl implements AIContextService {
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
     private final ChatClient aiChatClient;
+    private final org.springframework.ai.chat.memory.ChatMemory redisChatMemory;
 
 
 
@@ -153,15 +154,34 @@ public class AIContextServiceImpl implements AIContextService {
                 throw new RuntimeException("ChatClient error: " + chatError.getMessage(), chatError);
             }
 
-            // Step 5: Build response with guides
+            // Step 5: MANUALLY SAVE messages to Redis
+            // MessageChatMemoryAdvisor only LOADS messages, doesn't auto-save!
+            try {
+                List<org.springframework.ai.chat.messages.Message> conversationMessages = List.of(
+                    new org.springframework.ai.chat.messages.UserMessage(request.getQuery()),
+                    new org.springframework.ai.chat.messages.AssistantMessage(aiResponse)
+                );
+                redisChatMemory.add(request.getSessionId(), conversationMessages);
+                log.info("💾 Saved conversation to Redis (session: {})", request.getSessionId());
+            } catch (Exception saveError) {
+                log.warn("⚠️ Failed to save conversation to Redis: {}", saveError.getMessage());
+                // Don't fail the request if save fails
+            }
+
+            // Step 6: Parse follow-up questions from AI response
+            List<String> followUpQuestions = parseFollowUpQuestions(aiResponse);
+            log.info("💡 Extracted {} follow-up questions", followUpQuestions.size());
+
+            // Step 7: Build response with guides
             long processingTime = System.currentTimeMillis() - startTime;
             log.info("⏱️ Total processing time: {}ms", processingTime);
 
             return AIContextualResponse.builder()
-                    .answer(aiResponse)
+                    .answer(cleanAnswerFromFollowUp(aiResponse)) // Remove FOLLOW_UP section
                     .intent(intent)
                     .confidence(0.85)
                     .relevantGuides(guidesWithImages != null ? guidesWithImages.getGuides() : null)
+                    .suggestedActions(followUpQuestions.isEmpty() ? null : followUpQuestions)
                     .processingTimeMs(processingTime)
                     .model(geminiConfig.getModel())
                     .build();
@@ -261,12 +281,63 @@ public class AIContextServiceImpl implements AIContextService {
         prompt.append("- Sử dụng markdown format (headers, bold, lists)\n");
         prompt.append("- **QUAN TRỌNG**: Nhúng ảnh từ danh sách AVAILABLE IMAGES ở trên vào đúng chỗ trong câu trả lời\n");
         prompt.append("- Sử dụng markdown syntax: ![mô tả](url) để hiển thị ảnh\n");
-        prompt.append("- Cover image nên đặt ở đầu hướng dẫn, screenshots đặt ở từng bước tương ứng\n\n");
+        prompt.append("- Cover image nên đặt ở đầu hướng dẫn, screenshots đặt ở từng bước tương ứng\n");
+        prompt.append("- **CUỐI CÙN**: Sau câu trả lời, gợi ý 3-5 câu hỏi tiếp theo bằng format:\n");
+        prompt.append("  ---FOLLOW_UP---\n");
+        prompt.append("  - Câu hỏi 1?\n");
+        prompt.append("  - Câu hỏi 2?\n");
+        prompt.append("  - Câu hỏi 3?\n\n");
         
         // User query
         prompt.append("Câu hỏi: ").append(request.getQuery());
         
         return prompt.toString();
+    }
+    
+    /**
+     * Parse follow-up questions from AI response
+     * Format: ---FOLLOW_UP---\n- Question 1?\n- Question 2?\n
+     */
+    private List<String> parseFollowUpQuestions(String aiResponse) {
+        List<String> questions = new ArrayList<>();
+        
+        if (aiResponse == null || !aiResponse.contains("---FOLLOW_UP---")) {
+            return questions;
+        }
+        
+        try {
+            String[] parts = aiResponse.split("---FOLLOW_UP---");
+            if (parts.length > 1) {
+                String followUpSection = parts[1].trim();
+                String[] lines = followUpSection.split("\n");
+                
+                for (String line : lines) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("-") || trimmed.startsWith("*")) {
+                        String question = trimmed.substring(1).trim();
+                        if (!question.isEmpty()) {
+                            questions.add(question);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to parse follow-up questions: {}", e.getMessage());
+        }
+        
+        log.debug("Parsed {} follow-up questions", questions.size());
+        return questions;
+    }
+    
+    /**
+     * Clean answer by removing FOLLOW_UP section
+     */
+    private String cleanAnswerFromFollowUp(String aiResponse) {
+        if (aiResponse == null || !aiResponse.contains("---FOLLOW_UP---")) {
+            return aiResponse;
+        }
+        
+        return aiResponse.split("---FOLLOW_UP---")[0].trim();
     }
 
     @Override
