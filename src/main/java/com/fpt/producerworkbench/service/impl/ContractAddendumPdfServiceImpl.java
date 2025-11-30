@@ -1,15 +1,16 @@
 package com.fpt.producerworkbench.service.impl;
 
-import com.fpt.producerworkbench.common.ContractDocumentType;
+import com.fpt.producerworkbench.common.AddendumDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.dto.request.ContractAddendumMilestoneItemRequest;
 import com.fpt.producerworkbench.dto.request.ContractAddendumPdfFillRequest;
+import com.fpt.producerworkbench.entity.AddendumDocument;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.entity.ContractAddendumMilestone;
-import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.ContractParty;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
@@ -63,11 +64,13 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     private final ContractRepository contractRepository;
     private final ContractAddendumRepository addendumRepository;
     private final ContractAddendumMilestoneRepository addendumMilestoneRepository;
-    private final ContractDocumentRepository contractDocumentRepository;
+    private final AddendumDocumentRepository addendumDocumentRepository;
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
     private final ProjectPermissionService projectPermissionService;
     private final MilestoneRepository milestoneRepository;
+    private final com.fpt.producerworkbench.repository.ContractPartyRepository contractPartyRepository;
+    private final com.fpt.producerworkbench.configuration.SignNowClient signNowClient;
 
     @Value("${pwb.addendum.template}")
     private Resource addendumTemplate;
@@ -127,6 +130,10 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
         if (!perms.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
+        ContractParty party = contractPartyRepository.findByContractId(contractId)
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
+        applyPartyToAddendumRequest(party, req);
+
         boolean milestoneMode = PaymentType.MILESTONE.equals(contract.getPaymentType());
 
         if (milestoneMode) {
@@ -143,33 +150,94 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         }
 
         ContractAddendum latestAddendum = addendumRepository
-                .findFirstByContractIdOrderByVersionDesc(contractId)
+                .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElse(null);
+
+        if (latestAddendum != null) {
+            ContractStatus latestStatus = latestAddendum.getSignnowStatus();
+            if (latestStatus == ContractStatus.PAID || latestStatus == ContractStatus.COMPLETED) {
+                if (latestStatus == ContractStatus.PAID) {
+                    throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+                }
+            }
+        }
 
         ContractAddendum add;
 
-        if (latestAddendum != null && ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
+        if (latestAddendum == null) {
             add = ContractAddendum.builder()
                     .contract(contract)
                     .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
-                    .version(latestAddendum.getVersion() + 1)
-                    .effectiveDate(req.getEffectiveDate())
-                    .signnowStatus(ContractStatus.DRAFT)
-                    .build();
-        } else if (latestAddendum == null) {
-            add = ContractAddendum.builder()
-                    .contract(contract)
-                    .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
+                    .addendumNumber(1)
                     .version(1)
                     .effectiveDate(req.getEffectiveDate())
                     .signnowStatus(ContractStatus.DRAFT)
+                    .signnowDocumentId(null)
+                    .build();
+        } else if (ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
+            int newAddendumNumber = latestAddendum.getAddendumNumber() + 1;
+            add = ContractAddendum.builder()
+                    .contract(contract)
+                    .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
+                    .addendumNumber(newAddendumNumber)
+                    .version(1)
+                    .effectiveDate(req.getEffectiveDate())
+                    .signnowStatus(ContractStatus.DRAFT)
+                    .signnowDocumentId(null)
                     .build();
         } else {
-            add = latestAddendum;
-            if (add.getVersion() == 0) add.setVersion(1);
-            add.setTitle(req.getTitle() != null ? req.getTitle() : add.getTitle());
-            add.setEffectiveDate(req.getEffectiveDate() != null ? req.getEffectiveDate() : add.getEffectiveDate());
-
+            int currentAddendumNumber = latestAddendum.getAddendumNumber();
+            ContractAddendum latestVersionOfAddendum = addendumRepository
+                    .findFirstByContractIdAndAddendumNumberOrderByVersionDesc(contractId, currentAddendumNumber)
+                    .orElse(latestAddendum);
+            int newVersion = latestVersionOfAddendum.getVersion() + 1;
+            
+            if (latestVersionOfAddendum.getId() != null && 
+                latestVersionOfAddendum.getSignnowDocumentId() != null && 
+                !latestVersionOfAddendum.getSignnowDocumentId().isBlank()) {
+                
+                ContractAddendum freshAddendum = addendumRepository.findById(latestVersionOfAddendum.getId())
+                        .orElse(null);
+                
+                if (freshAddendum != null) {
+                    ContractStatus freshStatus = freshAddendum.getSignnowStatus();
+                    String freshDocId = freshAddendum.getSignnowDocumentId();
+                    
+                    if ((freshStatus == ContractStatus.DRAFT || 
+                         freshStatus == ContractStatus.OUT_FOR_SIGNATURE || 
+                         freshStatus == ContractStatus.PARTIALLY_SIGNED || 
+                         freshStatus == ContractStatus.SIGNED) &&
+                        freshDocId != null && 
+                        freshDocId.equals(latestVersionOfAddendum.getSignnowDocumentId())) {
+                        
+                        String oldDocId = freshDocId;
+                        log.info("[AddendumPdf] Deleting old SignNow document {} before creating new version (addendum {}, status: {})", 
+                                oldDocId, latestVersionOfAddendum.getId(), freshStatus);
+                        boolean deleted = signNowClient.deleteDocument(oldDocId);
+                        if (deleted) {
+                            log.info("[AddendumPdf] Successfully deleted old SignNow document {}", oldDocId);
+                        } else {
+                            log.warn("[AddendumPdf] Failed to delete old SignNow document {} (may have been deleted already or not exist)", oldDocId);
+                        }
+                    } else {
+                        log.warn("[AddendumPdf] Skipping document deletion: addendum {} status changed from {} to {} or document ID changed", 
+                                latestVersionOfAddendum.getId(), latestVersionOfAddendum.getSignnowStatus(), freshStatus);
+                        if (freshStatus == ContractStatus.PAID || freshStatus == ContractStatus.COMPLETED) {
+                            throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+                        }
+                    }
+                }
+            }
+            
+            add = ContractAddendum.builder()
+                    .contract(contract)
+                    .title(req.getTitle() != null ? req.getTitle() : latestAddendum.getTitle())
+                    .addendumNumber(currentAddendumNumber)
+                    .version(newVersion)
+                    .effectiveDate(req.getEffectiveDate() != null ? req.getEffectiveDate() : latestAddendum.getEffectiveDate())
+                    .signnowStatus(ContractStatus.DRAFT)
+                    .signnowDocumentId(null)
+                    .build();
         }
 
         add.setPitTax(BigDecimal.ZERO);
@@ -275,10 +343,8 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                 totalVat     = totalVat.add(vat);
                 totalMoney   = totalMoney.add(baseMoney);
 
-                if (!existing) {
-                    totalEdit    += editDelta;
-                    totalRefresh += refreshDelta;
-                }
+                totalEdit    += editDelta;
+                totalRefresh += refreshDelta;
             }
 
             add.setPitTax(totalPit);
@@ -313,7 +379,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             m.put("Box 2", req.getSignDate() != null ? req.getSignDate().format(d) : "");
             m.put("Box 3", ns(req.getSignPlace()));
 
-            // Bên A
             m.put("Box 4", ns(req.getAName()));
             m.put("Box 5", ns(req.getAId()));
             m.put("Box 6", req.getAIdIssueDate() != null ? req.getAIdIssueDate().format(d) : "");
@@ -321,7 +386,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             m.put("Box 8", ns(req.getAAddress()));
             m.put("Box 9", ns(req.getAPhone()));
 
-            // Bên B
             m.put("Box 13", ns(req.getBName()));
             m.put("Box 14", ns(req.getBId()));
             m.put("Box 15", req.getBIdIssueDate() != null ? req.getBIdIssueDate().format(d) : "");
@@ -373,23 +437,23 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             String key = fileKeyGenerator.generateContractDocumentKey(contractId, "addendum.pdf");
             String url = fileStorageService.uploadBytes(out, key, "application/pdf");
 
-            ContractDocument doc = contractDocumentRepository
-                    .findFirstByContractIdAndTypeOrderByVersionDesc(contractId, ContractDocumentType.ADDENDUM)
+            AddendumDocument doc = addendumDocumentRepository
+                    .findFirstByAddendumIdAndTypeOrderByVersionDesc(add.getId(), AddendumDocumentType.FILLED)
                     .orElse(null);
 
-            boolean createNewDoc = (doc == null) || (add.getVersion() > doc.getVersion());
+            boolean createNewDoc = (doc == null) || (add.getVersion() > (doc.getVersion() != null ? doc.getVersion() : 0));
 
             if (createNewDoc) {
-                doc = ContractDocument.builder()
-                        .contract(contract)
-                        .type(ContractDocumentType.ADDENDUM)
+                doc = AddendumDocument.builder()
+                        .addendum(add)
+                        .type(AddendumDocumentType.FILLED)
                         .version(add.getVersion()) // Sync version với Addendum
                         .storageUrl(url)
                         .build();
             } else {
                 doc.setStorageUrl(url);
             }
-            contractDocumentRepository.save(doc);
+            addendumDocumentRepository.save(doc);
 
             return out;
 
@@ -673,5 +737,23 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
 
     private String ns(Object o) {
         return o == null ? "" : String.valueOf(o);
+    }
+
+    private void applyPartyToAddendumRequest(ContractParty party, ContractAddendumPdfFillRequest req) {
+        if (party == null || req == null) return;
+
+        req.setAName(party.getAName());
+        req.setAId(party.getAIdNumber());
+        req.setAIdIssueDate(party.getAIdIssueDate());
+        req.setAIdIssuePlace(party.getAIdIssuePlace());
+        req.setAAddress(party.getAAddress());
+        req.setAPhone(party.getAPhone());
+
+        req.setBName(party.getBName());
+        req.setBId(party.getBIdNumber());
+        req.setBIdIssueDate(party.getBIdIssueDate());
+        req.setBIdIssuePlace(party.getBIdIssuePlace());
+        req.setBAddress(party.getBAddress());
+        req.setBPhone(party.getBPhone());
     }
 }

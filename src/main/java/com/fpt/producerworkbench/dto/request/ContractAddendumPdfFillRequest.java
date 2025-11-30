@@ -10,13 +10,16 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-@Setter @Getter @Builder
-@AllArgsConstructor @NoArgsConstructor
+@Setter
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ContractAddendumPdfFillRequest {
 
-
-    @NotBlank @JsonProperty("addendumNo")
+    @NotBlank
+    @JsonProperty("addendumNo")
     String addendumNo;
 
     @NotNull
@@ -27,28 +30,35 @@ public class ContractAddendumPdfFillRequest {
     @JsonProperty("signPlace")
     String signPlace;
 
-    // BÊN A
-    @NotBlank @JsonProperty("aName")  String aName;
-    @NotBlank @JsonProperty("aId")    String aId;
-    @NotNull  @JsonProperty("aIdIssueDate")
+    // BÊN A - Backend tự động lấy từ ContractParty, FE không cần gửi
+    @JsonProperty("aName")
+    String aName;
+    @JsonProperty("aId")
+    String aId;
+    @JsonProperty("aIdIssueDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     LocalDate aIdIssueDate;
-    @NotBlank @JsonProperty("aIdIssuePlace") String aIdIssuePlace;
-    @NotBlank @JsonProperty("aAddress")      String aAddress;
-    @JsonProperty("aPhone")          String aPhone;
+    @JsonProperty("aIdIssuePlace")
+    String aIdIssuePlace;
+    @JsonProperty("aAddress")
+    String aAddress;
+    @JsonProperty("aPhone")
+    String aPhone;
 
-
-    // BÊN B
-    @NotBlank @JsonProperty("bName")  String bName;
-    @NotBlank @JsonProperty("bId")    String bId;
-    @NotNull  @JsonProperty("bIdIssueDate")
+    // BÊN B - Backend tự động lấy từ ContractParty, FE không cần gửi
+    @JsonProperty("bName")
+    String bName;
+    @JsonProperty("bId")
+    String bId;
+    @JsonProperty("bIdIssueDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     LocalDate bIdIssueDate;
-    @NotBlank @JsonProperty("bIdIssuePlace") String bIdIssuePlace;
-    @NotBlank @JsonProperty("bAddress")      String bAddress;
-    @JsonProperty("bPhone")          String bPhone;
-
-
+    @JsonProperty("bIdIssuePlace")
+    String bIdIssuePlace;
+    @JsonProperty("bAddress")
+    String bAddress;
+    @JsonProperty("bPhone")
+    String bPhone;
 
     @JsonProperty("additional")
     String additional;
@@ -62,7 +72,8 @@ public class ContractAddendumPdfFillRequest {
     @JsonProperty("numofrefresh")
     Integer numOfRefresh;
 
-    @NotBlank @JsonProperty("title")
+    @NotBlank
+    @JsonProperty("title")
     String title;
 
     @JsonProperty("effectiveDate")
