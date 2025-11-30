@@ -2,25 +2,11 @@ package com.fpt.producerworkbench.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.configuration.SignNowProperties;
-import com.fpt.producerworkbench.common.AddendumDocumentType;
-import com.fpt.producerworkbench.entity.AddendumDocument;
-import com.fpt.producerworkbench.entity.Contract;
-import com.fpt.producerworkbench.entity.ContractAddendum;
-import com.fpt.producerworkbench.exception.AppException;
-import com.fpt.producerworkbench.common.ContractDocumentType;
-import com.fpt.producerworkbench.common.ContractStatus;
-import com.fpt.producerworkbench.entity.ContractDocument;
-import com.fpt.producerworkbench.exception.ErrorCode;
-import com.fpt.producerworkbench.repository.AddendumDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractAddendumRepository;
-import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
-import com.fpt.producerworkbench.service.FileKeyGenerator;
-import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.SignNowWebhookEventService;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -36,6 +22,10 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * Controller xử lý webhook từ SignNow
+ * Chỉ làm nhiệm vụ verify HMAC, parse JSON và điều hướng đến service
+ */
 @RestController
 @RequestMapping("/api/v1/integrations/signnow/webhook")
 @RequiredArgsConstructor
@@ -45,13 +35,12 @@ public class SignNowWebhookController {
     private final SignNowProperties props;
     private final ContractRepository contractRepository;
     private final ContractAddendumRepository contractAddendumRepository;
-    private final ContractDocumentRepository contractDocumentRepository;
-    private final AddendumDocumentRepository addendumDocumentRepository;
-    private final SignNowClient signNowClient;
-    private final FileStorageService fileStorageService;
-    private final FileKeyGenerator fileKeyGenerator;
+    private final SignNowWebhookEventService webhookEventService;
     private final ObjectMapper om = new ObjectMapper();
 
+    /**
+     * Main webhook handler - chỉ làm nhiệm vụ verify HMAC, parse JSON và điều hướng
+     */
     @PostMapping(produces = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<String> handle(
             @RequestHeader(value = "X-SignNow-Signature", required = false) String signature,
@@ -59,12 +48,14 @@ public class SignNowWebhookController {
             @RequestBody byte[] rawBody,
             HttpServletRequest req
     ) {
+        // Verify HMAC signature
         String secret = props.getWebhook().getSecretKey();
         if (!verifyHmac(signature, rawBody, secret)) {
             log.warn("[Webhook] Invalid HMAC signature");
             return ResponseEntity.status(401).body("invalid signature");
         }
 
+        // Parse JSON payload
         final String bodyStr = new String(rawBody, StandardCharsets.UTF_8);
         JsonNode root;
         try {
@@ -74,6 +65,7 @@ public class SignNowWebhookController {
             return ResponseEntity.badRequest().body("bad payload");
         }
 
+        // Extract event type
         String event = firstNonEmpty(
                 textAt(root, "/meta/event"),
                 textAt(root, "/event")
@@ -83,6 +75,7 @@ public class SignNowWebhookController {
             return ResponseEntity.badRequest().body("missing event");
         }
 
+        // Extract document ID
         String documentId = firstNonEmpty(
                 getFromQuery(query, "docid", "docId", "document_id", "documentId", "entity_id", "entityId", "document"),
                 extractFromParamJson(query, "Param", "docId", "documentId", "document_id"),
@@ -96,7 +89,18 @@ public class SignNowWebhookController {
 
         log.info("[Webhook] event={} docId={}", event, documentId);
 
-        if (!event.endsWith(".complete")) {
+        // Filter events: chỉ xử lý các event liên quan đến ký
+        // - document.fieldinvite.complete: Một người đã ký xong
+        // - document.complete: Tất cả người đã ký xong (source of truth)
+        // - document.signed, signer.signed: Các event signed khác
+        // Mở rộng điều kiện check để bắt được các biến thể của tên sự kiện
+        boolean isFieldInviteComplete = "document.fieldinvite.complete".equals(event) 
+                                     || "fieldinvite.complete".equals(event);
+        boolean isDocumentComplete = "document.complete".equals(event);
+        boolean isCompleteEvent = isFieldInviteComplete || isDocumentComplete;
+        boolean isSignedEvent = event.endsWith(".signed") || event.contains(".signed.");
+
+        if (!isCompleteEvent && !isSignedEvent) {
             return ResponseEntity.ok("ignored");
         }
         if (!StringUtils.hasText(documentId)) {
@@ -104,65 +108,42 @@ public class SignNowWebhookController {
             return ResponseEntity.ok("no doc id");
         }
 
-        Optional<Contract> optC = contractRepository.findBySignnowDocumentId(documentId);
-        if (optC.isPresent()) {
-            Contract c = optC.get();
-            if (c.getStatus() == ContractStatus.COMPLETED) {
-                return ResponseEntity.ok("already completed");
-            }
-
-            boolean withHistory = props.getWebhook().isWithHistory();
-            try {
-                if (!signNowClient.canDownloadCollapsed(documentId, withHistory)) {
-                    return ResponseEntity.accepted().body("collapsed not ready");
-                }
-            } catch (Exception e) {
-                log.debug("[Webhook] canDownloadCollapsed(contract) failed: {}", e.getMessage());
-            }
-
-            try {
-                saveSignedAndComplete(c, withHistory);
-                return ResponseEntity.ok("ok");
-            } catch (AppException ex) {
-                return ResponseEntity.accepted().body("not ready");
-            } catch (Exception ex) {
-                log.error("[Webhook] saveSignedAndComplete failed", ex);
-                return ResponseEntity.internalServerError().body("error");
-            }
+        // Route to appropriate handler via service
+        Optional<com.fpt.producerworkbench.entity.Contract> optContract = contractRepository.findBySignnowDocumentId(documentId);
+        if (optContract.isPresent()) {
+            return webhookEventService.handleContractEvent(
+                    optContract.get(), 
+                    documentId, 
+                    event, 
+                    isFieldInviteComplete, 
+                    isDocumentComplete, 
+                    isSignedEvent
+            );
         }
 
-        Optional<ContractAddendum> optA = contractAddendumRepository.findBySignnowDocumentId(documentId);
-        if (optA.isPresent()) {
-            ContractAddendum a = optA.get();
-
-            if (a.getSignnowStatus() == ContractStatus.COMPLETED) {
-                return ResponseEntity.ok("addendum already completed");
-            }
-
-            boolean withHistory = props.getWebhook().isWithHistory();
-            try {
-                if (!signNowClient.canDownloadCollapsed(documentId, withHistory)) {
-                    return ResponseEntity.accepted().body("collapsed not ready");
-                }
-            } catch (Exception e) {
-                log.debug("[Webhook] canDownloadCollapsed(addendum) failed: {}", e.getMessage());
-            }
-
-            try {
-                saveSignedAddendumAndComplete(a, withHistory); // NEW
-                return ResponseEntity.ok("ok");
-            } catch (AppException ex) {
-                return ResponseEntity.accepted().body("not ready");
-            } catch (Exception ex) {
-                log.error("[Webhook] saveSignedAddendumAndComplete failed", ex);
-                return ResponseEntity.internalServerError().body("error");
-            }
+        Optional<com.fpt.producerworkbench.entity.ContractAddendum> optAddendum = contractAddendumRepository.findBySignnowDocumentId(documentId);
+        if (optAddendum.isPresent()) {
+            return webhookEventService.handleAddendumEvent(
+                    optAddendum.get(), 
+                    documentId, 
+                    event, 
+                    isFieldInviteComplete, 
+                    isDocumentComplete, 
+                    isSignedEvent
+            );
         }
 
         log.warn("[Webhook] No contract/addendum matches signNow docId={}", documentId);
         return ResponseEntity.ok("no related contract/addendum");
     }
 
+    // ============================================================================
+    // Helper Functions - Chỉ dùng cho parsing và verification
+    // ============================================================================
+
+    /**
+     * Verify HMAC signature từ SignNow
+     */
     private boolean verifyHmac(String signature, byte[] body, String secret) {
         if (!StringUtils.hasText(signature) || !StringUtils.hasText(secret)) return false;
         try {
@@ -177,6 +158,9 @@ public class SignNowWebhookController {
         }
     }
 
+    /**
+     * Constant-time string comparison để tránh timing attack
+     */
     private boolean slowEquals(String a, String b) {
         if (a == null || b == null) return false;
         if (a.length() != b.length()) return false;
@@ -184,7 +168,10 @@ public class SignNowWebhookController {
         for (int i = 0; i < a.length(); i++) res |= a.charAt(i) ^ b.charAt(i);
         return res == 0;
     }
-
+    
+    /**
+     * Extract text value từ JSON node bằng JSON pointer
+     */
     private String textAt(JsonNode root, String jsonPtr) {
         try {
             JsonNode n = root.at(jsonPtr);
@@ -194,12 +181,18 @@ public class SignNowWebhookController {
         }
     }
 
+    /**
+     * Tìm giá trị đầu tiên không rỗng trong danh sách
+     */
     private String firstNonEmpty(String... vals) {
         if (vals == null) return null;
         for (String v : vals) if (StringUtils.hasText(v)) return v;
         return null;
     }
 
+    /**
+     * Lấy giá trị từ query parameters với nhiều key options
+     */
     private String getFromQuery(Map<String, String> q, String... keys) {
         if (q == null || q.isEmpty() || keys == null) return null;
         for (String k : keys) {
@@ -209,6 +202,9 @@ public class SignNowWebhookController {
         return null;
     }
 
+    /**
+     * Extract document ID từ JSON trong query parameter
+     */
     private String extractFromParamJson(Map<String, String> q, String paramKey, String... docKeys) {
         if (q == null) return null;
         String raw = firstNonEmpty(q.get(paramKey), q.get(paramKey != null ? paramKey.toLowerCase() : null));
@@ -222,113 +218,5 @@ public class SignNowWebhookController {
             }
         } catch (Exception ignore) { }
         return null;
-    }
-
-
-
-    private void saveSignedAndComplete(Contract c, boolean withHistory) {
-        if (c.getSignnowDocumentId() == null || c.getSignnowDocumentId().isBlank()) {
-            throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
-        }
-
-        byte[] pdf;
-        try {
-            pdf = signNowClient.downloadFinalPdf(c.getSignnowDocumentId(), withHistory);
-            log.info("[Webhook] Downloaded signed PDF bytes={}", (pdf == null ? 0 : pdf.length));
-        } catch (org.springframework.web.reactive.function.client.WebClientResponseException ex) {
-            int sc = ex.getStatusCode().value();
-            if (sc == 400 || sc == 409 || sc == 422) {
-                log.warn("[Webhook] Collapsed not ready: status={} body={}", sc, ex.getResponseBodyAsString());
-                throw new AppException(ErrorCode.SIGNNOW_DOC_NOT_COMPLETED);
-            }
-            log.error("[Webhook] Download failed: status={} body={}", sc, ex.getResponseBodyAsString());
-            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
-        } catch (IllegalStateException ex) {
-            log.error("[Webhook] Download failed: empty body (200 OK)", ex);
-            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
-        } catch (Exception ex) {
-            log.error("[Webhook] Download failed (unexpected)", ex);
-            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
-        }
-
-        ContractDocument latest = contractDocumentRepository
-                .findTopByContract_IdAndTypeOrderByVersionDesc(c.getId(), ContractDocumentType.SIGNED)
-                .orElse(null);
-        if (latest != null) {
-            log.warn("[Webhook] Contract {} already has signed document, skipping", c.getId());
-            return;
-        }
-        int nextVer = 1;
-
-        String fileName = "signed_v" + nextVer + ".pdf";
-        String storageUrl = fileKeyGenerator.generateContractDocumentKey(c.getId(), fileName);
-        fileStorageService.uploadBytes(pdf, storageUrl, "application/pdf");
-
-        ContractDocument doc = new ContractDocument();
-        doc.setContract(c);
-        doc.setType(ContractDocumentType.SIGNED);
-        doc.setVersion(nextVer);
-        doc.setStorageUrl(storageUrl);
-        contractDocumentRepository.save(doc);
-
-        c.setSignnowStatus(ContractStatus.COMPLETED);
-        c.setStatus(ContractStatus.COMPLETED);
-        contractRepository.save(c);
-
-        log.info("[Webhook] Successfully saved signed contract {} version {}", c.getId(), nextVer);
-    }
-
-
-    private void saveSignedAddendumAndComplete(ContractAddendum a, boolean withHistory) {
-        if (a.getSignnowDocumentId() == null || a.getSignnowDocumentId().isBlank()) {
-            throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
-        }
-
-        byte[] pdf;
-        try {
-            pdf = signNowClient.downloadFinalPdf(a.getSignnowDocumentId(), withHistory);
-            log.info("[Webhook][Addendum] Downloaded final PDF bytes={}", (pdf == null ? 0 : pdf.length));
-        } catch (org.springframework.web.reactive.function.client.WebClientResponseException ex) {
-            int sc = ex.getStatusCode().value();
-            if (sc == 400 || sc == 409 || sc == 422) {
-                log.warn("[Webhook][Addendum] Collapsed not ready: status={} body={}", sc, ex.getResponseBodyAsString());
-                throw new AppException(ErrorCode.SIGNNOW_DOC_NOT_COMPLETED);
-            }
-            log.error("[Webhook][Addendum] Download failed: status={} body={}", sc, ex.getResponseBodyAsString());
-            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
-        } catch (IllegalStateException ex) {
-            log.error("[Webhook][Addendum] Download failed: empty body (200 OK)", ex);
-            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
-        } catch (Exception ex) {
-            log.error("[Webhook][Addendum] Download failed (unexpected)", ex);
-            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
-        }
-
-        AddendumDocument existing = addendumDocumentRepository
-                .findFirstByAddendumIdAndTypeOrderByVersionDesc(a.getId(), AddendumDocumentType.SIGNED)
-                .orElse(null);
-
-        if (existing != null) {
-            log.warn("[Webhook][Addendum] Addendum {} already has signed document, skipping", a.getId());
-            return;
-        }
-
-        String key = fileKeyGenerator.generateContractDocumentKey(a.getContract().getId(), "addendum-signed.pdf");
-        fileStorageService.uploadBytes(pdf, key, "application/pdf");
-
-        AddendumDocument doc = AddendumDocument.builder()
-                .addendum(a)
-                .type(AddendumDocumentType.SIGNED)
-                .version(a.getVersion())
-                .storageUrl(key)
-                .signnowDocumentId(a.getSignnowDocumentId())
-                .build();
-        addendumDocumentRepository.save(doc);
-
-        a.setSignnowStatus(ContractStatus.COMPLETED);
-        contractAddendumRepository.save(a);
-
-        log.info("[Webhook] Successfully saved signed addendum for contract {} (addendumId={}, version={})",
-                a.getContract().getId(), a.getId(), a.getVersion());
     }
 }

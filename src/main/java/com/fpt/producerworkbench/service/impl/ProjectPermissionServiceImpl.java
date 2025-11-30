@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.UserRole;
@@ -7,12 +8,14 @@ import com.fpt.producerworkbench.dto.response.AddendumPermissionResponse;
 import com.fpt.producerworkbench.dto.response.ContractPermissionResponse;
 import com.fpt.producerworkbench.dto.response.MilestonePermissionResponse;
 import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
+import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.ProjectMember;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
@@ -38,6 +41,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
     private final ProjectMemberRepository projectMemberRepository;
     private final MilestoneRepository milestoneRepository;
     private final MilestoneMoneySplitRepository milestoneMoneySplitRepository;
+    private final ContractRepository contractRepository;
 
     /**
      * Context class chứa thông tin chung về user và project để tránh query database nhiều lần
@@ -404,7 +408,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         }
 
         Project project = context.project;
-        if (project == null || !Boolean.TRUE.equals(project.getIsFunded())) {
+        if (project == null || !isProjectFunded(project)) {
             return false;
         }
 
@@ -694,7 +698,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         }
 
         // Phải là project đã funded
-        return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        return project != null && isProjectFunded(project);
     }
 
     private boolean canCreatePayment(UserRole userRole, ProjectRole projectRole) {
@@ -856,7 +860,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         // Client và Observer chỉ xem được khi project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
 
         return false;
@@ -876,7 +880,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         // Client và Observer chỉ chấp nhận được khi project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
 
         return false;
@@ -894,7 +898,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         }
 
         // Phải là project đã funded
-        return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        return project != null && isProjectFunded(project);
     }
 
     /**
@@ -909,7 +913,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         }
 
         // Phải là project đã funded
-        return project != null && Boolean.TRUE.equals(project.getIsFunded());
+        return project != null && isProjectFunded(project);
     }
 
     /**
@@ -926,7 +930,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
         
         // Client và Observer xem được nếu project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
         
         return false;
@@ -956,7 +960,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         // Client và Observer chỉ tạo được khi project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
 
         return false;
@@ -976,7 +980,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         // Client và Observer chỉ xem được khi project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
 
         return false;
@@ -998,7 +1002,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         // Client và Observer chỉ sửa được khi project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
 
         return false;
@@ -1020,7 +1024,7 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
 
         // Client và Observer chỉ xóa được khi project đã funded
         if (projectRole == ProjectRole.CLIENT || projectRole == ProjectRole.OBSERVER) {
-            return project != null && Boolean.TRUE.equals(project.getIsFunded());
+            return project != null && isProjectFunded(project);
         }
 
         return false;
@@ -1032,5 +1036,21 @@ public class ProjectPermissionServiceImpl implements ProjectPermissionService {
      */
     private boolean canUpdateClientRoomCommentStatus(boolean isProjectOwner) {
         return isProjectOwner;
+    }
+
+    /**
+     * Kiểm tra project đã được funded chưa (dựa trên contract status)
+     * Project được coi là funded khi contract có status PAID hoặc COMPLETED
+     */
+    private boolean isProjectFunded(Project project) {
+        if (project == null) {
+            return false;
+        }
+        Contract contract = contractRepository.findByProjectId(project.getId()).orElse(null);
+        if (contract == null) {
+            return false;
+        }
+        ContractStatus status = contract.getSignnowStatus();
+        return status == ContractStatus.PAID || status == ContractStatus.COMPLETED;
     }
 }

@@ -58,8 +58,14 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
 
         if (!ProjectRole.CLIENT.equals(projectMember.getProjectRole())) throw new AppException(ErrorCode.ACCESS_DENIED);
-        if (Boolean.TRUE.equals(project.getIsFunded())) throw new AppException(ErrorCode.PROJECT_ALREADY_FUNDED);
-        if (!ContractStatus.COMPLETED.equals(contract.getStatus())) throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
+        // Kiểm tra hợp đồng đã được thanh toán chưa (PAID hoặc COMPLETED)
+        if (contract.getSignnowStatus() == ContractStatus.PAID || contract.getSignnowStatus() == ContractStatus.COMPLETED) {
+            throw new AppException(ErrorCode.PROJECT_ALREADY_FUNDED);
+        }
+        // Kiểm tra hợp đồng đã được ký chưa (phải SIGNED mới được thanh toán)
+        if (contract.getSignnowStatus() != ContractStatus.SIGNED) {
+            throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
+        }
 
         BigDecimal amount = calculatePaymentAmount(contract);
 
@@ -134,14 +140,14 @@ public class PaymentServiceImpl implements PaymentService {
                 .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
-        // Kiểm tra phụ lục đã được ký chưa
-        if (!ContractStatus.COMPLETED.equals(addendum.getSignnowStatus())) {
-            throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
-        }
-
-        // Kiểm tra phụ lục đã được thanh toán chưa
-        if (Boolean.TRUE.equals(addendum.getIsPaid())) {
+        // Kiểm tra phụ lục đã được thanh toán chưa (PAID hoặc COMPLETED)
+        if (addendum.getSignnowStatus() == ContractStatus.PAID || addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        
+        // Kiểm tra phụ lục đã được ký chưa (phải SIGNED mới được thanh toán)
+        if (addendum.getSignnowStatus() != ContractStatus.SIGNED) {
+            throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
         }
 
         // Kiểm tra số tiền có hợp lệ không
@@ -255,17 +261,25 @@ public class PaymentServiceImpl implements PaymentService {
 
                 // Xử lý thanh toán cho contract hoặc addendum
                 if (tx.getRelatedAddendum() != null) {
-                    // Thanh toán phụ lục
+                    // Thanh toán phụ lục: chuyển từ SIGNED sang PAID
                     ContractAddendum addendum = tx.getRelatedAddendum();
-                    addendum.setIsPaid(true);
-                    contractAddendumRepository.save(addendum);
-                    log.info("Đánh dấu THÀNH CÔNG thanh toán phụ lục. Mã đơn hàng: {}, Addendum ID: {}", orderCode, addendum.getId());
+                    if (addendum.getSignnowStatus() == ContractStatus.SIGNED) {
+                        addendum.setSignnowStatus(ContractStatus.PAID);
+                        contractAddendumRepository.save(addendum);
+                        log.info("Đánh dấu THÀNH CÔNG thanh toán phụ lục. Mã đơn hàng: {}, Addendum ID: {}, Status: PAID", orderCode, addendum.getId());
+                    } else {
+                        log.warn("Addendum {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}", addendum.getId(), addendum.getSignnowStatus());
+                    }
                 } else if (tx.getRelatedContract() != null) {
-                    // Thanh toán hợp đồng
-                    Project project = tx.getRelatedContract().getProject();
-                    project.setIsFunded(true);
-                    projectRepository.save(project);
-                    log.info("Đánh dấu THÀNH CÔNG và tài trợ dự án. Mã đơn hàng: {}, ID dự án: {}", orderCode, project.getId());
+                    // Thanh toán hợp đồng: chuyển từ SIGNED sang PAID
+                    Contract contract = tx.getRelatedContract();
+                    if (contract.getSignnowStatus() == ContractStatus.SIGNED) {
+                        contract.setSignnowStatus(ContractStatus.PAID);
+                        contractRepository.save(contract);
+                        log.info("Đánh dấu THÀNH CÔNG thanh toán hợp đồng. Mã đơn hàng: {}, Contract ID: {}, Status: PAID", orderCode, contract.getId());
+                    } else {
+                        log.warn("Contract {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}", contract.getId(), contract.getSignnowStatus());
+                    }
                 }
 
             } else {

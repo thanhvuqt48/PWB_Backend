@@ -70,6 +70,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
     private final ProjectPermissionService projectPermissionService;
     private final MilestoneRepository milestoneRepository;
     private final com.fpt.producerworkbench.repository.ContractPartyRepository contractPartyRepository;
+    private final com.fpt.producerworkbench.configuration.SignNowClient signNowClient;
 
     @Value("${pwb.addendum.template}")
     private Resource addendumTemplate;
@@ -129,7 +130,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         var perms = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
         if (!perms.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
 
-        // Tự động load snapshot thông tin Bên A/B từ ContractParty để không phải nhập lại khi soạn phụ lục
         ContractParty party = contractPartyRepository.findByContractId(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
         applyPartyToAddendumRequest(party, req);
@@ -149,15 +149,22 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             }
         }
 
-        // Tìm phụ lục mới nhất (theo addendumNumber và version)
         ContractAddendum latestAddendum = addendumRepository
                 .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElse(null);
 
+        if (latestAddendum != null) {
+            ContractStatus latestStatus = latestAddendum.getSignnowStatus();
+            if (latestStatus == ContractStatus.PAID || latestStatus == ContractStatus.COMPLETED) {
+                if (latestStatus == ContractStatus.PAID) {
+                    throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+                }
+            }
+        }
+
         ContractAddendum add;
 
         if (latestAddendum == null) {
-            // Chưa có phụ lục nào → tạo phụ lục 1, version 1
             add = ContractAddendum.builder()
                     .contract(contract)
                     .title(req.getTitle() != null ? req.getTitle() : "Phụ lục hợp đồng")
@@ -165,9 +172,9 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                     .version(1)
                     .effectiveDate(req.getEffectiveDate())
                     .signnowStatus(ContractStatus.DRAFT)
+                    .signnowDocumentId(null)
                     .build();
         } else if (ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
-            // Phụ lục hiện tại đã COMPLETED → tạo phụ lục mới (addendumNumber + 1), version 1
             int newAddendumNumber = latestAddendum.getAddendumNumber() + 1;
             add = ContractAddendum.builder()
                     .contract(contract)
@@ -176,15 +183,51 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                     .version(1)
                     .effectiveDate(req.getEffectiveDate())
                     .signnowStatus(ContractStatus.DRAFT)
+                    .signnowDocumentId(null)
                     .build();
         } else {
-            // Phụ lục hiện tại chưa COMPLETED (DRAFT) → tạo version mới của cùng addendumNumber
             int currentAddendumNumber = latestAddendum.getAddendumNumber();
-            // Tìm version mới nhất của addendumNumber này
             ContractAddendum latestVersionOfAddendum = addendumRepository
                     .findFirstByContractIdAndAddendumNumberOrderByVersionDesc(contractId, currentAddendumNumber)
                     .orElse(latestAddendum);
             int newVersion = latestVersionOfAddendum.getVersion() + 1;
+            
+            if (latestVersionOfAddendum.getId() != null && 
+                latestVersionOfAddendum.getSignnowDocumentId() != null && 
+                !latestVersionOfAddendum.getSignnowDocumentId().isBlank()) {
+                
+                ContractAddendum freshAddendum = addendumRepository.findById(latestVersionOfAddendum.getId())
+                        .orElse(null);
+                
+                if (freshAddendum != null) {
+                    ContractStatus freshStatus = freshAddendum.getSignnowStatus();
+                    String freshDocId = freshAddendum.getSignnowDocumentId();
+                    
+                    if ((freshStatus == ContractStatus.DRAFT || 
+                         freshStatus == ContractStatus.OUT_FOR_SIGNATURE || 
+                         freshStatus == ContractStatus.PARTIALLY_SIGNED || 
+                         freshStatus == ContractStatus.SIGNED) &&
+                        freshDocId != null && 
+                        freshDocId.equals(latestVersionOfAddendum.getSignnowDocumentId())) {
+                        
+                        String oldDocId = freshDocId;
+                        log.info("[AddendumPdf] Deleting old SignNow document {} before creating new version (addendum {}, status: {})", 
+                                oldDocId, latestVersionOfAddendum.getId(), freshStatus);
+                        boolean deleted = signNowClient.deleteDocument(oldDocId);
+                        if (deleted) {
+                            log.info("[AddendumPdf] Successfully deleted old SignNow document {}", oldDocId);
+                        } else {
+                            log.warn("[AddendumPdf] Failed to delete old SignNow document {} (may have been deleted already or not exist)", oldDocId);
+                        }
+                    } else {
+                        log.warn("[AddendumPdf] Skipping document deletion: addendum {} status changed from {} to {} or document ID changed", 
+                                latestVersionOfAddendum.getId(), latestVersionOfAddendum.getSignnowStatus(), freshStatus);
+                        if (freshStatus == ContractStatus.PAID || freshStatus == ContractStatus.COMPLETED) {
+                            throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+                        }
+                    }
+                }
+            }
             
             add = ContractAddendum.builder()
                     .contract(contract)
@@ -193,6 +236,7 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                     .version(newVersion)
                     .effectiveDate(req.getEffectiveDate() != null ? req.getEffectiveDate() : latestAddendum.getEffectiveDate())
                     .signnowStatus(ContractStatus.DRAFT)
+                    .signnowDocumentId(null)
                     .build();
         }
 
@@ -299,10 +343,8 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                 totalVat     = totalVat.add(vat);
                 totalMoney   = totalMoney.add(baseMoney);
 
-                if (!existing) {
-                    totalEdit    += editDelta;
-                    totalRefresh += refreshDelta;
-                }
+                totalEdit    += editDelta;
+                totalRefresh += refreshDelta;
             }
 
             add.setPitTax(totalPit);
@@ -337,7 +379,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             m.put("Box 2", req.getSignDate() != null ? req.getSignDate().format(d) : "");
             m.put("Box 3", ns(req.getSignPlace()));
 
-            // Bên A
             m.put("Box 4", ns(req.getAName()));
             m.put("Box 5", ns(req.getAId()));
             m.put("Box 6", req.getAIdIssueDate() != null ? req.getAIdIssueDate().format(d) : "");
@@ -345,7 +386,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
             m.put("Box 8", ns(req.getAAddress()));
             m.put("Box 9", ns(req.getAPhone()));
 
-            // Bên B
             m.put("Box 13", ns(req.getBName()));
             m.put("Box 14", ns(req.getBId()));
             m.put("Box 15", req.getBIdIssueDate() != null ? req.getBIdIssueDate().format(d) : "");
@@ -699,14 +739,9 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         return o == null ? "" : String.valueOf(o);
     }
 
-    /**
-     * Gán thông tin Bên A/B từ snapshot ContractParty vào request phụ lục.
-     * Mục tiêu: khi soạn phụ lục không cần nhập lại thông tin hai bên, luôn dùng dữ liệu đã lưu ở hợp đồng.
-     */
     private void applyPartyToAddendumRequest(ContractParty party, ContractAddendumPdfFillRequest req) {
         if (party == null || req == null) return;
 
-        // Bên A
         req.setAName(party.getAName());
         req.setAId(party.getAIdNumber());
         req.setAIdIssueDate(party.getAIdIssueDate());
@@ -714,7 +749,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
         req.setAAddress(party.getAAddress());
         req.setAPhone(party.getAPhone());
 
-        // Bên B
         req.setBName(party.getBName());
         req.setBId(party.getBIdNumber());
         req.setBIdIssueDate(party.getBIdIssueDate());

@@ -73,17 +73,11 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column(name = "decline_reason")
     private String declineReason;
 
-    /** Đánh dấu phụ lục đã được thanh toán */
-    @Builder.Default
-    @Column(name = "is_paid", nullable = false)
-    private Boolean isPaid = false;
-
     @PrePersist
     void prePersist() {
         if (signingMode == null) signingMode = SigningMode.EMAIL;
         if (signingOrderType == null) signingOrderType = SigningOrderType.SEQUENTIAL;
         if (signnowStatus == null) signnowStatus = ContractStatus.DRAFT;
-        if (isPaid == null) isPaid = false;
     }
 
 }

@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -52,17 +53,18 @@ public class ProjectContractServiceImpl implements ProjectContractService {
 
         Map<String, Object> resp = new HashMap<>();
         resp.put("id", c.getId());
-        resp.put("status", c.getStatus());
+        resp.put("status", c.getSignnowStatus());
         resp.put("signnowStatus", c.getSignnowStatus());
-        resp.put("totalAmount", c.getTotalAmount());
-        resp.put("paymentType", c.getPaymentType());
-        resp.put("contractDetails", c.getContractDetails());
-        resp.put("signnowDocumentId", c.getSignnowDocumentId());
+        
+        // isFunded được tính từ contract status: PAID hoặc COMPLETED
+        boolean isFunded = c.getSignnowStatus() == ContractStatus.PAID || c.getSignnowStatus() == ContractStatus.COMPLETED;
+        resp.put("isFunded", isFunded);
 
         ContractDocument signed = contractDocumentRepository
                 .findTopByContract_IdAndTypeOrderByVersionDesc(c.getId(), ContractDocumentType.SIGNED)
                 .orElse(null);
         if (signed != null) {
+            resp.put("documentVersion", signed.getVersion());
             resp.put("documentType", "SIGNED");
             resp.put("documentUrl", fileStorageService.generatePresignedUrl(signed.getStorageUrl(), false, null));
         } else {
@@ -70,6 +72,7 @@ public class ProjectContractServiceImpl implements ProjectContractService {
                     .findTopByContract_IdAndTypeOrderByVersionDesc(c.getId(), ContractDocumentType.FILLED)
                     .orElse(null);
             if (filled != null) {
+                resp.put("documentVersion", filled.getVersion());
                 resp.put("documentType", "FILLED");
                 resp.put("documentUrl", fileStorageService.generatePresignedUrl(filled.getStorageUrl(), false, null));
             }
@@ -126,15 +129,17 @@ public class ProjectContractServiceImpl implements ProjectContractService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        // Check if contract can be declined
-        if (c.getStatus() == ContractStatus.COMPLETED) {
+        // Không thể từ chối nếu đã ký (SIGNED), đã thanh toán (PAID), hoặc hoàn thành (COMPLETED)
+        if (c.getSignnowStatus() == ContractStatus.SIGNED || 
+            c.getSignnowStatus() == ContractStatus.PAID || 
+            c.getSignnowStatus() == ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.CONTRACT_ALREADY_COMPLETED);
         }
-        if (c.getStatus() == ContractStatus.DECLINED) {
+        if (c.getSignnowStatus() == ContractStatus.DECLINED) {
             throw new AppException(ErrorCode.CONTRACT_ALREADY_DECLINED);
         }
 
-        c.setStatus(ContractStatus.DECLINED);
+        c.setSignnowStatus(ContractStatus.DECLINED);
         c.setDeclineReason(reason);
         contractRepository.save(c);
         
@@ -200,7 +205,7 @@ public class ProjectContractServiceImpl implements ProjectContractService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        if (c.getStatus() != ContractStatus.DECLINED) {
+        if (c.getSignnowStatus() != ContractStatus.DECLINED) {
             throw new AppException(ErrorCode.CONTRACT_NOT_DECLINED);
         }
 
@@ -222,10 +227,13 @@ public class ProjectContractServiceImpl implements ProjectContractService {
         Contract c = contractRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
-        if (c.getStatus() == ContractStatus.COMPLETED) {
+        // Nếu đã ký (SIGNED, PAID, COMPLETED) thì không cần sync
+        if (c.getSignnowStatus() == ContractStatus.SIGNED || 
+            c.getSignnowStatus() == ContractStatus.PAID || 
+            c.getSignnowStatus() == ContractStatus.COMPLETED) {
             Map<String, Object> resp = new HashMap<>();
-            resp.put("message", "Contract already completed");
-            resp.put("status", c.getStatus());
+            resp.put("message", "Contract already signed/completed");
+            resp.put("status", c.getSignnowStatus());
             resp.put("signnowStatus", c.getSignnowStatus());
             return resp;
         }
@@ -240,20 +248,22 @@ public class ProjectContractServiceImpl implements ProjectContractService {
         boolean canDownload;
         try {
             canDownload = signNowClient.canDownloadCollapsed(c.getSignnowDocumentId(), withHistory);
+        } catch (WebClientResponseException ex) {
+            int sc = ex.getStatusCode().value();
+            log.error("[SyncStatus] Cannot check document status: status={} body={}", sc, ex.getResponseBodyAsString());
+            if (sc == 404) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+            }
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
         } catch (Exception e) {
-            log.warn("[SyncStatus] Cannot check document status for contract {}: {}", c.getId(), e.getMessage());
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("message", "Cannot check document status from SignNow");
-            resp.put("error", e.getMessage());
-            resp.put("status", c.getStatus());
-            resp.put("signnowStatus", c.getSignnowStatus());
-            return resp;
+            log.error("[SyncStatus] Cannot check document status (unexpected): {}", e.getMessage(), e);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
         }
 
         if (!canDownload) {
             Map<String, Object> resp = new HashMap<>();
             resp.put("message", "Document is not completed yet on SignNow");
-            resp.put("status", c.getStatus());
+            resp.put("status", c.getSignnowStatus());
             resp.put("signnowStatus", c.getSignnowStatus());
             return resp;
         }
@@ -263,6 +273,11 @@ public class ProjectContractServiceImpl implements ProjectContractService {
             byte[] pdf = signNowClient.downloadFinalPdf(c.getSignnowDocumentId(), withHistory);
             log.info("[SyncStatus] Downloaded signed PDF bytes={} for contract {}", 
                     (pdf == null ? 0 : pdf.length), c.getId());
+
+            if (pdf == null || pdf.length == 0) {
+                log.error("[SyncStatus] Downloaded PDF is null or empty for contract {}", c.getId());
+                throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+            }
 
             // Check xem đã có signed document chưa
             ContractDocument latest = contractDocumentRepository
@@ -289,32 +304,30 @@ public class ProjectContractServiceImpl implements ProjectContractService {
 
             // Update status
             c.setSignnowStatus(ContractStatus.COMPLETED);
-            c.setStatus(ContractStatus.COMPLETED);
             contractRepository.save(c);
 
             Map<String, Object> resp = new HashMap<>();
             resp.put("message", "Contract status synced successfully");
-            resp.put("status", c.getStatus());
+            resp.put("status", c.getSignnowStatus());
             resp.put("signnowStatus", c.getSignnowStatus());
             return resp;
 
+        } catch (AppException ex) {
+            // Re-throw AppException để giữ nguyên mã lỗi cụ thể
+            throw ex;
         } catch (org.springframework.web.reactive.function.client.WebClientResponseException ex) {
             int sc = ex.getStatusCode().value();
             log.error("[SyncStatus] Download failed: status={} body={}", sc, ex.getResponseBodyAsString());
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("message", "Failed to download signed document from SignNow");
-            resp.put("error", "HTTP " + sc + ": " + ex.getResponseBodyAsString());
-            resp.put("status", c.getStatus());
-            resp.put("signnowStatus", c.getSignnowStatus());
-            return resp;
+            if (sc == 400 || sc == 409 || sc == 422) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_NOT_COMPLETED);
+            } else if (sc == 404) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+            } else {
+                throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+            }
         } catch (Exception ex) {
             log.error("[SyncStatus] Sync failed for contract {}: {}", c.getId(), ex.getMessage(), ex);
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("message", "Failed to sync contract status");
-            resp.put("error", ex.getMessage());
-            resp.put("status", c.getStatus());
-            resp.put("signnowStatus", c.getSignnowStatus());
-            return resp;
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
         }
     }
 }

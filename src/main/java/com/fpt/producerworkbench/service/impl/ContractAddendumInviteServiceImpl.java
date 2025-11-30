@@ -5,7 +5,6 @@ import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
-import com.fpt.producerworkbench.entity.AddendumDocument;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.exception.AppException;
@@ -129,27 +128,17 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
-        // Kiểm tra phụ lục đã hoàn thành (COMPLETED) - không cho phép mời ký lại
-        if (addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
-            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
-        }
-
-        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE)
-        // Nếu status là DRAFT, cho phép gửi lại lời mời (phụ lục mới hoặc đã reset)
-        if (addendum.getSignnowStatus() != ContractStatus.DRAFT) {
-            if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE) {
-                throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
-            }
-        }
-
-        // Kiểm tra nếu đã có signnowDocumentId nhưng chưa COMPLETED → đã có invite
-        if (addendum.getSignnowDocumentId() != null && !addendum.getSignnowDocumentId().isBlank()
-                && addendum.getSignnowStatus() != ContractStatus.COMPLETED) {
+        if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE || 
+            addendum.getSignnowStatus() == ContractStatus.PARTIALLY_SIGNED) {
             throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
         }
 
-        // Nếu status là DRAFT và đã có signnowDocumentId, reset để upload document mới
-        // (tránh dùng document cũ có thể đã có invite)
+        if (addendum.getSignnowStatus() == ContractStatus.SIGNED || 
+            addendum.getSignnowStatus() == ContractStatus.PAID || 
+            addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
+            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
+        }
+
         if (addendum.getSignnowStatus() == ContractStatus.DRAFT 
                 && addendum.getSignnowDocumentId() != null 
                 && !addendum.getSignnowDocumentId().isBlank()) {
@@ -169,8 +158,28 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         }
 
         if (addendum.getSignnowDocumentId() == null) {
-            String docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "addendum-" + contractId + ".pdf");
+            String docId;
+            try {
+                docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "addendum-" + contractId + ".pdf");
+            } catch (WebClientResponseException ex) {
+                int sc = ex.getStatusCode().value();
+                log.error("[Addendum] Upload document failed: status={} body={}", sc, ex.getResponseBodyAsString());
+                if (sc == 404) {
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+                }
+                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+            } catch (Exception ex) {
+                log.error("[Addendum] Upload document failed (unexpected): {}", ex.getMessage(), ex);
+                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+            }
+            
+            if (docId == null || docId.isBlank()) {
+                log.error("[Addendum] Upload document returned null or empty document ID");
+                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+            }
+            
             addendum.setSignnowDocumentId(docId);
+            addendumRepository.save(addendum);
 
             try {
                 signNowWebhookService.ensureCompletedEventForDocument(docId);
@@ -183,7 +192,20 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         }
 
         List<ContractInviteRequest.Signer> auto = generateAutoSigners(contract);
-        String ownerEmail = signNowClient.getDocumentOwnerEmail(addendum.getSignnowDocumentId());
+        String ownerEmail;
+        try {
+            ownerEmail = signNowClient.getDocumentOwnerEmail(addendum.getSignnowDocumentId());
+        } catch (WebClientResponseException ex) {
+            int sc = ex.getStatusCode().value();
+            log.error("[Addendum] Get document owner email failed: status={} body={}", sc, ex.getResponseBodyAsString());
+            if (sc == 404) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+            }
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        } catch (Exception ex) {
+            log.error("[Addendum] Get document owner email failed (unexpected): {}", ex.getMessage(), ex);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        }
         List<ContractInviteRequest.Signer> filtered = new ArrayList<>();
         for (var s : auto) {
             if (s.getEmail() == null || s.getEmail().isBlank())
@@ -197,7 +219,21 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         StartSigningResponse resp = new StartSigningResponse();
         try {
             if (req.getUseFieldInvite() == null || Boolean.TRUE.equals(req.getUseFieldInvite())) {
-                Map<String, String> roleIdMap = signNowClient.getRoleIdMap(addendum.getSignnowDocumentId());
+                Map<String, String> roleIdMap;
+                try {
+                    roleIdMap = signNowClient.getRoleIdMap(addendum.getSignnowDocumentId());
+                } catch (WebClientResponseException ex) {
+                    int sc = ex.getStatusCode().value();
+                    log.error("[Addendum] Get role ID map failed: status={} body={}", sc, ex.getResponseBodyAsString());
+                    if (sc == 404) {
+                        throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+                    }
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+                } catch (Exception ex) {
+                    log.error("[Addendum] Get role ID map failed (unexpected): {}", ex.getMessage(), ex);
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+                }
+                
                 if (roleIdMap.isEmpty()) throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
 
                 List<Map<String, Object>> to = new ArrayList<>();
@@ -221,19 +257,30 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 Map<String, Object> inv = signNowClient.createFreeFormInvite(addendum.getSignnowDocumentId(), emails, sequential, null);
                 resp.setInviteId((String) inv.getOrDefault("id", "invite"));
             }
+        } catch (AppException ex) {
+            throw ex;
         } catch (WebClientResponseException wex) {
-            throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
+            int sc = wex.getStatusCode().value();
+            log.error("[Addendum] Create invite failed: status={} body={}", sc, wex.getResponseBodyAsString());
+            if (sc == 404) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+            } else if (sc == 400) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+            } else if (sc == 422) {
+                throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
+            } else {
+                throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
+            }
         } catch (Exception ex) {
+            log.error("[Addendum] Create invite failed (unexpected): {}", ex.getMessage(), ex);
             throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
         }
 
         addendum.setSignnowStatus(ContractStatus.OUT_FOR_SIGNATURE);
         addendumRepository.save(addendum);
 
-        // Gửi email async để không block request (gọi qua self để Spring proxy hoạt động)
         self.sendInviteEmailsAsync(contract, addendum, filtered);
 
-        // Gửi notification realtime cho các signers
         try {
             User currentUser = userRepository.findByEmail(auth.getName())
                     .orElse(null);

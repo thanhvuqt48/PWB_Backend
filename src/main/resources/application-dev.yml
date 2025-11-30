@@ -1,4 +1,7 @@
 spring:
+  output:
+    ansi:
+      enabled: ALWAYS
   datasource:
     url: ${DBMS_CONNECTION}
     driver-class-name: com.mysql.cj.jdbc.Driver
