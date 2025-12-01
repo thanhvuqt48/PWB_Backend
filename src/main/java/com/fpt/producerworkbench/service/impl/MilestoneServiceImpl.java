@@ -159,7 +159,12 @@ public class MilestoneServiceImpl implements MilestoneService {
         Contract contract = contractRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
         Project project = contract.getProject();
-        if (project == null || !Boolean.TRUE.equals(project.getIsFunded())) {
+        if (project == null) {
+            throw new AppException(ErrorCode.PROJECT_NOT_FUNDED);
+        }
+        // Kiểm tra contract đã được thanh toán chưa (PAID hoặc COMPLETED)
+        ContractStatus contractStatus = contract.getSignnowStatus();
+        if (contractStatus != ContractStatus.PAID && contractStatus != ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.PROJECT_NOT_FUNDED);
         }
 
@@ -170,7 +175,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
         }
 
-        if (!ContractStatus.COMPLETED.equals(contract.getStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 
@@ -254,7 +259,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
         }
 
-        if (!ContractStatus.COMPLETED.equals(contract.getStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 
@@ -382,7 +387,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .sequence(milestone.getSequence())
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
-                .isFunded(project != null ? project.getIsFunded() : null)
+                .isFunded(calculateIsFunded(milestone.getContract()))
                 .members(members)
                 .build();
     }
@@ -1546,5 +1551,17 @@ public class MilestoneServiceImpl implements MilestoneService {
         } catch (Exception e) {
             log.warn("Lỗi khi xóa file tạm thời: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Tính toán isFunded từ contract status
+     * Contract được coi là funded khi status là PAID hoặc COMPLETED
+     */
+    private Boolean calculateIsFunded(Contract contract) {
+        if (contract == null) {
+            return null;
+        }
+        ContractStatus status = contract.getSignnowStatus();
+        return status == ContractStatus.PAID || status == ContractStatus.COMPLETED;
     }
 }

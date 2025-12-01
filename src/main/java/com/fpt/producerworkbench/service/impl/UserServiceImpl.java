@@ -5,9 +5,11 @@ import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.*;
 import com.fpt.producerworkbench.dto.response.*;
+import com.fpt.producerworkbench.entity.Portfolio;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.mapper.UserMapper;
+import com.fpt.producerworkbench.repository.PortfolioRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.EmailService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
@@ -31,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -54,6 +57,7 @@ public class UserServiceImpl implements UserService {
     FileKeyGenerator fileKeyGenerator;
     FileStorageService fileStorageService;
     VnptEkycService vnptEkycService;
+    PortfolioRepository portfolioRepository;
 
     @Transactional
     public UserResponse createUser(UserCreationRequest request, String otp) {
@@ -71,7 +75,21 @@ public class UserServiceImpl implements UserService {
         user.setPasswordHash(passwordEncoder.encode(user.getPassword()));
         user.setRole(UserRole.CUSTOMER);
         user.setStatus(UserStatus.ACTIVE);
+        user.setIsVerified(false);
         userRepository.save(user);
+
+        // Tạo portfolio mặc định cho user mới
+        Portfolio defaultPortfolio = Portfolio.builder()
+                .user(user)
+                .isPublic(false)
+                .sections(new HashSet<>())
+                .personalProjects(new HashSet<>())
+                .socialLinks(new HashSet<>())
+                .genres(new HashSet<>())
+                .tags(new HashSet<>())
+                .build();
+        portfolioRepository.save(defaultPortfolio);
+        log.info("Default portfolio created for user ID: {}", user.getId());
 
         otpService.deleteOtp(request.getEmail());
 
@@ -225,11 +243,8 @@ public class UserServiceImpl implements UserService {
 
             if (user.getAvatarUrl() != null && !user.getAvatarUrl().isEmpty()) {
                 try {
-                    String oldKey = extractKeyFromUrl(user.getAvatarUrl());
-                    if (oldKey != null) {
-                        fileStorageService.deleteFile(oldKey);
-                        log.info("Deleted old avatar: {}", oldKey);
-                    }
+                    fileStorageService.deleteFile(user.getAvatarUrl());
+                    log.info("Deleted old avatar: {}", user.getAvatarUrl());
                 } catch (Exception e) {
                     log.warn("Failed to delete old avatar: {}", e.getMessage());
                 }
@@ -379,48 +394,6 @@ public class UserServiceImpl implements UserService {
         user.setIsVerified(true);
         user.setVerifiedAt(LocalDateTime.now());
         userRepository.save(user);
-    }
-
-    private String extractKeyFromUrl(String url) {
-        if (url == null || url.isEmpty()) {
-            return null;
-        }
-
-        int queryIndex = url.indexOf('?');
-        int fragmentIndex = url.indexOf('#');
-        int endIndex = url.length();
-        if (queryIndex > 0) {
-            endIndex = queryIndex;
-        } else if (fragmentIndex > 0) {
-            endIndex = fragmentIndex;
-        }
-        String cleanUrl = url.substring(0, endIndex);
-
-        String key = null;
-
-        if (cleanUrl.contains("cloudfront.net")) {
-            int domainIndex = cleanUrl.indexOf("cloudfront.net");
-            String afterDomain = cleanUrl.substring(domainIndex + "cloudfront.net".length());
-            // Remove leading slash nếu có
-            if (afterDomain.startsWith("/")) {
-                afterDomain = afterDomain.substring(1);
-            }
-            key = afterDomain.isEmpty() ? null : afterDomain;
-        } else if (cleanUrl.contains("amazonaws.com/")) {
-            String[] parts = cleanUrl.split("amazonaws.com/");
-            if (parts.length > 1) {
-                key = parts[1];
-            }
-        } else if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
-            key = cleanUrl;
-        }
-
-        // Normalize key: remove leading slash để đảm bảo format đúng cho S3
-        if (key != null && key.startsWith("/")) {
-            key = key.substring(1);
-        }
-
-        return key;
     }
 
     public List<ParticipantInfoDetailResponse> searchUser(String email) {

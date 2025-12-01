@@ -51,8 +51,4 @@ public class Project  extends AbstractEntity<Long>{
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
     private List<LiveSession> liveSessions = new ArrayList<>();
-
-    @Column(name = "is_funded", nullable = false)
-    @Builder.Default
-    private Boolean isFunded = false;
 }

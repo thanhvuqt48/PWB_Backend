@@ -1,12 +1,39 @@
 spring:
+  output:
+    ansi:
+      enabled: ALWAYS
   datasource:
-    url: ${DBMS_CONNECTION}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${DBMS_USERNAME}
-    password: ${DBMS_PASSWORD}
+    primary:
+      url: ${DBMS_CONNECTION}
+      jdbc-url: ${DBMS_CONNECTION}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      username: ${DBMS_USERNAME}
+      password: ${DBMS_PASSWORD}
+      hikari:
+        pool-name: PrimaryHikariPool
+        maximum-pool-size: 10
+        minimum-idle: 5
+        connection-timeout: 30000
+    
+    userguide:
+      url: ${POSTGRES_URL}
+      jdbc-url: ${POSTGRES_URL}
+      driver-class-name: org.postgresql.Driver
+      username: ${POSTGRES_USERNAME}
+      password: ${POSTGRES_PASSWORD}
+      hikari:
+        pool-name: UserGuideHikariPool
+        maximum-pool-size: 5
+        minimum-idle: 2
+        connection-timeout: 30000
+  
   jpa:
     hibernate:
       ddl-auto: update
+    properties:
+      hibernate:
+        show_sql: false
+        format_sql: true
   servlet:
     multipart:
       max-file-size: 1GB
@@ -46,17 +73,11 @@ spring:
     redis:
       host: redis
       port: 6379
-      password: ""
+      password: "" 
 
   jackson:
     time-zone: Asia/Ho_Chi_Minh
     date-format: yyyy-MM-dd
-
-  # Gemini REST API Configuration
-  gemini:
-    api-key: ${GEMINI_API_KEY}
-    model: gemini-2.5-flash  # Stable: 15 req/min, 1M tokens context
-    base-url: https://generativelanguage.googleapis.com/v1beta
 
   # Spring AI Configuration
   ai:
@@ -67,7 +88,26 @@ spring:
         namespace: ${PINECONE_NAMESPACE:music-terms}
         projectName: ${PINECONE_PROJECT_ID:nxzaj2y}
         environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
-        # Using default transformer embeddings (384 dimensions)
+
+# Custom Pinecone Configuration
+pinecone:
+  api-key: ${PINECONE_API_KEY}
+  index-name: ${PINECONE_INDEX_NAME:music-terms-index}
+  host: ${PINECONE_HOST}
+  environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
+  project-id: ${PINECONE_PROJECT_ID:nxzaj2y}
+  namespaces:
+    music-terms: ${PINECONE_NAMESPACE:music-terms}
+    user-guides: ${PINECONE_NAMESPACE_USER_GUIDES:user-guides}
+  dimension: 768 # Gemini text-embedding-004
+
+gemini:
+  api-key: ${GEMINI_API_KEY}
+  model: ${GEMINI_MODEL:gemini-2.0-flash}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+  max-tokens: ${GEMINI_MAX_TOKENS:2048}
+  temperature: ${GEMINI_TEMPERATURE:0.3}
+  base-url: https://generativelanguage.googleapis.com/v1beta
 
 jwt:
   secret-key: ${SECRET_KEY}
@@ -128,16 +168,14 @@ pwb:
     font: classpath:/templates/NotoSerif-Regular.ttf
   addendum:
     template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac.pdf
+    milestone-template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac-milestone.pdf
     font: classpath:templates/NotoSerif-Regular.ttf
 
 storage:
   base-dir: ${STORAGE_BASE_DIR:/var/pwb-files}
-
+  
 cloudfront:
   domain: ${CLOUDFRONT_DOMAIN}
-  # Enable public URLs for portfolio/avatar images (no expiration)
-  # Set to true for production to avoid URL expiration issues
-  # Set to false to use presigned URLs (24h expiration)
   use-public-urls: ${CLOUDFRONT_USE_PUBLIC_URLS:true}
 
 aws:
@@ -181,7 +219,7 @@ logging:
   charset:
     console: UTF-8
     file: UTF-8
-
+  
 outbound:
   identity:
     client-id: ${OUTBOUND_CLIENT_ID}
@@ -201,23 +239,6 @@ payos:
 subscription:
   grace-days: ${SUBSCRIPTION_GRACE_DAYS:5}
   renewal-email-subject: ${SUBSCRIPTION_RENEWAL_EMAIL_SUBJECT:"Gia hạn gói PRO"}
-
-# Gemini AI Configuration (for direct API calls)
-gemini:
-  api-key: ${GEMINI_API_KEY}
-  model: ${GEMINI_MODEL:gemini-1.5-flash}
-  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
-  max-tokens: ${GEMINI_MAX_TOKENS:2048}
-  temperature: ${GEMINI_TEMPERATURE:0.3}
-
-# Pinecone Vector Database Configuration
-pinecone:
-  api-key: ${PINECONE_API_KEY}
-  index-name: ${PINECONE_INDEX_NAME:music-terms-index}
-  environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
-  namespace: ${PINECONE_NAMESPACE:music-terms}
-  project-id: ${PINECONE_PROJECT_ID:nxzaj2y}
-  host: ${PINECONE_HOST:music-terms-index-nxzaj2y.svc.aped-4627-b74a.pinecone.io}
 
 ffmpeg:
   path: ${FFMPEG_PATH:ffmpeg}
@@ -239,5 +260,3 @@ vnpt:
     access-token: ${VNPT_EKYC_ACCESS_TOKEN}
     username: ${VNPT_EKYC_USERNAME}
     password: ${VNPT_EKYC_PASSWORD}
-
-

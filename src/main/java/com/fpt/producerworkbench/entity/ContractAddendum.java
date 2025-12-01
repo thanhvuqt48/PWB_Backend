@@ -29,7 +29,10 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column()
     private String title;
 
-    private int version;
+    @Column(name = "addendum_number", nullable = false)
+    private int addendumNumber; // Số thứ tự phụ lục (1, 2, 3...)
+
+    private int version; // Version của phụ lục (1, 2, 3...)
 
     @Column(name = "effective_date")
     private LocalDate effectiveDate;
@@ -64,6 +67,11 @@ public class ContractAddendum extends AbstractEntity<Long> {
 
     @Column(name = "vat_tax", precision = 15, scale = 2)
     private BigDecimal vatTax;
+
+    /** Lý do từ chối phụ lục hợp đồng */
+    @Lob
+    @Column(name = "decline_reason")
+    private String declineReason;
 
     @PrePersist
     void prePersist() {
