@@ -94,7 +94,7 @@ public class ProducerDataInitializer {
     @Bean
     @ConditionalOnProperty(
             prefix = "spring",
-            value = "datasource.driver-class-name",
+            value = "datasource.primary.driver-class-name",
             havingValue = "com.mysql.cj.jdbc.Driver")
     @Order(2) // Run after ApplicationInitConfiguration
     ApplicationRunner initializeProducerSampleData() {
