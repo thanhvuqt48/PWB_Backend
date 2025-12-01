@@ -4,7 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.LyricsExtractedEvent;
+import com.fpt.producerworkbench.dto.request.BeatToLyricsRequest;
+import com.fpt.producerworkbench.dto.response.TrackSuggestionResponse;
 import com.fpt.producerworkbench.entity.InspirationTrack;
+import com.fpt.producerworkbench.exception.AppException;
+import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.TrackRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +32,7 @@ public class SuggestionServiceBedrockImpl {
     private final TrackRepository trackRepo;
     private final BedrockRuntimeClient bedrock;
     private final ObjectMapper mapper = new ObjectMapper();
+    private final ProjectMemberRepository projectMemberRepo;
 
     @Value("${bedrock.modelId:anthropic.claude-3-haiku-20240307-v1:0}")
     private String modelId;
@@ -114,13 +120,9 @@ public class SuggestionServiceBedrockImpl {
         }
     }
 
-
     private SongSuggestion rewriteWholeSong(List<String> originalSections, double temperature) throws Exception {
         String prompt = buildStructureAwarePrompt(originalSections);
-
-        int origChars = originalSections.stream()
-                .mapToInt(s -> s != null ? s.length() : 0)
-                .sum();
+        int origChars = originalSections.stream().mapToInt(s -> s != null ? s.length() : 0).sum();
         int maxTokens = Math.max(1024, Math.min(6000, origChars / 3 + 512));
 
         String body = buildAnthropicMessagesBody(prompt, maxTokens, temperature);
@@ -132,17 +134,150 @@ public class SuggestionServiceBedrockImpl {
                 .body(SdkBytes.fromString(body, StandardCharsets.UTF_8))
                 .build();
 
-        log.info("[Bedrock][whole-song] invoking modelId={}, maxTokens={}", modelId, maxTokens);
+        log.info("[Bedrock][whole-song] invoking modelId={}", modelId);
         InvokeModelResponse response = bedrock.invokeModel(request);
         String contentText = extractAnthropicContentText(response.body().asUtf8String());
 
-        SongJson sj = parseSongJson(contentText);
-
-        SongSuggestion rs = new SongSuggestion();
-        rs.mood = sj.mood;
-        rs.sections = sj.sections;
+        SongSuggestion rs = parseSongJson(contentText);
         rs.temperature = temperature;
         return rs;
+    }
+
+    public TrackSuggestionResponse generateLyricsFromBeat(Long userId, Long trackId, BeatToLyricsRequest req) {
+        InspirationTrack track = trackRepo.findById(trackId)
+                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
+
+        if (!projectMemberRepo.existsByProject_IdAndUser_Id(track.getProject().getId(), userId)) {
+            throw new AppException(ErrorCode.NOT_PROJECT_MEMBER);
+        }
+
+        try {
+            String prompt = buildCreativePrompt(req);
+            double temp = req.getTemperature() != null ? req.getTemperature() : 0.7;
+
+            String body = buildAnthropicMessagesBody(prompt, 2500, temp);
+
+            InvokeModelRequest invokeRequest = InvokeModelRequest.builder()
+                    .modelId(modelId)
+                    .contentType("application/json")
+                    .accept("application/json")
+                    .body(SdkBytes.fromString(body, StandardCharsets.UTF_8))
+                    .build();
+
+            log.info("[Bedrock] Generating lyrics for trackId={}", trackId);
+            InvokeModelResponse response = bedrock.invokeModel(invokeRequest);
+
+            String contentText = extractAnthropicContentText(response.body().asUtf8String());
+
+            SongSuggestion suggestion = parseSongJson(contentText);
+            suggestion.temperature = temp;
+
+            String resultJson = convertToResultJson(suggestion, req, track);
+
+            track.setAiSuggestions(resultJson);
+            track.setStatus(TrackStatus.COMPLETED);
+            trackRepo.save(track);
+
+            return toSuggestionResponse(track);
+
+        } catch (Exception e) {
+            log.error("[Bedrock] Error generating lyrics: {}", e.getMessage(), e);
+            track.setStatus(TrackStatus.FAILED);
+            trackRepo.save(track);
+            throw new AppException(ErrorCode.UNCATEGORIZED_EXCEPTION);
+        }
+    }
+
+    private String buildCreativePrompt(BeatToLyricsRequest req) {
+        List<String> struct = (req.getStructure() != null && !req.getStructure().isEmpty())
+                ? req.getStructure()
+                : List.of("Verse 1", "Chorus", "Verse 2", "Chorus", "Outro");
+
+        String structString = String.join("\n- ", struct);
+        String keywords = (req.getKeywords() != null) ? String.join(", ", req.getKeywords()) : "";
+
+        return """
+        You are a professional hit-maker songwriter.
+        
+        TASK: Write lyrics for a new song based on the following inputs.
+        
+        INPUTS:
+        - Topic: %s
+        - Mood: %s
+        - Keywords to include: %s
+        - Language: Vietnamese
+        
+        REQUIRED STRUCTURE:
+        Please write lyrics strictly following this structure section by section:
+        - %s
+        
+        INSTRUCTIONS:
+        - Verse: Usually 4-8 lines, storytelling, lower energy.
+        - Chorus: High energy, catchy, emotional peak, repeat key phrases.
+        - Bridge: A change in flow or perspective.
+        - Ensure the lyrics rhyme well in Vietnamese.
+        
+        OUTPUT FORMAT (JSON Only):
+        {
+          "mood": "...",
+          "sections": [
+            { "label": "Verse 1", "text": "line 1\\nline 2..." },
+            { "label": "Chorus", "text": "..." }
+          ]
+        }
+        """.formatted(req.getTopic(), req.getMood(), keywords, structString);
+    }
+
+    private String convertToResultJson(SongSuggestion suggestion, BeatToLyricsRequest req, InspirationTrack track) throws Exception {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        result.put("mood", suggestion.mood);
+        result.put("topic", req.getTopic());
+        result.put("temperature", suggestion.temperature);
+
+        if (track.getLyricsText() != null && !track.getLyricsText().isBlank()) {
+            List<String> originalSections = splitSections(track.getLyricsText());
+            List<Map<String, Object>> origSectionDtos = new ArrayList<>();
+            for (int i = 0; i < originalSections.size(); i++) {
+                String label = "Section " + (i + 1);
+                origSectionDtos.add(Map.of(
+                        "label", label,
+                        "lines", List.of(originalSections.get(i))
+                ));
+            }
+            result.put("original", Map.of(
+                    "lineCount", originalSections.size(),
+                    "sections", origSectionDtos,
+                    "flat", originalSections
+            ));
+        }
+
+        List<Map<String, Object>> sectionDtos = new ArrayList<>();
+        List<String> flatLines = new ArrayList<>();
+
+        for (Section s : suggestion.sections) {
+            sectionDtos.add(Map.of(
+                    "label", s.label,
+                    "lines", s.lines
+            ));
+            flatLines.addAll(s.lines);
+        }
+
+        result.put("sections", sectionDtos);
+        result.put("flat", flatLines);
+        result.put("lineCount", flatLines.size());
+
+        return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(result);
+    }
+
+    private TrackSuggestionResponse toSuggestionResponse(InspirationTrack t) {
+        return TrackSuggestionResponse.builder()
+                .trackId(t.getId())
+                .status(t.getStatus())
+                .lyricsText(t.getLyricsText())
+                .aiSuggestions(t.getAiSuggestions())
+                .transcribeJobName(t.getTranscribeJobName())
+                .build();
     }
 
     private String buildStructureAwarePrompt(List<String> originalSections) {
@@ -213,12 +348,6 @@ public class SuggestionServiceBedrockImpl {
             """.formatted(maxTokens, temperature, promptJson);
     }
 
-
-    private static class SongJson {
-        String mood = "";
-        List<Section> sections = new ArrayList<>();
-    }
-
     private static class SongSuggestion {
         String mood = "";
         double temperature;
@@ -237,12 +366,17 @@ public class SuggestionServiceBedrockImpl {
         }
     }
 
-    private SongJson parseSongJson(String raw) throws Exception {
-        SongJson sj = new SongJson();
+    private SongSuggestion parseSongJson(String raw) throws Exception {
+        SongSuggestion sj = new SongSuggestion();
         String content = raw.trim();
 
+        int open = content.indexOf("{");
+        int close = content.lastIndexOf("}");
+        if (open != -1 && close != -1) {
+            content = content.substring(open, close + 1);
+        }
+
         if (!looksLikeJson(content)) {
-            // fallback: coi cả output là 1 section
             Section s = new Section("Suggestion");
             s.lines = freeTextToLines(content);
             sj.sections = List.of(s);
@@ -258,41 +392,30 @@ public class SuggestionServiceBedrockImpl {
             int idx = 1;
             for (JsonNode n : arr) {
                 String label = n.path("label").asText("");
-                if (label == null || label.isBlank()) {
-                    label = "Section " + idx;
-                }
+                if (label == null || label.isBlank()) label = "Section " + idx;
 
                 Section sec = new Section(label);
-
-                // ƯU TIÊN field "text" (cả đoạn)
                 String text = n.path("text").asText("");
                 if (text != null && !text.isBlank()) {
-                    sec.lines.add(text.trim());
+                    sec.lines.addAll(freeTextToLines(text));
                 } else {
-                    // fallback: nếu model vẫn lỡ trả về "lines"
                     JsonNode ln = n.path("lines");
                     if (ln.isArray()) {
-                        for (JsonNode x : ln) {
-                            String t = x.asText("").trim();
-                            if (!t.isBlank()) sec.lines.add(t);
-                        }
+                        for(JsonNode x : ln) if(!x.asText("").isBlank()) sec.lines.add(x.asText(""));
                     }
                 }
 
-                if (sec.lines.isEmpty()) {
-                    continue;
+                if (!sec.lines.isEmpty()) {
+                    sections.add(sec);
+                    idx++;
                 }
-                sections.add(sec);
-                idx++;
             }
         }
-
         if (sections.isEmpty()) {
             Section s = new Section("Suggestion");
             s.lines = freeTextToLines(content);
             sections.add(s);
         }
-
         sj.sections = sections;
         return sj;
     }

@@ -28,6 +28,9 @@ public class ProjectPermissionResponse {
     // Contract permissions
     private ContractPermissions contract;
     
+    // Addendum permissions (phụ lục hợp đồng)
+    private AddendumPermissions addendum;
+    
     // Payment permissions (thanh toán theo hợp đồng)
     private PaymentPermissions payment;
     
@@ -108,6 +111,19 @@ public class ProjectPermissionResponse {
         private boolean canInviteToSign;
         private boolean canDeclineContract;
         private boolean canEditContract;
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AddendumPermissions {
+        private boolean canCreateAddendum;
+        private boolean canViewAddendum;
+        private boolean canInviteToSign;
+        private boolean canDeclineAddendum;
+        private boolean canEditAddendum;
+        private boolean canCreateAddendumPayment; // Thanh toán phụ lục
     }
     
     @Data

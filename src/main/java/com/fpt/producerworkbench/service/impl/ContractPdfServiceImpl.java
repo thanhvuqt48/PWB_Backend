@@ -8,11 +8,13 @@ import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.ContractParty;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
+import com.fpt.producerworkbench.repository.ContractPartyRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
@@ -111,10 +113,12 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     ProjectRepository projectRepository;
     ContractRepository contractRepository;
     MilestoneRepository milestoneRepository;
+    ContractPartyRepository contractPartyRepository;
     ContractDocumentRepository contractDocumentRepository;
     FileStorageService fileStorageService;
     FileKeyGenerator fileKeyGenerator;
     ProjectPermissionService projectPermissionService;
+    com.fpt.producerworkbench.configuration.SignNowClient signNowClient;
     Resource templateResource;
     Resource fontResource;
 
@@ -126,6 +130,8 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             FileKeyGenerator fileKeyGenerator,
             ProjectPermissionService projectPermissionService,
             MilestoneRepository milestoneRepository,
+            ContractPartyRepository contractPartyRepository,
+            com.fpt.producerworkbench.configuration.SignNowClient signNowClient,
             @Value("${pwb.contract.template}") Resource templateResource,
             @Value("${pwb.contract.font}") Resource fontResource
     ) {
@@ -136,6 +142,8 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         this.fileKeyGenerator = fileKeyGenerator;
         this.projectPermissionService = projectPermissionService;
         this.milestoneRepository = milestoneRepository;
+        this.contractPartyRepository = contractPartyRepository;
+        this.signNowClient = signNowClient;
         this.templateResource = templateResource;
         this.fontResource = fontResource;
     }
@@ -178,7 +186,8 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
         Contract contract = contractRepository.findByProjectId(project.getId()).orElse(null);
         if (contract != null) {
-            if (ContractStatus.COMPLETED.equals(contract.getStatus())) {
+            ContractStatus status = contract.getSignnowStatus();
+            if (status == ContractStatus.PAID || status == ContractStatus.COMPLETED) {
                 throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
             }
         } else {
@@ -193,8 +202,42 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         contract.setPitTax(totals.pit);
         contract.setVatTax(totals.vat);
         contract.setCompensationPercentage(compensationPercentage);
-        contract.setStatus(ContractStatus.DRAFT);
         contract.setFpEditAmount(req.getFpEditAmount());
+        
+        if (contract.getId() != null && contract.getSignnowDocumentId() != null && !contract.getSignnowDocumentId().isBlank()) {
+            Contract freshContract = contractRepository.findById(contract.getId())
+                    .orElse(null);
+            
+            if (freshContract != null) {
+                ContractStatus freshStatus = freshContract.getSignnowStatus();
+                String freshDocId = freshContract.getSignnowDocumentId();
+                
+                if ((freshStatus == ContractStatus.DRAFT || 
+                     freshStatus == ContractStatus.OUT_FOR_SIGNATURE || 
+                     freshStatus == ContractStatus.PARTIALLY_SIGNED || 
+                     freshStatus == ContractStatus.SIGNED) &&
+                    freshDocId != null && 
+                    freshDocId.equals(contract.getSignnowDocumentId())) {
+                    
+                    String oldDocId = freshDocId;
+                    log.info("[ContractPdf] Deleting old SignNow document {} before resetting to DRAFT (contract {}, status: {})", 
+                            oldDocId, contract.getId(), freshStatus);
+                    boolean deleted = signNowClient.deleteDocument(oldDocId);
+                    if (deleted) {
+                        log.info("[ContractPdf] Successfully deleted old SignNow document {}", oldDocId);
+                    } else {
+                        log.warn("[ContractPdf] Failed to delete old SignNow document {} (may have been deleted already or not exist)", oldDocId);
+                    }
+                } else {
+                    log.warn("[ContractPdf] Skipping document deletion: contract {} status changed from {} to {} or document ID changed", 
+                            contract.getId(), contract.getSignnowStatus(), freshStatus);
+                    if (freshStatus == ContractStatus.PAID || freshStatus == ContractStatus.COMPLETED) {
+                        throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+                    }
+                }
+            }
+        }
+        
         contract.setSignnowDocumentId(null);
         contract.setSignnowStatus(ContractStatus.DRAFT);
 
@@ -206,8 +249,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
         contract = contractRepository.save(contract);
 
-        if (payMilestone && req.getMilestones() != null) {
+        upsertContractPartyForContract(contract, req);
 
+        if (payMilestone && req.getMilestones() != null) {
             if (existedBefore) {
                 milestoneRepository.deleteByContract(contract);
             }
@@ -391,7 +435,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                     ? null : ("• Mô tả: " + m.getDescription());
             String revisions = (m.getEditCount() == null) ? null : ("• Số lần chỉnh sửa: " + m.getEditCount());
 
-            String qty = (m.getProductCount() == null) ? null // LOGIC MOI
+            String qty = (m.getProductCount() == null) ? null
                     : ("• Số sản phẩm: " + m.getProductCount());
 
             com.itextpdf.layout.element.Div probe =
@@ -804,4 +848,41 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     private String ns(Object o) { return o == null ? "" : String.valueOf(o); }
     private boolean isBlank(String s) { return s == null || s.isBlank(); }
     private String nvl(String s, String def) { return isBlank(s) ? def : s; }
+
+    private void upsertContractPartyForContract(Contract contract, ContractPdfFillRequest req) {
+        boolean completed = ContractStatus.COMPLETED.equals(contract.getSignnowStatus());
+
+        ContractParty party = contractPartyRepository.findByContract(contract).orElse(null);
+        if (party == null) {
+            party = new ContractParty();
+            party.setContract(contract);
+        }
+
+        if (completed) {
+            if (party.getId() == null) {
+                fillPartyFromRequest(party, req);
+                contractPartyRepository.save(party);
+            }
+            return;
+        }
+
+        fillPartyFromRequest(party, req);
+        contractPartyRepository.save(party);
+    }
+
+    private void fillPartyFromRequest(ContractParty party, ContractPdfFillRequest req) {
+        party.setAName(req.getAName());
+        party.setAIdNumber(req.getACccd());
+        party.setAIdIssueDate(req.getACccdIssueDate());
+        party.setAIdIssuePlace(req.getACccdIssuePlace());
+        party.setAAddress(req.getAAddress());
+        party.setAPhone(req.getAPhone());
+
+        party.setBName(req.getBName());
+        party.setBIdNumber(req.getBCccd());
+        party.setBIdIssueDate(req.getBCccdIssueDate());
+        party.setBIdIssuePlace(req.getBCccdIssuePlace());
+        party.setBAddress(req.getBAddress());
+        party.setBPhone(req.getBPhone());
+    }
 }

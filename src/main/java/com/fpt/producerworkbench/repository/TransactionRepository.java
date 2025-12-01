@@ -1,7 +1,6 @@
 package com.fpt.producerworkbench.repository;
 
 import com.fpt.producerworkbench.common.TransactionStatus;
-import com.fpt.producerworkbench.dto.response.RevenueStat;
 import com.fpt.producerworkbench.entity.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,7 +16,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     Optional<Transaction> findByTransactionCode(String transactionCode);
 
     Optional<Transaction> findTopByRelatedContract_IdOrderByCreatedAtDesc(Long contractId);
-
 
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
             "WHERE t.status = :status AND t.createdAt BETWEEN :startDate AND :endDate")
@@ -60,5 +58,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Object[]> getRevenueByYear(@Param("status") TransactionStatus status,
                                     @Param("startDate") LocalDateTime startDate,
                                     @Param("endDate") LocalDateTime endDate);
+
+    Optional<Transaction> findTopByRelatedAddendum_IdOrderByCreatedAtDesc(Long addendumId);
 }
 

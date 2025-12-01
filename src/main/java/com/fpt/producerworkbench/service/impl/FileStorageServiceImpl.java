@@ -24,8 +24,6 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.CompletedFileUpload;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -144,18 +142,67 @@ public class FileStorageServiceImpl implements FileStorageService {
     }
 
     @Override
-    public void deleteFile(String objectKey) {
+    public void deleteFile(String objectKeyOrUrl) {
         try {
+            String s3Key = extractS3KeyFromUrl(objectKeyOrUrl);
+            
             DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
                     .bucket(awsProperties.getS3().getBucketName())
-                    .key(objectKey)
+                    .key(s3Key)
                     .build();
             s3Client.deleteObject(deleteObjectRequest);
-            log.info("Đã xóa thành công file '{}' khỏi bucket '{}'", objectKey, awsProperties.getS3().getBucketName());
+            log.info("Đã xóa thành công file '{}' khỏi bucket '{}'", s3Key, awsProperties.getS3().getBucketName());
         } catch (Exception e) {
-            log.error("Lỗi khi xóa file '{}': {}", objectKey, e.getMessage());
+            log.error("Lỗi khi xóa file '{}': {}", objectKeyOrUrl, e.getMessage());
             throw new AppException(ErrorCode.DELETE_FAILED);
         }
+    }
+
+    @Override
+    public String extractS3KeyFromUrl(String urlOrKey) {
+        if (urlOrKey == null || urlOrKey.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_FILE_KEY);
+        }
+
+        int queryIndex = urlOrKey.indexOf('?');
+        int fragmentIndex = urlOrKey.indexOf('#');
+        int endIndex = urlOrKey.length();
+        if (queryIndex > 0) {
+            endIndex = queryIndex;
+        } else if (fragmentIndex > 0) {
+            endIndex = fragmentIndex;
+        }
+        String cleanUrl = urlOrKey.substring(0, endIndex);
+
+        String key = null;
+
+        if (cleanUrl.contains("cloudfront.net")) {
+            int domainIndex = cleanUrl.indexOf("cloudfront.net");
+            String afterDomain = cleanUrl.substring(domainIndex + "cloudfront.net".length());
+            if (afterDomain.startsWith("/")) {
+                afterDomain = afterDomain.substring(1);
+            }
+            key = afterDomain.isEmpty() ? null : afterDomain;
+        } 
+        else if (cleanUrl.contains("amazonaws.com/")) {
+            String[] parts = cleanUrl.split("amazonaws.com/");
+            if (parts.length > 1) {
+                key = parts[1];
+            }
+        } 
+        else if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+            key = cleanUrl;
+        }
+
+        if (key == null) {
+            throw new AppException(ErrorCode.INVALID_FILE_KEY);
+        }
+
+        if (key.startsWith("/")) {
+            key = key.substring(1);
+        }
+
+        return key;
     }
 
     @Override
@@ -182,9 +229,6 @@ public class FileStorageServiceImpl implements FileStorageService {
             String presignedUrl = s3Presigner.presignGetObject(presignRequest).url().toString();
             log.info("Đã tạo presigned URL cho key '{}' với chế độ: {}", objectKey, forDownload ? "Download" : "View");
 
-            // ✅ KHÔNG còn thay thế host sang CloudFront
-            // Method này chỉ dùng cho file tài liệu (PDF, attachments, images)
-            // HLS streaming sẽ dùng generateStreamingUrl() riêng
             return presignedUrl;
 
         } catch (Exception e) {
@@ -361,26 +405,21 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Override
     public String generateStreamingUrl(String objectKey) {
-        // Validate CloudFront domain
         if (cloudfrontDomain == null || cloudfrontDomain.isBlank()) {
             log.error("CloudFront domain chưa được cấu hình (cloudfront.domain = null hoặc blank)");
             throw new AppException(ErrorCode.URL_GENERATION_FAILED);
         }
 
-        // Chuẩn hóa CloudFront domain
         String normalizedDomain = cloudfrontDomain.trim();
         
-        // Thêm https:// nếu chưa có protocol
         if (!normalizedDomain.startsWith("http://") && !normalizedDomain.startsWith("https://")) {
             normalizedDomain = "https://" + normalizedDomain;
         }
         
-        // Thêm trailing slash nếu chưa có
         if (!normalizedDomain.endsWith("/")) {
             normalizedDomain = normalizedDomain + "/";
         }
 
-        // Tạo streaming URL
         String streamingUrl = normalizedDomain + objectKey;
         
         log.info("Đã tạo CloudFront streaming URL cho key '{}': {}", objectKey, streamingUrl);

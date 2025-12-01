@@ -170,15 +170,24 @@ public class TicketServiceImpl implements TicketService {
         User currentUser = getUserOrThrow(currentEmail);
         Ticket ticket = getTicketOrThrow(ticketId);
 
-
+        // Check quyền (Admin hoặc Chủ ticket)
         boolean isAdmin = "ADMIN".equals(currentUser.getRole().name());
         boolean isOwner = ticket.getUser().getId().equals(currentUser.getId());
 
         if (!isAdmin && !isOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền xem chi tiết ticket này");
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        return mapToResponse(ticket);
+        // Lấy nội dung mô tả (là reply cũ nhất của ticket)
+        String description = ticketReplyRepository.findFirstByTicketIdOrderByCreatedAtAsc(ticketId)
+                .map(TicketReply::getContent)
+                .orElse("");
+
+        // Map sang response và set description
+        TicketResponse response = mapToResponse(ticket);
+        response.setDescription(description);
+
+        return response;
     }
 
 

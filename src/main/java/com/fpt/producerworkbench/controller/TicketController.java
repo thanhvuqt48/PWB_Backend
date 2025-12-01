@@ -69,10 +69,10 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getTicketReplies(ticketId, principal.getName()));
     }
 
-    @PatchMapping("/{id}/status")
+    @PutMapping("/{id}/status")
     public ResponseEntity<TicketResponse> updateTicketStatus(
             @PathVariable("id") Long ticketId,
-            @RequestParam TicketStatus status,
+            @RequestParam("status") TicketStatus status, // Vẫn dùng RequestParam cho đơn giản
             Principal principal
     ) {
         return ResponseEntity.ok(ticketService.updateTicketStatus(ticketId, status, principal.getName()));
