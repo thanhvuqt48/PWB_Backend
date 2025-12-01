@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.controller;
 
+import com.fpt.producerworkbench.dto.request.BeatToLyricsRequest;
 import com.fpt.producerworkbench.dto.request.TrackUploadCompleteRequest;
 import com.fpt.producerworkbench.dto.request.TrackUploadUrlRequest;
 import com.fpt.producerworkbench.dto.request.CompleteAndSuggestRequest;
@@ -95,6 +96,18 @@ public class TrackController {
                 .build();
     }
 
+    @PostMapping("/{trackId}/generate-lyrics")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<TrackSuggestionResponse> generateLyrics(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long trackId,
+            @RequestBody BeatToLyricsRequest req
+    ) {
+        Long userId = resolveUserIdFromJwt(jwt);
+        var res = trackService.generateLyricsFromBeat(userId, trackId, req);
+        return ApiResponse.<TrackSuggestionResponse>builder().result(res).build();
+    }
+
     @GetMapping("/{trackId}/suggestion")
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<TrackSuggestionResponse> getSuggestion(
@@ -103,16 +116,6 @@ public class TrackController {
         Long userId = resolveUserIdFromJwt(jwt);
         TrackSuggestionResponse res = trackService.getSuggestion(userId, trackId);
         return ApiResponse.<TrackSuggestionResponse>builder().result(res).build();
-    }
-
-    @PostMapping("/{trackId}/resuggest")
-    @PreAuthorize("isAuthenticated()")
-    public ApiResponse<Void> resuggest(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable Long trackId) {
-        Long userId = resolveUserIdFromJwt(jwt);
-        trackService.resuggest(userId, trackId);
-        return ApiResponse.<Void>builder().message("Re-suggest triggered").build();
     }
 
     @DeleteMapping("/{trackId}")
