@@ -4,20 +4,20 @@ import com.fpt.producerworkbench.common.MilestoneBriefBlockType;
 import com.fpt.producerworkbench.common.MilestoneBriefScope;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.UserRole;
-import com.fpt.producerworkbench.dto.request.MilestoneBriefUpsertRequest;
-import com.fpt.producerworkbench.dto.request.MilestoneBriefGroupRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneBriefBlockRequest;
+import com.fpt.producerworkbench.dto.request.MilestoneBriefGroupRequest;
+import com.fpt.producerworkbench.dto.request.MilestoneBriefUpsertRequest;
+import com.fpt.producerworkbench.dto.response.MilestoneBriefBlockResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneBriefDetailResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneBriefGroupResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneBriefBlockResponse;
 import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
-import com.fpt.producerworkbench.entity.Milestone;
-import com.fpt.producerworkbench.entity.MilestoneBriefGroup;
-import com.fpt.producerworkbench.entity.MilestoneBriefBlock;
+import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.MilestoneBriefGroupRepository;
+import com.fpt.producerworkbench.repository.MilestoneMemberRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
+import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.MilestoneBriefService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
@@ -40,402 +40,216 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     private final MilestoneRepository milestoneRepository;
     private final MilestoneBriefGroupRepository briefGroupRepository;
     private final ProjectPermissionService projectPermissionService;
+    private final MilestoneMemberRepository milestoneMemberRepository;
+    private final UserRepository userRepository;
     private final FileStorageService storage;
 
-    private static final long MAX_SIZE = 20L * 1024 * 1024; // 20MB
-    private static final Set<String> IMAGE_MIMES = Set.of(
-            MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif"
-    );
-    private static final Set<String> AUDIO_MIMES = Set.of(
-            "audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/webm", "audio/ogg"
-    );
+    private static final long MAX_SIZE = 20L * 1024 * 1024;
+    private static final Set<String> IMAGE_MIMES = Set.of(MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif");
+    private static final Set<String> AUDIO_MIMES = Set.of("audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/webm", "audio/ogg");
 
 
     @Override
-    @Transactional
-    public MilestoneBriefDetailResponse upsertMilestoneBrief(Long projectId, Long milestoneId,
-                                                             MilestoneBriefUpsertRequest request,
-                                                             Authentication auth) {
-        log.info("[EXTERNAL] Upsert milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
-
+    @Transactional(readOnly = true)
+    public MilestoneBriefDetailResponse getMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
+        log.info("[EXTERNAL] Get brief: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
         var roleInfo = getRoleInfo(auth, projectId);
-        UserRole userRole = roleInfo.userRole;
-        ProjectRole projectRole = roleInfo.projectRole;
+        boolean isProducerOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
+        boolean isCustomerClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
 
-        boolean isCustomerOfProject = userRole == UserRole.CUSTOMER && projectRole == ProjectRole.CLIENT;
-        if (!isCustomerOfProject) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (!isProducerOwner && !isCustomerClient) throw new AppException(ErrorCode.ACCESS_DENIED);
+
+        return buildDetailResponse(milestone, MilestoneBriefScope.EXTERNAL);
+    }
+
+    @Override
+    @Transactional
+    public List<MilestoneBriefGroupResponse> createBriefGroups(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
+        log.info("[EXTERNAL] Batch create (Append): projectId={}, milestoneId={}", projectId, milestoneId);
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+        validateClientPermission(auth, projectId);
+
+        List<MilestoneBriefGroup> savedGroups = new ArrayList<>();
+        if (request != null && request.getGroups() != null) {
+            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
+                MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.EXTERNAL);
+                savedGroups.add(group);
+            }
         }
+        if (!savedGroups.isEmpty()) {
+            briefGroupRepository.saveAll(savedGroups);
+        }
+
+        return savedGroups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public MilestoneBriefDetailResponse upsertMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
+        log.info("[EXTERNAL] Upsert ALL (Replace): projectId={}, milestoneId={}", projectId, milestoneId);
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+        validateClientPermission(auth, projectId);
 
         briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.EXTERNAL);
 
-        List<MilestoneBriefGroup> groupsToSave =
-                buildGroupsFromRequest(milestone, MilestoneBriefScope.EXTERNAL, request);
-
+        List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
+        if (request != null && request.getGroups() != null) {
+            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
+                MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.EXTERNAL);
+                groupsToSave.add(group);
+            }
+        }
         if (!groupsToSave.isEmpty()) {
             briefGroupRepository.saveAll(groupsToSave);
         }
 
-        List<MilestoneBriefGroup> savedGroups =
-                briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
-
-        return buildDetailResponse(milestone, savedGroups, MilestoneBriefScope.EXTERNAL);
+        return buildDetailResponse(milestone, MilestoneBriefScope.EXTERNAL);
     }
+
+    @Override
+    @Transactional
+    public void deleteBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth) {
+        log.info("[EXTERNAL] Delete group: projectId={}, groupId={}", projectId, groupId);
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+        validateClientPermission(auth, projectId);
+        MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
+        briefGroupRepository.delete(group);
+    }
+
 
     @Override
     @Transactional(readOnly = true)
-    public MilestoneBriefDetailResponse getMilestoneBrief(Long projectId, Long milestoneId,
-                                                          Authentication auth) {
-        log.info("[EXTERNAL] Get milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
-
+    public MilestoneBriefDetailResponse getInternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
+        // ... (Logic check member cũ)
+        log.info("[INTERNAL] Get brief: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
         var roleInfo = getRoleInfo(auth, projectId);
-        UserRole userRole = roleInfo.userRole;
-        ProjectRole projectRole = roleInfo.projectRole;
+        boolean isOwner = roleInfo.projectRole == ProjectRole.OWNER;
+        boolean isCollaborator = roleInfo.projectRole == ProjectRole.COLLABORATOR;
 
-        boolean isProducerOwner = userRole == UserRole.PRODUCER && projectRole == ProjectRole.OWNER;
-        boolean isCustomerClient = userRole == UserRole.CUSTOMER && projectRole == ProjectRole.CLIENT;
-
-        if (!isProducerOwner && !isCustomerClient) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (!isOwner && !isCollaborator) throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (isCollaborator) {
+            User currentUser = userRepository.findByEmail(auth.getName()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            if (!milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId, currentUser.getId())) {
+                throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không phải thành viên của cột mốc này");
+            }
         }
-
-        List<MilestoneBriefGroup> groups =
-                briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
-
-        return buildDetailResponse(milestone, groups, MilestoneBriefScope.EXTERNAL);
+        return buildDetailResponse(milestone, MilestoneBriefScope.INTERNAL);
     }
 
     @Override
     @Transactional
-    public void deleteExternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
-        log.info("[EXTERNAL] Delete milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
-
+    public MilestoneBriefDetailResponse upsertInternalMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
+        log.info("[INTERNAL] Upsert ALL: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
-        var roleInfo = getRoleInfo(auth, projectId);
-        ProjectRole projectRole = roleInfo.projectRole;
-
-        boolean isClient = projectRole == ProjectRole.CLIENT;
-        if (!isClient) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
-        briefGroupRepository.deleteByMilestoneIdAndScope(milestone.getId(), MilestoneBriefScope.EXTERNAL);
-        log.info("[EXTERNAL] Deleted all EXTERNAL brief groups for milestoneId={}", milestone.getId());
-    }
-
-    @Override
-    @Transactional
-    public MilestoneBriefDetailResponse upsertInternalMilestoneBrief(Long projectId, Long milestoneId,
-                                                                     MilestoneBriefUpsertRequest request,
-                                                                     Authentication auth) {
-        log.info("[INTERNAL] Upsert milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
-
-        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
-        var roleInfo = getRoleInfo(auth, projectId);
-        UserRole userRole = roleInfo.userRole;
-        ProjectRole projectRole = roleInfo.projectRole;
-
-        boolean isProducerOwner = userRole == UserRole.PRODUCER && projectRole == ProjectRole.OWNER;
-        if (!isProducerOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
+        validateOwnerPermission(auth, projectId);
 
         briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.INTERNAL);
-
-        List<MilestoneBriefGroup> groupsToSave =
-                buildGroupsFromRequest(milestone, MilestoneBriefScope.INTERNAL, request);
-
-        if (!groupsToSave.isEmpty()) {
-            briefGroupRepository.saveAll(groupsToSave);
+        List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
+        if (request != null && request.getGroups() != null) {
+            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
+                MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.INTERNAL);
+                groupsToSave.add(group);
+            }
         }
-
-        List<MilestoneBriefGroup> savedGroups =
-                briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.INTERNAL);
-
-        return buildDetailResponse(milestone, savedGroups, MilestoneBriefScope.INTERNAL);
-    }
-
-
-    @Override
-    @Transactional(readOnly = true)
-    public MilestoneBriefDetailResponse getInternalMilestoneBrief(Long projectId, Long milestoneId,
-                                                                  Authentication auth) {
-        log.info("[INTERNAL] Get milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
-
-        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
-        var roleInfo = getRoleInfo(auth, projectId);
-        UserRole userRole = roleInfo.userRole;
-        ProjectRole projectRole = roleInfo.projectRole;
-
-        boolean isOwner = projectRole == ProjectRole.OWNER;
-        boolean isCollaborator = projectRole == ProjectRole.COLLABORATOR;
-
-        if (!isOwner && !isCollaborator) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
-
-        List<MilestoneBriefGroup> groups =
-                briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.INTERNAL);
-
-        return buildDetailResponse(milestone, groups, MilestoneBriefScope.INTERNAL);
+        if (!groupsToSave.isEmpty()) briefGroupRepository.saveAll(groupsToSave);
+        return buildDetailResponse(milestone, MilestoneBriefScope.INTERNAL);
     }
 
     @Override
     @Transactional
-    public void deleteInternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
-        log.info("[INTERNAL] Delete milestone brief: projectId={}, milestoneId={}", projectId, milestoneId);
-
+    public void deleteInternalBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth) {
+        log.info("[INTERNAL] Delete group: projectId={}, groupId={}", projectId, groupId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
-        var roleInfo = getRoleInfo(auth, projectId);
-        ProjectRole projectRole = roleInfo.projectRole;
-
-        boolean isOwner = projectRole == ProjectRole.OWNER;
-        if (!isOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
-        briefGroupRepository.deleteByMilestoneIdAndScope(milestone.getId(), MilestoneBriefScope.INTERNAL);
-        log.info("[INTERNAL] Deleted all INTERNAL brief groups for milestoneId={}", milestone.getId());
+        validateOwnerPermission(auth, projectId);
+        MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.INTERNAL);
+        briefGroupRepository.delete(group);
     }
 
     @Override
     @Transactional
     public String uploadBriefFile(Long projectId, Long milestoneId, MultipartFile file, String type, Authentication auth) {
-        log.info("Upload brief file: projectId={}, milestoneId={}, type={}", projectId, milestoneId, type);
-
-        // 1. Kiểm tra tồn tại milestone
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-
-        // 2. Kiểm tra quyền (Cho phép cả Client và Owner upload, quyền chi tiết sẽ chặn ở lúc Lưu Brief)
         var roleInfo = getRoleInfo(auth, projectId);
         boolean isClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
         boolean isProducerOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
-
-        if (!isClient && !isProducerOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
-        // 3. Validate File
-        if (file == null || file.isEmpty()) {
-            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
-        }
-        if (file.getSize() > MAX_SIZE) {
-            throw new AppException(ErrorCode.FILE_TOO_LARGE);
-        }
+        if (!isClient && !isProducerOwner) throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (file == null || file.isEmpty()) throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        if (file.getSize() > MAX_SIZE) throw new AppException(ErrorCode.FILE_TOO_LARGE);
 
         String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
-        String folder;
-
+        String folder = "brief-files"; // Default
         if ("IMAGE".equalsIgnoreCase(type)) {
-            if (!IMAGE_MIMES.contains(mime)) {
-                throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Chỉ hỗ trợ ảnh (JPG, PNG, WEBP, GIF)");
-            }
+            if (!IMAGE_MIMES.contains(mime)) throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
             folder = "brief-images";
         } else if ("AUDIO".equalsIgnoreCase(type) || "HUM_MELODY".equalsIgnoreCase(type)) {
-            // Chấp nhận mime audio hoặc mime bắt đầu bằng audio/
-            if (!AUDIO_MIMES.contains(mime) && !mime.startsWith("audio/")) {
-                throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Định dạng âm thanh không hỗ trợ");
-            }
+            if (!AUDIO_MIMES.contains(mime) && !mime.startsWith("audio/")) throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
             folder = "brief-audios";
-        } else {
-            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "Type phải là IMAGE hoặc AUDIO");
         }
-
-        // 4. Upload
         String key = folder + "/" + projectId + "_" + milestoneId + "_" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
         storage.uploadFile(file, key);
-
-        return key; // Trả về key để FE lưu vào JSON
+        return key;
     }
 
     private Milestone loadMilestoneAndCheckAuth(Long projectId, Long milestoneId, Authentication auth) {
-        if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
-            throw new AppException(ErrorCode.UNAUTHENTICATED);
-        }
-
-        Milestone milestone = milestoneRepository.findById(milestoneId)
-                .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
-
-        if (milestone.getContract() == null || milestone.getContract().getProject() == null
-                || !milestone.getContract().getProject().getId().equals(projectId)) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
-
+        if (auth == null || auth.getName() == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
+        Milestone milestone = milestoneRepository.findById(milestoneId).orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+        if (!milestone.getContract().getProject().getId().equals(projectId)) throw new AppException(ErrorCode.ACCESS_DENIED);
         return milestone;
     }
-
-    private static class RoleInfo {
-        final UserRole userRole;
-        final ProjectRole projectRole;
-
-        RoleInfo(UserRole userRole, ProjectRole projectRole) {
-            this.userRole = userRole;
-            this.projectRole = projectRole;
-        }
-    }
-
     private RoleInfo getRoleInfo(Authentication auth, Long projectId) {
         ProjectPermissionResponse permission = projectPermissionService.checkProjectPermissions(auth, projectId);
         var role = permission.getRole();
-
-        UserRole userRole = role != null ? role.getUserRole() : null;
-        ProjectRole projectRole = role != null ? role.getProjectRole() : null;
-
-        return new RoleInfo(userRole, projectRole);
+        return new RoleInfo(role != null ? role.getUserRole() : null, role != null ? role.getProjectRole() : null);
     }
-
-    private List<MilestoneBriefGroup> buildGroupsFromRequest(Milestone milestone,
-                                                             MilestoneBriefScope scope,
-                                                             MilestoneBriefUpsertRequest request) {
-        List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
-
-        if (request != null && request.getGroups() != null) {
-            int groupIndex = 1;
-
-            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
-                if (groupReq == null) continue;
-
-                MilestoneBriefGroup group = MilestoneBriefGroup.builder()
-                        .milestone(milestone)
-                        .scope(scope)
-                        .title(groupReq.getTitle())
-                        .position(groupReq.getPosition() != null
-                                ? groupReq.getPosition()
-                                : groupIndex++)
-                        .build();
-
-                if (groupReq.getBlocks() != null && !groupReq.getBlocks().isEmpty()) {
-                    List<MilestoneBriefBlock> blocks = new ArrayList<>();
-                    int blockIndex = 1;
-
-                    for (MilestoneBriefBlockRequest blockReq : groupReq.getBlocks()) {
-                        if (blockReq == null || blockReq.getType() == null) continue;
-
-                        MilestoneBriefBlockType type = blockReq.getType();
-                        String label = blockReq.getLabel();
-                        if (label == null || label.isBlank()) {
-                            label = defaultLabelByType(type);
-                        }
-
-                        String contentText = null;
-                        String fileKey = null;
-
-                        // MỚI: Phân loại Content vs FileKey dựa trên Type
-                        // Frontend sẽ gửi key nhận được từ API upload vào field 'content' của request
-                        if (type == MilestoneBriefBlockType.IMAGE || type == MilestoneBriefBlockType.HUM_MELODY) {
-                            fileKey = blockReq.getContent();
-                        } else {
-                            contentText = blockReq.getContent();
-                        }
-
-                        MilestoneBriefBlock block = MilestoneBriefBlock.builder()
-                                .group(group)
-                                .type(type)
-                                .label(label)
-                                .contentText(contentText)
-                                .fileKey(fileKey)
-                                .position(blockReq.getPosition() != null
-                                        ? blockReq.getPosition()
-                                        : blockIndex++)
-                                .build();
-
-                        blocks.add(block);
-                    }
-                    group.setBlocks(blocks);
-                }
-
-                groupsToSave.add(group);
-            }
+    private void validateClientPermission(Authentication auth, Long projectId) {
+        var roleInfo = getRoleInfo(auth, projectId);
+        if (roleInfo.userRole != UserRole.CUSTOMER || roleInfo.projectRole != ProjectRole.CLIENT) throw new AppException(ErrorCode.ACCESS_DENIED);
+    }
+    private void validateOwnerPermission(Authentication auth, Long projectId) {
+        var roleInfo = getRoleInfo(auth, projectId);
+        if (roleInfo.userRole != UserRole.PRODUCER || roleInfo.projectRole != ProjectRole.OWNER) throw new AppException(ErrorCode.ACCESS_DENIED);
+    }
+    private MilestoneBriefGroup findGroupAndValidateBelonging(Long groupId, Long milestoneId, MilestoneBriefScope scope) {
+        MilestoneBriefGroup group = briefGroupRepository.findById(groupId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+        if (!group.getMilestone().getId().equals(milestoneId) || group.getScope() != scope) throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        return group;
+    }
+    private MilestoneBriefGroup createGroupEntity(Milestone milestone, MilestoneBriefGroupRequest req, MilestoneBriefScope scope) {
+        MilestoneBriefGroup group = MilestoneBriefGroup.builder().milestone(milestone).scope(scope).title(req.getTitle()).position(req.getPosition() != null ? req.getPosition() : 999).build();
+        if (req.getBlocks() != null) group.setBlocks(mapBlocksRequestToEntity(req.getBlocks(), group));
+        return group;
+    }
+    private List<MilestoneBriefBlock> mapBlocksRequestToEntity(List<MilestoneBriefBlockRequest> blockReqs, MilestoneBriefGroup group) {
+        List<MilestoneBriefBlock> blocks = new ArrayList<>();
+        int index = 1;
+        for (MilestoneBriefBlockRequest br : blockReqs) {
+            String fileKey = (br.getType() == MilestoneBriefBlockType.IMAGE || br.getType() == MilestoneBriefBlockType.HUM_MELODY) ? br.getContent() : null;
+            String text = (fileKey == null) ? br.getContent() : null;
+            String label = (br.getLabel() != null && !br.getLabel().isBlank()) ? br.getLabel() : defaultLabelByType(br.getType());
+            blocks.add(MilestoneBriefBlock.builder().group(group).type(br.getType()).label(label).contentText(text).fileKey(fileKey).position(br.getPosition() != null ? br.getPosition() : index++).build());
         }
-
-        return groupsToSave;
+        return blocks;
     }
-
-    private MilestoneBriefDetailResponse buildDetailResponse(Milestone milestone,
-                                                             List<MilestoneBriefGroup> groups,
-                                                             MilestoneBriefScope scope) {
-        List<MilestoneBriefGroupResponse> groupResponses = groups == null
-                ? Collections.emptyList()
-                : groups.stream()
-                .sorted(Comparator.comparing(
-                        MilestoneBriefGroup::getPosition,
-                        Comparator.nullsLast(Integer::compareTo)))
-                .map(this::mapToGroupResponse)
-                .collect(Collectors.toList());
-
-        Long projectId = milestone.getContract() != null && milestone.getContract().getProject() != null
-                ? milestone.getContract().getProject().getId()
-                : null;
-
-        return MilestoneBriefDetailResponse.builder()
-                .milestoneId(milestone.getId())
-                .projectId(projectId)
-                .scope(scope)
-                .groups(groupResponses)
-                .build();
+    private MilestoneBriefDetailResponse buildDetailResponse(Milestone milestone, MilestoneBriefScope scope) {
+        List<MilestoneBriefGroup> groups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestone.getId(), scope);
+        List<MilestoneBriefGroupResponse> groupResponses = groups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
+        return MilestoneBriefDetailResponse.builder().milestoneId(milestone.getId()).projectId(milestone.getContract().getProject().getId()).scope(scope).groups(groupResponses).build();
     }
-
     private MilestoneBriefGroupResponse mapToGroupResponse(MilestoneBriefGroup group) {
-        List<MilestoneBriefBlockResponse> blockResponses = group.getBlocks() == null
-                ? Collections.emptyList()
-                : group.getBlocks().stream()
-                .sorted(Comparator.comparing(
-                        MilestoneBriefBlock::getPosition,
-                        Comparator.nullsLast(Integer::compareTo)))
-                .map(this::mapToBlockResponse)
-                .collect(Collectors.toList());
-
-        return MilestoneBriefGroupResponse.builder()
-                .id(group.getId())
-                .title(group.getTitle())
-                .position(group.getPosition())
-                .blocks(blockResponses)
-                .build();
+        List<MilestoneBriefBlockResponse> blockResponses = group.getBlocks() == null ? Collections.emptyList() :
+                group.getBlocks().stream().sorted(Comparator.comparing(MilestoneBriefBlock::getPosition, Comparator.nullsLast(Integer::compareTo))).map(this::mapToBlockResponse).collect(Collectors.toList());
+        return MilestoneBriefGroupResponse.builder().id(group.getId()).title(group.getTitle()).position(group.getPosition()).blocks(blockResponses).build();
     }
-
     private MilestoneBriefBlockResponse mapToBlockResponse(MilestoneBriefBlock block) {
-        String content;
-
-        if (block.getType() == MilestoneBriefBlockType.IMAGE || block.getType() == MilestoneBriefBlockType.HUM_MELODY) {
-            String fileKey = block.getFileKey();
-            if (fileKey != null && !fileKey.isBlank()) {
-                content = storage.generatePresignedUrl(fileKey, false, null);
-            } else {
-                content = "";
-            }
-        } else {
-            content = block.getContentText();
-        }
-
-        return MilestoneBriefBlockResponse.builder()
-                .id(block.getId())
-                .type(block.getType())
-                .label(block.getLabel())
-                .content(content)
-                .position(block.getPosition())
-                .build();
+        String content = block.getContentText();
+        if (block.getFileKey() != null) content = storage.generatePresignedUrl(block.getFileKey(), false, null);
+        return MilestoneBriefBlockResponse.builder().id(block.getId()).type(block.getType()).label(block.getLabel()).content(content).position(block.getPosition()).build();
     }
-
     private String defaultLabelByType(MilestoneBriefBlockType type) {
-        if (type == null) {
-            return null;
-        }
-        return switch (type) {
-            case DESCRIPTION -> "Miêu tả";
-            case HARMONY -> "Hòa âm";
-            case IMAGE -> "Ảnh";
-            case HUM_MELODY -> "Ngân nga giai điệu";
-        };
+        if (type == null) return null;
+        return switch (type) { case DESCRIPTION -> "Miêu tả"; case HARMONY -> "Hòa âm"; case IMAGE -> "Ảnh"; case HUM_MELODY -> "Ngân nga giai điệu"; };
     }
-
-
+    private static class RoleInfo { final UserRole userRole; final ProjectRole projectRole; RoleInfo(UserRole u, ProjectRole p) { this.userRole = u; this.projectRole = p; }}
 }
