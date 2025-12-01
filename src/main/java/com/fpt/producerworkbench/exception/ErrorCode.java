@@ -47,6 +47,7 @@ public enum ErrorCode {
     PORTFOLIO_ALREADY_EXISTS(4005, "Bạn đã có portfolio. Mỗi người dùng chỉ được có một portfolio.", HttpStatus.CONFLICT),
     PORTFOLIO_NOT_FOUND(4006, "Không tìm thấy portfolio.", HttpStatus.NOT_FOUND),
     PORTFOLIO_NOT_PUBLIC(4007, "Portfolio này không công khai.", HttpStatus.FORBIDDEN),
+    PORTFOLIO_CUSTOM_URL_SLUG_DUPLICATE(4008, "URL tùy chỉnh này đã được sử dụng. Vui lòng chọn URL khác.", HttpStatus.CONFLICT),
 
     // ===== Lỗi liên quan đến Dự án (5xxx) =====
     CLIENT_ALREADY_EXISTS(5001, "Dự án này đã có khách hàng.", HttpStatus.BAD_REQUEST),

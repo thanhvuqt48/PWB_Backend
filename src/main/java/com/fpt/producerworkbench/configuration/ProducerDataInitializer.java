@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 @Configuration
@@ -144,6 +145,7 @@ public class ProducerDataInitializer {
                         .role(UserRole.PRODUCER)
                         .status(UserStatus.ACTIVE)
                         .avatarUrl(AVATAR_URLS[i % AVATAR_URLS.length])
+                        .isVerified(false)
                         .build();
 
                 User savedUser = userRepository.save(user);

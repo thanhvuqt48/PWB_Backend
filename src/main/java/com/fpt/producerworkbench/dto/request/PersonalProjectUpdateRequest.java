@@ -20,10 +20,6 @@ public class PersonalProjectUpdateRequest {
 
     private String description;
 
-    private String audioDemoUrl;
-
-    private String coverImageUrl;
-
     @NotNull(message = "Năm phát hành không được để trống")
     @Min(value = 1900, message = "Năm phát hành phải từ 1900 trở lên")
     private Integer releaseYear;
