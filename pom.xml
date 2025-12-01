@@ -46,6 +46,20 @@
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+        
+        <!-- PostgreSQL Driver for User Guides -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        
+        <!-- Hibernate Types for JSON and Array support -->
+        <dependency>
+            <groupId>io.hypersistence</groupId>
+            <artifactId>hypersistence-utils-hibernate-63</artifactId>
+            <version>3.7.3</version>
+        </dependency>
 
 <!--        <dependency>-->
 <!--            <groupId>org.projectlombok</groupId>-->
@@ -115,6 +129,17 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-transformers-spring-boot-starter</artifactId>
+        </dependency>
+        <!-- Spring AI - Core (for Advisors) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-core</artifactId>
+        </dependency>
+
+        <!-- Spring AI - AutoConfigure (for ChatClient & Advisors) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-spring-boot-autoconfigure</artifactId>
         </dependency>
 
         <!-- Google Cloud - Removed, using Gemini REST API instead -->

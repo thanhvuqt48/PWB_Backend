@@ -258,8 +258,17 @@ public enum ErrorCode {
     REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST),
     CANNOT_DELETE_ACCEPTED_TRACK(8044, "Không thể xóa track đã được khách hàng chấp nhận. Track này đã được bàn giao cho khách hàng.", HttpStatus.BAD_REQUEST),
     CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS(8045, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành", HttpStatus.BAD_REQUEST),
-    TRACK_DOWNLOAD_PERMISSION_DENIED(8046, "Bạn không có quyền download track này. Chỉ chủ dự án hoặc thành viên được chỉ định quyền download mới có thể tải xuống.", HttpStatus.FORBIDDEN);
+    TRACK_DOWNLOAD_PERMISSION_DENIED(8046, "Bạn không có quyền download track này. Chỉ chủ dự án hoặc thành viên được chỉ định quyền download mới có thể tải xuống.", HttpStatus.FORBIDDEN),
 
+    // ===== User Guide & AI Context Errors (18xxx) =====
+    USER_GUIDE_NOT_FOUND(18001, "Không tìm thấy user guide.", HttpStatus.NOT_FOUND),
+    USER_GUIDE_ALREADY_EXISTS(18002, "User guide đã tồn tại.", HttpStatus.BAD_REQUEST),
+    INVALID_GUIDE_CATEGORY(18003, "Category không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_GUIDE_DIFFICULTY(18004, "Difficulty không hợp lệ.", HttpStatus.BAD_REQUEST),
+    GUIDE_INDEXING_FAILED(18005, "Lỗi khi index guide vào vector DB.", HttpStatus.INTERNAL_SERVER_ERROR),
+    GUIDE_IMAGE_UPLOAD_FAILED(18006, "Lỗi khi upload ảnh cho guide.", HttpStatus.INTERNAL_SERVER_ERROR),
+    POSTGRESQL_CONNECTION_FAILED(18007, "Không thể kết nối PostgreSQL.", HttpStatus.INTERNAL_SERVER_ERROR),
+    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final int code;
     private final String message;
