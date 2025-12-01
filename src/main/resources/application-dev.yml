@@ -1,5 +1,4 @@
 spring:
-  # Primary DataSource (MySQL) - Main application
   output:
     ansi:
       enabled: ALWAYS
@@ -16,7 +15,6 @@ spring:
         minimum-idle: 5
         connection-timeout: 30000
     
-    # Secondary DataSource (PostgreSQL) - User Guides
     userguide:
       url: ${POSTGRES_URL}
       jdbc-url: ${POSTGRES_URL}
@@ -90,7 +88,6 @@ spring:
         namespace: ${PINECONE_NAMESPACE:music-terms}
         projectName: ${PINECONE_PROJECT_ID:nxzaj2y}
         environment: ${PINECONE_ENVIRONMENT:aped-4627-b74a}
-        # Using default transformer embeddings (384 dimensions)
 
 # Custom Pinecone Configuration
 pinecone:
@@ -180,9 +177,6 @@ storage:
   
 cloudfront:
   domain: ${CLOUDFRONT_DOMAIN}
-  # Enable public URLs for portfolio/avatar images (no expiration)
-  # Set to true for production to avoid URL expiration issues
-  # Set to false to use presigned URLs (24h expiration)
   use-public-urls: ${CLOUDFRONT_USE_PUBLIC_URLS:true}
 
 aws:

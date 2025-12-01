@@ -81,7 +81,7 @@ public class ApplicationInitConfiguration {
     @Bean
     @ConditionalOnProperty(
             prefix = "spring",
-            value = "datasource.driver-class-name",
+            value = "datasource.primary.driver-class-name",
             havingValue = "com.mysql.cj.jdbc.Driver")
     @org.springframework.core.annotation.Order(1) // Run before ProducerDataInitializer
     ApplicationRunner applicationRunner(UserRepository userRepository, GenreRepository genreRepository, ProPackageRepository proPackageRepository, PortfolioRepository portfolioRepository) {
@@ -101,7 +101,7 @@ public class ApplicationInitConfiguration {
                         .status(UserStatus.ACTIVE)
                         .balance(BigDecimal.valueOf(1000000))
                         .isVerified(false)
-                        .avatarUrl("https://scontent.fsgn2-5.fna.fbcdn.net/v/t39.30808-6/489957892_24099273106327542_1116435352321896905_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_eui2=AeHyvCFLW24XEibSxb61VJRQ-PWORCrbLVn49Y5EKtstWR1gCU8kk3GsxBVzA5gLvGf2o-fw7J4Z8Efx5SaXyCeh&_nc_ohc=ScPgQQ6PfZAQ7kNvwGJ6_8R&_nc_oc=Adkxe4-HqFUhxcjOO7IXmn_E-4xsGwApeg4Y1kg3p2RvQP7yiWpm_dyh6dBUEKvHL6E&_nc_zt=23&_nc_ht=scontent.fsgn2-5.fna&_nc_gid=Hgw5QCiN9aJZXZVuuARoLA&oh=00_AfhftOtXCC3a5fmbYJTYGO9TiIgopJHz54Lgho8vz2ORyw&oe=69226678")
+                        .avatarUrl("https://scontent.fdad3-4.fna.fbcdn.net/v/t39.30808-6/489957892_24099273106327542_1116435352321896905_n.jpg?_nc_cat=104&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=NBRJip3LaRoQ7kNvwGMglXm&_nc_oc=Admu4uwi_3MfM9wdpsY9hDCvRlwDQyQsIlJUP4ka3AktK4HeNGltpF_r_J0ANWxvt-c&_nc_zt=23&_nc_ht=scontent.fdad3-4.fna&_nc_gid=q1RtH71JcqKb-f315Idh2Q&oh=00_Afjr59W-QReEMDcjlu8yhRO3tpjj6ez00u_bkOZ8alnhbQ&oe=693351B8")
                         .build();
                 userRepository.save(admin);
                 
