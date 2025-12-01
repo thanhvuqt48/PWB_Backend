@@ -503,7 +503,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         }
 
         Contract contract = milestone.getContract();
-        if (!ContractStatus.COMPLETED.equals(contract.getStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 

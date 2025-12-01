@@ -135,25 +135,19 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         Contract c = contractRepository.findById(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
-        if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.COMPLETED
-                || c.getSignnowStatus() == com.fpt.producerworkbench.common.ContractStatus.COMPLETED) {
-            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
-        }
-        var existingSigned = contractDocumentRepository
-                .findTopByContract_IdAndTypeOrderByVersionDesc(contractId, com.fpt.producerworkbench.common.ContractDocumentType.SIGNED)
-                .orElse(null);
-        if (existingSigned != null) {
-            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
+        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE hoặc PARTIALLY_SIGNED)
+        // → Báo "đã gửi rồi, không thể mời ký tiếp"
+        if (c.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE || 
+            c.getSignnowStatus() == ContractStatus.PARTIALLY_SIGNED) {
+            throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
         }
 
-        // Kiểm tra nếu lời mời đã được gửi (trạng thái OUT_FOR_SIGNATURE)
-        // Kiểm tra cả status và signnowStatus để đảm bảo chính xác
-        // Lưu ý: Nếu status là DRAFT, cho phép gửi lại lời mời (hợp đồng mới hoặc đã reset)
-        if (c.getStatus() != com.fpt.producerworkbench.common.ContractStatus.DRAFT) {
-            if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.OUT_FOR_SIGNATURE
-                    || c.getSignnowStatus() == com.fpt.producerworkbench.common.ContractStatus.OUT_FOR_SIGNATURE) {
-                throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
-            }
+        // Không cho phép gửi lại khi đã ký xong (SIGNED, PAID, COMPLETED)
+        // → Báo "hợp đồng đã hoàn tất ký"
+        if (c.getSignnowStatus() == ContractStatus.SIGNED || 
+            c.getSignnowStatus() == ContractStatus.PAID || 
+            c.getSignnowStatus() == ContractStatus.COMPLETED) {
+            throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
         var permissions = projectPermissionService.checkContractPermissions(auth, c.getProject().getId());
@@ -161,9 +155,9 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        // Nếu status là DRAFT (hợp đồng mới hoặc đã reset), đảm bảo reset signnowDocumentId
+        // Nếu signnowStatus là DRAFT (hợp đồng mới hoặc đã reset), đảm bảo reset signnowDocumentId
         // để upload document mới, tránh dùng document cũ có thể đã có invite
-        if (c.getStatus() == com.fpt.producerworkbench.common.ContractStatus.DRAFT && c.getSignnowDocumentId() != null) {
+        if (c.getSignnowStatus() == com.fpt.producerworkbench.common.ContractStatus.DRAFT && c.getSignnowDocumentId() != null) {
             log.info("Resetting signnowDocumentId for DRAFT contract {} to allow new document upload", c.getId());
             c.setSignnowDocumentId(null);
             c.setSignnowStatus(com.fpt.producerworkbench.common.ContractStatus.DRAFT);
@@ -193,7 +187,26 @@ public class ContractInviteServiceImpl implements ContractInviteService {
                 }
             }
 
-            String docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "contract-" + contractId + ".pdf");
+            String docId;
+            try {
+                docId = signNowClient.uploadDocumentWithFieldExtract(pdfBytes, "contract-" + contractId + ".pdf");
+            } catch (WebClientResponseException ex) {
+                int sc = ex.getStatusCode().value();
+                log.error("[ContractInvite] Upload document failed: status={} body={}", sc, ex.getResponseBodyAsString());
+                if (sc == 404) {
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+                }
+                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+            } catch (Exception ex) {
+                log.error("[ContractInvite] Upload document failed (unexpected): {}", ex.getMessage(), ex);
+                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+            }
+            
+            if (docId == null || docId.isBlank()) {
+                log.error("[ContractInvite] Upload document returned null or empty document ID");
+                throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
+            }
+            
             c.setSignnowDocumentId(docId);
             // Save contract ngay sau khi set signnowDocumentId để đảm bảo webhook có thể tìm thấy contract
             // khi document.complete event được gửi từ SignNow
@@ -203,7 +216,20 @@ public class ContractInviteServiceImpl implements ContractInviteService {
             signNowWebhookService.ensureCompletedEventForDocument(docId);
         }
 
-        String ownerEmail = signNowClient.getDocumentOwnerEmail(c.getSignnowDocumentId());
+        String ownerEmail;
+        try {
+            ownerEmail = signNowClient.getDocumentOwnerEmail(c.getSignnowDocumentId());
+        } catch (WebClientResponseException ex) {
+            int sc = ex.getStatusCode().value();
+            log.error("[ContractInvite] Get document owner email failed: status={} body={}", sc, ex.getResponseBodyAsString());
+            if (sc == 404) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+            }
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        } catch (Exception ex) {
+            log.error("[ContractInvite] Get document owner email failed (unexpected): {}", ex.getMessage(), ex);
+            throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
+        }
         List<ContractInviteRequest.Signer> filtered = new ArrayList<>();
 
         for (var s : autoSigners) {
@@ -220,7 +246,21 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         StartSigningResponse resp = new StartSigningResponse();
         try {
             if (req.getUseFieldInvite() == null || Boolean.TRUE.equals(req.getUseFieldInvite())) {
-                Map<String, String> roleIdMap = signNowClient.getRoleIdMap(c.getSignnowDocumentId());
+                Map<String, String> roleIdMap;
+                try {
+                    roleIdMap = signNowClient.getRoleIdMap(c.getSignnowDocumentId());
+                } catch (WebClientResponseException ex) {
+                    int sc = ex.getStatusCode().value();
+                    log.error("[ContractInvite] Get role ID map failed: status={} body={}", sc, ex.getResponseBodyAsString());
+                    if (sc == 404) {
+                        throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+                    }
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+                } catch (Exception ex) {
+                    log.error("[ContractInvite] Get role ID map failed (unexpected): {}", ex.getMessage(), ex);
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+                }
+                
                 if (roleIdMap.isEmpty()) {
                     throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
                 }
@@ -247,13 +287,27 @@ public class ContractInviteServiceImpl implements ContractInviteService {
                 Map<String, Object> inv = signNowClient.createFreeFormInvite(c.getSignnowDocumentId(), emails, sequential, null);
                 resp.setInviteId((String) inv.getOrDefault("id", "invite"));
             }
+        } catch (AppException ex) {
+            // Re-throw AppException để giữ nguyên mã lỗi cụ thể
+            throw ex;
         } catch (WebClientResponseException wex) {
-            throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
+            int sc = wex.getStatusCode().value();
+            log.error("[ContractInvite] Create invite failed: status={} body={}", sc, wex.getResponseBodyAsString());
+            if (sc == 404) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
+            } else if (sc == 400) {
+                throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+            } else if (sc == 422) {
+                // Validation error từ SignNow
+                throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
+            } else {
+                throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
+            }
         } catch (Exception ex) {
+            log.error("[ContractInvite] Create invite failed (unexpected): {}", ex.getMessage(), ex);
             throw new AppException(ErrorCode.SIGNNOW_INVITE_FAILED);
         }
 
-        c.setStatus(ContractStatus.OUT_FOR_SIGNATURE);
         c.setSignnowStatus(ContractStatus.OUT_FOR_SIGNATURE);
         contractRepository.save(c);
 

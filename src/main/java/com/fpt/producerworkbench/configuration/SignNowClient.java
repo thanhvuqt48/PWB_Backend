@@ -136,6 +136,64 @@ public class SignNowClient {
         return authService.getFromEmail();
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getDocumentInfo(String docId) {
+        return apiClient.get()
+                .uri("/document/{id}", docId)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, r ->
+                        r.bodyToMono(String.class).defaultIfEmpty("<empty>")
+                                .flatMap(b -> toError("getDocumentInfo", r.statusCode().value(), r.statusCode(), b)))
+                .bodyToMono(Map.class)
+                .block();
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Integer> getSigningStatus(String docId) {
+        Map<String, Object> doc = getDocumentInfo(docId);
+        if (doc == null) {
+            return Map.of("totalSigners", 0, "signedCount", 0, "isCompleted", 0);
+        }
+
+        int totalSigners = 0;
+        int signedCount = 0;
+
+        Object rolesObj = doc.get("roles");
+        if (rolesObj instanceof List<?> roles) {
+            for (Object r : roles) {
+                if (r instanceof Map<?, ?> roleMap) {
+                    totalSigners++;
+                    Object signed = roleMap.get("signed");
+                    if (Boolean.TRUE.equals(signed) || "true".equalsIgnoreCase(String.valueOf(signed))) {
+                        signedCount++;
+                    }
+                }
+            }
+        }
+
+        if (totalSigners == 0) {
+            Object signersObj = doc.get("signers");
+            if (signersObj instanceof List<?> signers) {
+                totalSigners = signers.size();
+                for (Object s : signers) {
+                    if (s instanceof Map<?, ?> signerMap) {
+                        Object signed = signerMap.get("signed");
+                        if (Boolean.TRUE.equals(signed) || "true".equalsIgnoreCase(String.valueOf(signed))) {
+                            signedCount++;
+                        }
+                    }
+                }
+            }
+        }
+
+        return Map.of(
+                "totalSigners", totalSigners,
+                "signedCount", signedCount,
+                "isCompleted", (signedCount > 0 && signedCount >= totalSigners) ? 1 : 0
+        );
+    }
+
     public Map<String, Object> createFieldInvite(String docId, List<Map<String, Object>> to, boolean sequential, String fromEmail) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("signing_order", sequential ? "sequential" : "parallel");
@@ -278,7 +336,7 @@ public class SignNowClient {
 
 
     public Map<String, Object> createDocumentEventSubscriptionBearer(
-            String documentId, String callbackUrl, String secretKey, boolean docIdQueryParam
+            String documentId, String callbackUrl, String secretKey, boolean docIdQueryParam, String eventName
     ) {
         Map<String, Object> attrs = new LinkedHashMap<>();
         attrs.put("callback", callbackUrl);
@@ -286,8 +344,8 @@ public class SignNowClient {
         if (secretKey != null && !secretKey.isBlank()) attrs.put("secret_key", secretKey);
 
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("event", "document.complete");
-        payload.put("entity_id", documentId);   // BẮT BUỘC: document_id
+        payload.put("event", eventName);
+        payload.put("entity_id", documentId);
         payload.put("action", "callback");
         payload.put("attributes", attrs);
 
@@ -306,8 +364,8 @@ public class SignNowClient {
                         return resp.bodyToMono(String.class).defaultIfEmpty("")
                                 .map(s -> {
                                     Map<String, Object> ok = new LinkedHashMap<>();
-                                    ok.put("status", resp.statusCode().value()); // thường 201
-                                    ok.put("body", s); // thường rỗng
+                                    ok.put("status", resp.statusCode().value());
+                                    ok.put("body", s);
                                     return ok;
                                 });
                     }
@@ -361,6 +419,39 @@ public class SignNowClient {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
                 .block();
+    }
+
+    public boolean deleteDocument(String docId) {
+        if (docId == null || docId.isBlank()) {
+            log.warn("[SignNow] Cannot delete document: docId is null or blank");
+            return false;
+        }
+
+        try {
+            apiClient.delete()
+                    .uri("/document/{id}", docId)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, r ->
+                            r.bodyToMono(String.class).defaultIfEmpty("<empty>")
+                                    .flatMap(b -> toError("deleteDocument", r.statusCode().value(), r.statusCode(), b)))
+                    .toBodilessEntity()
+                    .block();
+            
+            log.info("[SignNow] Successfully deleted document: {}", docId);
+            return true;
+        } catch (WebClientResponseException ex) {
+            int statusCode = ex.getStatusCode().value();
+            if (statusCode == 404) {
+                log.warn("[SignNow] Document {} not found (may have been deleted already)", docId);
+                return false;
+            }
+            log.error("[SignNow] Failed to delete document {}: status={} body={}", 
+                    docId, statusCode, cut(ex.getResponseBodyAsString()));
+            return false;
+        } catch (Exception ex) {
+            log.warn("[SignNow] Unexpected error when deleting document {}: {}", docId, ex.getMessage());
+            return false;
+        }
     }
 }
 

@@ -42,11 +42,6 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "payment_type", nullable = false)
     private PaymentType paymentType;
 
-    /** Trạng thái nghiệp vụ tổng thể của hợp đồng trong hệ thống của bạn */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    private ContractStatus status;
-
     @Column(name = "fp_edit_amount")
     private Integer fpEditAmount;
 

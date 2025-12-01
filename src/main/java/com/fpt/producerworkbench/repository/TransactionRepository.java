@@ -11,4 +11,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     Optional<Transaction> findByTransactionCode(String transactionCode);
 
     Optional<Transaction> findTopByRelatedContract_IdOrderByCreatedAtDesc(Long contractId);
+
+    Optional<Transaction> findTopByRelatedAddendum_IdOrderByCreatedAtDesc(Long addendumId);
 }

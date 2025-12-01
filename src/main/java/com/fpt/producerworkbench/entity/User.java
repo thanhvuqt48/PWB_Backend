@@ -89,6 +89,7 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     private String cccdIssuePlace;
 
     @Column(name = "is_verified", nullable = false)
+    @Builder.Default
     private Boolean isVerified = false;
 
     @Column(name = "verified_at")

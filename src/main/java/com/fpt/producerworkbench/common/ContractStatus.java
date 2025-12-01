@@ -4,7 +4,9 @@ public enum ContractStatus {
     DRAFT,
     OUT_FOR_SIGNATURE,
     PARTIALLY_SIGNED,
-    COMPLETED,
+    SIGNED,              
+    PAID,                
+    COMPLETED,           
     DECLINED,
     VOIDED,
     EXPIRED
