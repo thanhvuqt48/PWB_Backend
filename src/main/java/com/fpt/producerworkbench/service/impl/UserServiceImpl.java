@@ -4,11 +4,7 @@ import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.common.UserStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.*;
-import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
-import com.fpt.producerworkbench.dto.response.ParticipantInfoDetailResponse;
-import com.fpt.producerworkbench.dto.response.UserProfileResponse;
-import com.fpt.producerworkbench.dto.response.UserResponse;
-import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.mapper.UserMapper;
@@ -18,6 +14,7 @@ import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.OtpService;
 import com.fpt.producerworkbench.service.UserService;
+import com.fpt.producerworkbench.service.VnptEkycService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import org.springframework.web.multipart.MultipartFile;
 import jakarta.mail.MessagingException;
@@ -31,10 +28,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import com.fpt.producerworkbench.exception.ErrorCode;
 
@@ -54,6 +53,7 @@ public class UserServiceImpl implements UserService {
     KafkaTemplate<String, Object> kafkaTemplate;
     FileKeyGenerator fileKeyGenerator;
     FileStorageService fileStorageService;
+    VnptEkycService vnptEkycService;
 
     @Transactional
     public UserResponse createUser(UserCreationRequest request, String otp) {
@@ -79,7 +79,7 @@ public class UserServiceImpl implements UserService {
                 .channel("EMAIL")
                 .recipient(user.getEmail())
                 .templateCode("welcome-email")
-                .subject("Welcome to PWB")
+                .subject("Chào mừng bạn đến với PWB!")
                 .build();
 
         kafkaTemplate.send("notification-delivery", event);
@@ -101,11 +101,11 @@ public class UserServiceImpl implements UserService {
 
         String subject = "Your OTP Code";
         String content = String.format(
-                "<p>Hello,</p>"
-                        + "<p>We received a request to reset your password. Use the following OTP to reset it:</p>"
+                "<p>Xin chào,</p>"
+                        + "<p>Chúng tôi nhận thấy bạn đã yêu cầu mã OTP để đặt lại mật khẩu.</p>"
                         + "<h2>%s</h2>"
-                        + "<p>If you did not request this, please ignore this email.</p>"
-                        + "<p>Best regards,<br/>Your Company</p>",
+                        + "<p>Nếu bạn không yêu cầu mã OTP, vui lòng bỏ qua email này.</p>"
+                        + "<p>Trân trọng,<br/>PWB</p>",
                 otp);
         emailService.sendEmail(subject, content, List.of(user.getEmail()));
     }
@@ -195,7 +195,7 @@ public class UserServiceImpl implements UserService {
 
         return ChangePasswordResponse
                 .builder()
-                .message("Change password successful")
+                .message("Đổi mật khẩu thành công!")
                 .success(true)
                 .build();
     }
@@ -208,7 +208,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        return mapToUserProfileResponse(user);
+        return userMapper.toUserProfileResponse(user);
     }
 
     @Transactional
@@ -261,14 +261,131 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
         log.info("Personal profile updated for user: {}", email);
 
-        return mapToUserProfileResponse(user);
+        return userMapper.toUserProfileResponse(user);
+    }
+
+    @Transactional
+    public CccdInfoResponse verifyCccd(MultipartFile front, MultipartFile back, MultipartFile face) throws IOException {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Step 1: Upload 3 ảnh → lấy 3 hash
+        log.info("Step 1: Uploading 3 images...");
+        var frontUploadResponse = vnptEkycService.uploadFile(front);
+        var backUploadResponse = vnptEkycService.uploadFile(back);
+        String frontHash = frontUploadResponse.getObject().getHash();
+        String backHash = backUploadResponse.getObject().getHash();
+        final String faceHash;
+
+        if (face != null && !face.isEmpty()) {
+            var faceUploadResponse = vnptEkycService.uploadFile(face);
+            faceHash = faceUploadResponse.getObject().getHash();
+        } else {
+            faceHash = null;
+        }
+
+        CccdInfoResponse dto = new CccdInfoResponse();
+
+        // Step 2: classify/id (với front hash)
+        log.info("Step 2: Calling classify/id...");
+        var classifyResponse = safeCall(() -> vnptEkycService.classifyCccd(frontHash), "Classify");
+        if (classifyResponse != null && classifyResponse.getObject() != null) {
+            dto.setClassify(classifyResponse.getObject());
+        }
+
+        // Step 3: card/liveness (với front hash)
+        log.info("Step 3: Calling card/liveness...");
+        var cardLivenessResponse = safeCall(() -> vnptEkycService.liveness(frontHash), "Card Liveness");
+        if (cardLivenessResponse != null && cardLivenessResponse.getObject() != null) {
+            dto.setCardLiveness(cardLivenessResponse.getObject());
+        }
+
+        // Step 4: ocr/id (với front hash và back hash)
+        log.info("Step 4: Calling ocr/id...");
+        var ocrResponse = vnptEkycService.ocrCccd(frontHash, backHash);
+        if (ocrResponse != null && ocrResponse.getObject() != null) {
+            var ocrObject = ocrResponse.getObject();
+            dto.setId(ocrObject.getId());
+            dto.setName(ocrObject.getName());
+            dto.setBirthDay(ocrObject.getBirthDay());
+            dto.setGender(ocrObject.getGender());
+            dto.setOriginLocation(ocrObject.getOriginLocation());
+            dto.setRecentLocation(ocrObject.getRecentLocation());
+            dto.setIssueDate(ocrObject.getIssueDate());
+            dto.setIssuePlace(ocrObject.getIssuePlace());
+            dto.setCardType(ocrObject.getCardType());
+        }
+
+        // Step 5: face/liveness (với face hash) - chỉ khi có face image
+        if (faceHash != null) {
+            log.info("Step 5: Calling face/liveness...");
+            var faceLivenessResponse = safeCall(() -> vnptEkycService.faceLiveness(faceHash), "Face Liveness");
+            if (faceLivenessResponse != null && faceLivenessResponse.getObject() != null) {
+                dto.setFaceLiveness(faceLivenessResponse.getObject());
+            }
+
+            // Step 6: face/compare (với front hash và face hash)
+            log.info("Step 6: Calling face/compare...");
+            var compareFaceResponse = safeCall(() -> vnptEkycService.compareFace(frontHash, faceHash), "Compare Face");
+            if (compareFaceResponse != null && compareFaceResponse.getObject() != null) {
+                dto.setCompareFace(compareFaceResponse.getObject());
+            }
+        }
+
+        String frontKey = fileKeyGenerator.generateCccdKey(user.getId(), "front", front.getOriginalFilename());
+        String backKey = fileKeyGenerator.generateCccdKey(user.getId(), "back", back.getOriginalFilename());
+
+        fileStorageService.uploadFile(front, frontKey);
+        fileStorageService.uploadFile(back, backKey);
+
+        String frontUrl = fileStorageService.generatePermanentUrl(frontKey);
+        String backUrl = fileStorageService.generatePermanentUrl(backKey);
+
+        user.setCccdNumber(dto.getId());
+        user.setCccdFullName(dto.getName());
+        user.setCccdBirthDay(dto.getBirthDay());
+        user.setCccdGender(dto.getGender());
+        user.setCccdOriginLocation(dto.getOriginLocation());
+        user.setCccdRecentLocation(dto.getRecentLocation());
+        user.setCccdIssueDate(dto.getIssueDate());
+        user.setCccdIssuePlace(dto.getIssuePlace());
+        user.setIsVerified(true);
+        user.setVerifiedAt(LocalDateTime.now());
+        user.setCccdFrontImageUrl(frontUrl);
+        user.setCccdBackImageUrl(backUrl);
+
+        userRepository.save(user);
+
+        return dto;
+    }
+
+    public void saveCccdInfo(CccdRequest request) {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        user.setCccdNumber(request.getCccdNumber());
+        user.setCccdFullName(request.getCccdFullName());
+        user.setCccdBirthDay(request.getCccdBirthDay());
+        user.setCccdGender(request.getCccdGender());
+        user.setCccdOriginLocation(request.getCccdOriginLocation());
+        user.setCccdRecentLocation(request.getCccdRecentLocation());
+        user.setCccdIssueDate(request.getCccdIssueDate());
+        user.setCccdIssuePlace(request.getCccdIssuePlace());
+        user.setIsVerified(true);
+        user.setVerifiedAt(LocalDateTime.now());
+        userRepository.save(user);
     }
 
     private String extractKeyFromUrl(String url) {
         if (url == null || url.isEmpty()) {
             return null;
         }
-        
+
         int queryIndex = url.indexOf('?');
         int fragmentIndex = url.indexOf('#');
         int endIndex = url.length();
@@ -278,9 +395,9 @@ public class UserServiceImpl implements UserService {
             endIndex = fragmentIndex;
         }
         String cleanUrl = url.substring(0, endIndex);
-        
+
         String key = null;
-        
+
         if (cleanUrl.contains("cloudfront.net")) {
             int domainIndex = cleanUrl.indexOf("cloudfront.net");
             String afterDomain = cleanUrl.substring(domainIndex + "cloudfront.net".length());
@@ -297,26 +414,13 @@ public class UserServiceImpl implements UserService {
         } else if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
             key = cleanUrl;
         }
-        
+
         // Normalize key: remove leading slash để đảm bảo format đúng cho S3
         if (key != null && key.startsWith("/")) {
             key = key.substring(1);
         }
-        
-        return key;
-    }
 
-    private UserProfileResponse mapToUserProfileResponse(User user) {
-        UserProfileResponse response = new UserProfileResponse();
-        response.setEmail(user.getEmail());
-        response.setFirstName(user.getFirstName());
-        response.setLastName(user.getLastName());
-        response.setPhoneNumber(user.getPhoneNumber());
-        response.setDateOfBirth(user.getDateOfBirth());
-        response.setAvatarUrl(user.getAvatarUrl());
-        response.setLocation(user.getLocation());
-        response.setRole(user.getRole() != null ? user.getRole().name() : null);
-        return response;
+        return key;
     }
 
     public List<ParticipantInfoDetailResponse> searchUser(String email) {
@@ -329,4 +433,14 @@ public class UserServiceImpl implements UserService {
                         .build())
                 .toList();
     }
+
+    private <T> T safeCall(Supplier<T> fn, String name) {
+        try {
+            return fn.get();
+        } catch (Exception e) {
+            log.warn("{} failed: {}", name, e.getMessage());
+            return null;
+        }
+    }
+
 }

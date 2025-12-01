@@ -1,5 +1,8 @@
 spring:
   # Primary DataSource (MySQL) - Main application
+  output:
+    ansi:
+      enabled: ALWAYS
   datasource:
     primary:
       url: ${DBMS_CONNECTION}
@@ -169,6 +172,7 @@ pwb:
     font: classpath:/templates/NotoSerif-Regular.ttf
   addendum:
     template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac.pdf
+    milestone-template: classpath:templates/phu-luc-hop-dong-san-xuat-am-nhac-milestone.pdf
     font: classpath:templates/NotoSerif-Regular.ttf
 
 storage:
@@ -254,5 +258,14 @@ ffmpeg:
 
 ffprobe:
   path: ${FFPROBE_PATH:ffprobe}
+
+vnpt:
+  ekyc:
+    base-url: ${VNPT_EKYC_BASE_URL}
+    token-id: ${VNPT_EKYC_TOKEN_ID}
+    token-key: ${VNPT_EKYC_TOKEN_KEY}
+    access-token: ${VNPT_EKYC_ACCESS_TOKEN}
+    username: ${VNPT_EKYC_USERNAME}
+    password: ${VNPT_EKYC_PASSWORD}
 
 

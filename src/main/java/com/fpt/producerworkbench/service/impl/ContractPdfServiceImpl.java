@@ -8,11 +8,13 @@ import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.ContractParty;
 import com.fpt.producerworkbench.entity.Milestone;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
+import com.fpt.producerworkbench.repository.ContractPartyRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
@@ -45,6 +47,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StreamUtils;
 
 import java.io.ByteArrayOutputStream;
@@ -110,10 +113,12 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     ProjectRepository projectRepository;
     ContractRepository contractRepository;
     MilestoneRepository milestoneRepository;
+    ContractPartyRepository contractPartyRepository;
     ContractDocumentRepository contractDocumentRepository;
     FileStorageService fileStorageService;
     FileKeyGenerator fileKeyGenerator;
     ProjectPermissionService projectPermissionService;
+    com.fpt.producerworkbench.configuration.SignNowClient signNowClient;
     Resource templateResource;
     Resource fontResource;
 
@@ -125,6 +130,8 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             FileKeyGenerator fileKeyGenerator,
             ProjectPermissionService projectPermissionService,
             MilestoneRepository milestoneRepository,
+            ContractPartyRepository contractPartyRepository,
+            com.fpt.producerworkbench.configuration.SignNowClient signNowClient,
             @Value("${pwb.contract.template}") Resource templateResource,
             @Value("${pwb.contract.font}") Resource fontResource
     ) {
@@ -135,13 +142,21 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         this.fileKeyGenerator = fileKeyGenerator;
         this.projectPermissionService = projectPermissionService;
         this.milestoneRepository = milestoneRepository;
+        this.contractPartyRepository = contractPartyRepository;
+        this.signNowClient = signNowClient;
         this.templateResource = templateResource;
         this.fontResource = fontResource;
     }
 
     @Override
+    @Transactional
     public byte[] fillTemplate(Authentication auth, Long projectId, ContractPdfFillRequest req) {
         if (req.getPercent() == null || req.getPercent().isBlank()) throw new AppException(ErrorCode.BAD_REQUEST);
+
+        BigDecimal compensationPercentage = parsePercent(req.getPercent());
+        if (compensationPercentage == null || compensationPercentage.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
 
         var permissions = projectPermissionService.checkContractPermissions(auth, projectId);
         if (!permissions.isCanCreateContract()) throw new AppException(ErrorCode.ACCESS_DENIED);
@@ -171,7 +186,8 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
         Contract contract = contractRepository.findByProjectId(project.getId()).orElse(null);
         if (contract != null) {
-            if (ContractStatus.COMPLETED.equals(contract.getStatus())) {
+            ContractStatus status = contract.getSignnowStatus();
+            if (status == ContractStatus.PAID || status == ContractStatus.COMPLETED) {
                 throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
             }
         } else {
@@ -185,9 +201,43 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         contract.setTotalAmount(totals.sum);
         contract.setPitTax(totals.pit);
         contract.setVatTax(totals.vat);
-        contract.setStatus(ContractStatus.DRAFT);
+        contract.setCompensationPercentage(compensationPercentage);
         contract.setFpEditAmount(req.getFpEditAmount());
-        // Reset SignNow fields khi tạo hợp đồng mới (hoặc reset hợp đồng cũ)
+        
+        if (contract.getId() != null && contract.getSignnowDocumentId() != null && !contract.getSignnowDocumentId().isBlank()) {
+            Contract freshContract = contractRepository.findById(contract.getId())
+                    .orElse(null);
+            
+            if (freshContract != null) {
+                ContractStatus freshStatus = freshContract.getSignnowStatus();
+                String freshDocId = freshContract.getSignnowDocumentId();
+                
+                if ((freshStatus == ContractStatus.DRAFT || 
+                     freshStatus == ContractStatus.OUT_FOR_SIGNATURE || 
+                     freshStatus == ContractStatus.PARTIALLY_SIGNED || 
+                     freshStatus == ContractStatus.SIGNED) &&
+                    freshDocId != null && 
+                    freshDocId.equals(contract.getSignnowDocumentId())) {
+                    
+                    String oldDocId = freshDocId;
+                    log.info("[ContractPdf] Deleting old SignNow document {} before resetting to DRAFT (contract {}, status: {})", 
+                            oldDocId, contract.getId(), freshStatus);
+                    boolean deleted = signNowClient.deleteDocument(oldDocId);
+                    if (deleted) {
+                        log.info("[ContractPdf] Successfully deleted old SignNow document {}", oldDocId);
+                    } else {
+                        log.warn("[ContractPdf] Failed to delete old SignNow document {} (may have been deleted already or not exist)", oldDocId);
+                    }
+                } else {
+                    log.warn("[ContractPdf] Skipping document deletion: contract {} status changed from {} to {} or document ID changed", 
+                            contract.getId(), contract.getSignnowStatus(), freshStatus);
+                    if (freshStatus == ContractStatus.PAID || freshStatus == ContractStatus.COMPLETED) {
+                        throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
+                    }
+                }
+            }
+        }
+        
         contract.setSignnowDocumentId(null);
         contract.setSignnowStatus(ContractStatus.DRAFT);
 
@@ -195,9 +245,20 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             contract.setProductCount(totalQtyFromLines);
         }
 
+        boolean existedBefore = contract.getId() != null;
+
         contract = contractRepository.save(contract);
 
+        upsertContractPartyForContract(contract, req);
+
         if (payMilestone && req.getMilestones() != null) {
+            if (existedBefore) {
+                milestoneRepository.deleteByContract(contract);
+            }
+
+            int totalEditCount = 0;
+            int totalProductCount = 0;
+
             int idx = 0;
             for (MilestoneRequest m : req.getMilestones()) {
                 BigDecimal amtPreVat = parseMoney(m.getAmount());
@@ -217,9 +278,22 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                         .editCount(m.getEditCount())
                         .productCount(m.getProductCount())
                         .build();
+
                 milestoneRepository.save(ms);
+
+                if (m.getEditCount() != null) {
+                    totalEditCount += m.getEditCount();
+                }
+                if (m.getProductCount() != null) {
+                    totalProductCount += m.getProductCount();
+                }
+
                 idx++;
             }
+
+            contract.setFpEditAmount(totalEditCount);
+            contract.setProductCount(totalProductCount);
+            contractRepository.save(contract);
         }
 
         try (InputStream in = templateResource.getInputStream();
@@ -361,7 +435,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                     ? null : ("• Mô tả: " + m.getDescription());
             String revisions = (m.getEditCount() == null) ? null : ("• Số lần chỉnh sửa: " + m.getEditCount());
 
-            String qty = (m.getProductCount() == null) ? null // LOGIC MOI
+            String qty = (m.getProductCount() == null) ? null
                     : ("• Số sản phẩm: " + m.getProductCount());
 
             com.itextpdf.layout.element.Div probe =
@@ -525,9 +599,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         m.put("Text Box 7",  ns(req.getACccdIssuePlace()));
         m.put("Text Box 8",  ns(req.getAAddress()));
         m.put("Text Box 9",  ns(req.getAPhone()));
-        m.put("Text Box 10", ns(req.getARepresentative()));
-        m.put("Text Box 11", ns(req.getATitle()));
-        m.put("Text Box 12", ns(req.getAPoANo()));
 
         m.put("Text Box 13", ns(req.getBName()));
         m.put("Text Box 14", ns(req.getBCccd()));
@@ -535,9 +606,6 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         m.put("Text Box 16", ns(req.getBCccdIssuePlace()));
         m.put("Text Box 17", ns(req.getBAddress()));
         m.put("Text Box 18", ns(req.getBPhone()));
-        m.put("Text Box 19", ns(req.getBRepresentative()));
-        m.put("Text Box 20", ns(req.getBTitle()));
-        m.put("Text Box 21", ns(req.getBPoANo()));
 
         List<Line> lines = collectLines(req);
         for (int i = 0; i < TABLE_FIELDS.length; i++) {
@@ -622,7 +690,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
 
         float remaining = rect.getHeight();
 
-        Paragraph heading = new Paragraph(new Text("Bổ sung điều khoản").setBold())
+        Paragraph heading = new Paragraph(new Text("Điều khoản bổ sung").setBold())
                 .setFont(font).setFontSize(11.5f)
                 .setMargin(0).setPadding(0)
                 .setMultipliedLeading(1.25f);
@@ -731,6 +799,18 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         return new BigDecimal(digits);
     }
 
+    private BigDecimal parsePercent(String s) {
+        if (s == null || s.isBlank()) return null;
+        String cleaned = s.replace("%", "").trim();
+        if (cleaned.isBlank()) return null;
+        try {
+            return new BigDecimal(cleaned);
+        } catch (NumberFormatException ex) {
+            log.warn("Cannot parse percent from '{}'", s);
+            return null;
+        }
+    }
+
     private String formatMoney(BigDecimal v) {
         NumberFormat nf = NumberFormat.getInstance(Locale.US);
         nf.setMaximumFractionDigits(0);
@@ -768,4 +848,41 @@ public class ContractPdfServiceImpl implements ContractPdfService {
     private String ns(Object o) { return o == null ? "" : String.valueOf(o); }
     private boolean isBlank(String s) { return s == null || s.isBlank(); }
     private String nvl(String s, String def) { return isBlank(s) ? def : s; }
+
+    private void upsertContractPartyForContract(Contract contract, ContractPdfFillRequest req) {
+        boolean completed = ContractStatus.COMPLETED.equals(contract.getSignnowStatus());
+
+        ContractParty party = contractPartyRepository.findByContract(contract).orElse(null);
+        if (party == null) {
+            party = new ContractParty();
+            party.setContract(contract);
+        }
+
+        if (completed) {
+            if (party.getId() == null) {
+                fillPartyFromRequest(party, req);
+                contractPartyRepository.save(party);
+            }
+            return;
+        }
+
+        fillPartyFromRequest(party, req);
+        contractPartyRepository.save(party);
+    }
+
+    private void fillPartyFromRequest(ContractParty party, ContractPdfFillRequest req) {
+        party.setAName(req.getAName());
+        party.setAIdNumber(req.getACccd());
+        party.setAIdIssueDate(req.getACccdIssueDate());
+        party.setAIdIssuePlace(req.getACccdIssuePlace());
+        party.setAAddress(req.getAAddress());
+        party.setAPhone(req.getAPhone());
+
+        party.setBName(req.getBName());
+        party.setBIdNumber(req.getBCccd());
+        party.setBIdIssueDate(req.getBCccdIssueDate());
+        party.setBIdIssuePlace(req.getBCccdIssuePlace());
+        party.setBAddress(req.getBAddress());
+        party.setBPhone(req.getBPhone());
+    }
 }

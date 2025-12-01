@@ -3,6 +3,9 @@ package com.fpt.producerworkbench.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "ticket_replies")
 @Getter
@@ -22,5 +25,10 @@ public class TicketReply extends AbstractEntity<Long>{
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
+
+    @ElementCollection
+    @CollectionTable(name = "ticket_reply_attachments", joinColumns = @JoinColumn(name = "reply_id"))
+    @Column(name = "s3_key")
+    private List<String> attachmentKeys = new ArrayList<>();
 
 }

@@ -189,7 +189,8 @@ public class ProjectController {
 
     /**
      * Lấy danh sách quyền của người dùng hiện tại đối với project.
-     * Trả về các quyền như: xem project, chỉnh sửa project, quản lý thành viên, v.v.
+     * Trả về các quyền như: xem project, chỉnh sửa project, quản lý thành viên, contract, addendum, payment, v.v.
+     * Bao gồm cả quyền addendum: canCreateAddendum, canViewAddendum, canInviteToSign, canDeclineAddendum, canEditAddendum, canCreateAddendumPayment.
      */
     @GetMapping("/projects/{projectId}/permissions")
     public ResponseEntity<ApiResponse<ProjectPermissionResponse>> getProjectPermissions(

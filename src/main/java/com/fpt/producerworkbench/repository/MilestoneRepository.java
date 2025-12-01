@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.repository;
 
+import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.Milestone;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -21,4 +22,8 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
     
     @Query("SELECT m FROM Milestone m WHERE m.contract.id = :contractId AND LOWER(TRIM(m.title)) = LOWER(TRIM(:title))")
     Optional<Milestone> findByContractIdAndTitleIgnoreCase(@Param("contractId") Long contractId, @Param("title") String title);
+
+    void deleteByContract(Contract contract);
+
+    long countByContract(Contract contract);
 }

@@ -101,6 +101,12 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
         return String.format("audio/voice-tag/%d/tag.mp3", trackId);
     }
 
+    @Override
+    public String generateCccdKey(Long userId, String side, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("users/%d/private/cccd/%s_%s%s", userId, side, uuid, getFileExtension(originalFilename));
+    }
+
     private String getFileExtension(String filename) {
         if (!StringUtils.hasText(filename) || !filename.contains(".")) {
             return "";

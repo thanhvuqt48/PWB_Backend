@@ -6,6 +6,7 @@ import com.fpt.producerworkbench.common.SigningOrderType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -28,10 +29,10 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Column()
     private String title;
 
-    @Column(columnDefinition = "TEXT")
-    private String content;
+    @Column(name = "addendum_number", nullable = false)
+    private int addendumNumber; // Số thứ tự phụ lục (1, 2, 3...)
 
-    private int version;
+    private int version; // Version của phụ lục (1, 2, 3...)
 
     @Column(name = "effective_date")
     private LocalDate effectiveDate;
@@ -51,6 +52,26 @@ public class ContractAddendum extends AbstractEntity<Long> {
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_order_type", length = 16, nullable = false)
     private SigningOrderType signingOrderType = SigningOrderType.SEQUENTIAL;
+
+    @Column(name = "num_of_money", precision = 15, scale = 2)
+    private BigDecimal numOfMoney;
+
+    @Column(name = "num_of_edit")
+    private Integer numOfEdit;
+
+    @Column(name = "num_of_refresh")
+    private Integer numOfRefresh;
+
+    @Column(name = "pit_tax", precision = 15, scale = 2)
+    private BigDecimal pitTax;
+
+    @Column(name = "vat_tax", precision = 15, scale = 2)
+    private BigDecimal vatTax;
+
+    /** Lý do từ chối phụ lục hợp đồng */
+    @Lob
+    @Column(name = "decline_reason")
+    private String declineReason;
 
     @PrePersist
     void prePersist() {

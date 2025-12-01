@@ -105,7 +105,7 @@ public enum ErrorCode {
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_DOB(400, "Ngày sinh phải lớn hơn 1950 và nhỏ hơn ngày hiện tại", HttpStatus.BAD_REQUEST),
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
-    PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
+    PASSWORD_EXISTED(409, "Mật khẩu đã được sử dụng trước đó", HttpStatus.CONFLICT),
     CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
 
     // Agora RTC/RTM Token - 6xxx
@@ -256,7 +256,9 @@ public enum ErrorCode {
     CLIENT_DELIVERY_NOT_FOUND(8040, "Client delivery không tồn tại", HttpStatus.NOT_FOUND),
     INVALID_DELIVERY_STATUS_TRANSITION(8041, "Không thể chuyển đổi trạng thái delivery này", HttpStatus.BAD_REQUEST),
     REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST),
-
+    CANNOT_DELETE_ACCEPTED_TRACK(8044, "Không thể xóa track đã được khách hàng chấp nhận. Track này đã được bàn giao cho khách hàng.", HttpStatus.BAD_REQUEST),
+    CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS(8045, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành", HttpStatus.BAD_REQUEST),
+    TRACK_DOWNLOAD_PERMISSION_DENIED(8046, "Bạn không có quyền download track này. Chỉ chủ dự án hoặc thành viên được chỉ định quyền download mới có thể tải xuống.", HttpStatus.FORBIDDEN),
 
     // ===== User Guide & AI Context Errors (18xxx) =====
     USER_GUIDE_NOT_FOUND(18001, "Không tìm thấy user guide.", HttpStatus.NOT_FOUND),

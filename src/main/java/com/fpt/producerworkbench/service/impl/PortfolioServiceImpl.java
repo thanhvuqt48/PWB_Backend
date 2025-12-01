@@ -325,8 +325,9 @@ public class PortfolioServiceImpl implements PortfolioService {
     public PortfolioResponse getPortfolioByUserId(Long userId) {
         log.info("Finding portfolio by user ID: {}", userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (!userRepository.existsById(userId)) {
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+        }
 
         Portfolio portfolio = portfolioRepository.findByUserId(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));

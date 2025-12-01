@@ -18,6 +18,7 @@ public class PaymentStatusResponse {
     private BigDecimal amount;
     private Long projectId;
     private Long contractId;
+    private Long addendumId; // nullable - chỉ có khi thanh toán phụ lục
 }
 
 

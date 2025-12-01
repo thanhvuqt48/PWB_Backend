@@ -1,7 +1,7 @@
 package com.fpt.producerworkbench.kafka.consumer;
 
 import com.fpt.producerworkbench.dto.request.ChatRequest;
-import com.fpt.producerworkbench.service.impl.ChatMessageService;
+import com.fpt.producerworkbench.service.ChatMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

@@ -28,6 +28,9 @@ public class ProjectPermissionResponse {
     // Contract permissions
     private ContractPermissions contract;
     
+    // Addendum permissions (phụ lục hợp đồng)
+    private AddendumPermissions addendum;
+    
     // Payment permissions (thanh toán theo hợp đồng)
     private PaymentPermissions payment;
     
@@ -114,6 +117,19 @@ public class ProjectPermissionResponse {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class AddendumPermissions {
+        private boolean canCreateAddendum;
+        private boolean canViewAddendum;
+        private boolean canInviteToSign;
+        private boolean canDeclineAddendum;
+        private boolean canEditAddendum;
+        private boolean canCreateAddendumPayment; // Thanh toán phụ lục
+    }
+    
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class PaymentPermissions {
         private boolean canCreatePayment;
         private boolean canViewPayment;
@@ -153,6 +169,7 @@ public class ProjectPermissionResponse {
         private boolean canDeleteTrack;
         private boolean canPlayTrack;
         private boolean canApproveTrackStatus; // Chỉ chủ dự án mới có quyền phê duyệt/từ chối trạng thái track
+        private boolean canDownloadTrack; // Chỉ chủ dự án hoặc milestone members được chỉ định mới có quyền download
     }
     
     @Data
