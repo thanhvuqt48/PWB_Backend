@@ -21,6 +21,7 @@ public class Portfolio extends AbstractEntity<Long> {
     @Column(name = "custom_url_slug", unique = true)
     private String customUrlSlug;
 
+    @Column(name = "headline")
     private String headline;
 
     @Column(name = "cover_image_url", length = 1000)

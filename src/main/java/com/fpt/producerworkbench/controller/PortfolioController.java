@@ -1,17 +1,11 @@
 package com.fpt.producerworkbench.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fpt.producerworkbench.dto.request.PortfolioRequest;
 import com.fpt.producerworkbench.dto.request.PortfolioUpdateRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.PortfolioResponse;
-import com.fpt.producerworkbench.exception.AppException;
-import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.PortfolioService;
-import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Valid;
-import jakarta.validation.Validator;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -21,8 +15,10 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -68,11 +64,33 @@ public class PortfolioController {
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<PortfolioResponse> update(
             @RequestPart(value = "coverImage", required = false) MultipartFile coverImage,
-            @Valid @RequestPart("data") PortfolioUpdateRequest request
+            @Valid @RequestPart("data") PortfolioUpdateRequest request,
+            MultipartHttpServletRequest multipartRequest
     ) {
         log.info("Updating personal portfolio");
+        
+        Map<String, MultipartFile> projectAudioDemos = new HashMap<>();
+        Map<String, MultipartFile> projectCoverImages = new HashMap<>();
+        
+        multipartRequest.getFileMap().forEach((name, file) -> {
+            if (name.startsWith("projectAudioDemos[")) {
+                // Extract index from name like "projectAudioDemos[0]"
+                String index = name.substring("projectAudioDemos[".length(), name.length() - 1);
+                projectAudioDemos.put(index, file);
+                log.debug("Found audio demo at index: {}", index);
+            } else if (name.startsWith("projectCoverImages[")) {
+                // Extract index from name like "projectCoverImages[0]"
+                String index = name.substring("projectCoverImages[".length(), name.length() - 1);
+                projectCoverImages.put(index, file);
+                log.debug("Found cover image at index: {}", index);
+            }
+        });
+        
+        log.debug("Parsed projectAudioDemos: {} files", projectAudioDemos.size());
+        log.debug("Parsed projectCoverImages: {} files", projectCoverImages.size());
 
-        PortfolioResponse result = portfolioService.updatePersonalPortfolio(request, coverImage);
+        PortfolioResponse result = portfolioService.updatePersonalPortfolio(
+                request, coverImage, projectAudioDemos, projectCoverImages);
 
         log.info("Portfolio updated successfully");
 
@@ -82,7 +100,6 @@ public class PortfolioController {
                 .result(result)
                 .build();
     }
-
 
     @GetMapping("/personal")
     @PreAuthorize("isAuthenticated()")
