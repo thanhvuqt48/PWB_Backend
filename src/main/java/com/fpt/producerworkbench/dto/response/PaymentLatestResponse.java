@@ -20,10 +20,11 @@ public class PaymentLatestResponse {
 
     private Long projectId;
     private Long contractId;
+    private Long addendumId; // nullable - chỉ có khi thanh toán phụ lục
 
-    private String paymentType; // FULL | MILESTONE
-    private Long milestoneId; // nullable
-    private Integer milestoneSequence; // nullable
+    private String paymentType; // FULL | MILESTONE (chỉ có khi thanh toán contract)
+    private Long milestoneId; // nullable (chỉ có khi thanh toán contract milestone)
+    private Integer milestoneSequence; // nullable (chỉ có khi thanh toán contract milestone)
 
     private Date createdAt;
     private Date updatedAt;
