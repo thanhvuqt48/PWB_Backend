@@ -38,6 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ProjectRepository projectRepository;
     private final ContractRepository contractRepository;
     private final MilestoneRepository milestoneRepository;
+    private final MilestoneMemberRepository milestoneMemberRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ContractAddendumRepository contractAddendumRepository;
@@ -277,6 +278,42 @@ public class PaymentServiceImpl implements PaymentService {
                         contract.setSignnowStatus(ContractStatus.PAID);
                         contractRepository.save(contract);
                         log.info("Đánh dấu THÀNH CÔNG thanh toán hợp đồng. Mã đơn hàng: {}, Contract ID: {}, Status: PAID", orderCode, contract.getId());
+
+                        // Nếu hợp đồng là dạng thanh toán theo MILESTONE,
+                        // tự động thêm chủ dự án (owner) và khách hàng (client)
+                        // vào thành viên của milestone đầu tiên (tx.relatedMilestone)
+                        if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
+                            Milestone milestone = tx.getRelatedMilestone();
+                            Project project = contract.getProject();
+
+                            if (milestone != null && project != null) {
+                                User owner = project.getCreator();
+                                User client = project.getClient();
+
+                                // Thêm owner nếu chưa có
+                                if (owner != null
+                                        && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), owner.getId())) {
+                                    MilestoneMember ownerMember = MilestoneMember.builder()
+                                            .milestone(milestone)
+                                            .user(owner)
+                                            .build();
+                                    milestoneMemberRepository.save(ownerMember);
+                                }
+
+                                // Thêm client nếu khác owner và chưa có
+                                if (client != null) {
+                                    boolean sameAsOwner = owner != null && owner.getId().equals(client.getId());
+                                    if (!sameAsOwner
+                                            && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), client.getId())) {
+                                        MilestoneMember clientMember = MilestoneMember.builder()
+                                                .milestone(milestone)
+                                                .user(client)
+                                                .build();
+                                        milestoneMemberRepository.save(clientMember);
+                                    }
+                                }
+                            }
+                        }
                     } else {
                         log.warn("Contract {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}", contract.getId(), contract.getSignnowStatus());
                     }
