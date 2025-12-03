@@ -28,4 +28,6 @@ public class PortfolioResponse {
     Set<PortfolioSectionResponse> sections;
     Set<PersonalProjectResponse> personalProjects;
     Set<SocialLinkResponse> socialLinks;
+
+    String role;
 }

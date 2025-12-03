@@ -54,5 +54,6 @@ public interface PortfolioMapper {
     @Mapping(source = "user.avatarUrl", target = "avatarUrl")
     @Mapping(source = "genres", target = "genres", qualifiedByName = "genresToStrings")
     @Mapping(source = "tags", target = "tags", qualifiedByName = "tagsToStrings")
+    @Mapping(source = "user.role", target = "role")
     PortfolioResponse toPortfolioResponse(Portfolio portfolio);
 }
