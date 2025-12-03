@@ -117,4 +117,13 @@ public class UserController extends User {
                 .result(userService.searchUser(username))
                 .build();
     }
+
+    @PostMapping("/save-cccd-info")
+    ApiResponse<Void> saveCccdInfo(@RequestBody CccdRequest request) {
+        userService.saveCccdInfo(request);
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lưu thông tin CCCD thành công!")
+                .build();
+    }
 }

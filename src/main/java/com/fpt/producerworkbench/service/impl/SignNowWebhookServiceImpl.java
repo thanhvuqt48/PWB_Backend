@@ -36,6 +36,7 @@ public class SignNowWebhookServiceImpl implements SignNowWebhookService {
     public void ensureCompletedEventForDocument(String documentId) {
         if (documentId == null || documentId.isBlank()) return;
 
+        // 1. Get User Info (Giữ nguyên để check connection)
         try {
             Map<String, Object> me = apiClient.get()
                     .uri("/user")
@@ -47,8 +48,11 @@ public class SignNowWebhookServiceImpl implements SignNowWebhookService {
         } catch (WebClientResponseException e) {
             log.warn("[Webhook] /user failed: status={} body={}",
                     e.getStatusCode().value(), e.getResponseBodyAsString());
+        } catch (Exception ignored) {
+            // Ignore other exceptions
         }
 
+        // 2. Lấy danh sách webhook đang tồn tại
         List<Map<String, Object>> subs;
         try {
             subs = signNowClient.listEventSubscriptionsBearer();
@@ -63,60 +67,57 @@ public class SignNowWebhookServiceImpl implements SignNowWebhookService {
                 log.warn("[Webhook] list events (Basic) failed: status={} body={}",
                         e2.getStatusCode().value(), e2.getResponseBodyAsString());
                 subs = Collections.emptyList();
+            } catch (Exception e2) {
+                subs = Collections.emptyList();
             }
         }
 
-        for (var s : subs) {
-            String event    = str(s.get("event"));
-            String entityId = str(s.get("entity_id"));
-            if ("document.complete".equalsIgnoreCase(event) && documentId.equals(entityId)) {
-                log.info("[Webhook] document.complete already subscribed for docId={}", documentId);
-                return;
-            }
-        }
+        // 3. Danh sách các event CẦN PHẢI CÓ
+        List<String> requiredEvents = Arrays.asList(
+                "document.complete",            // Khi tất cả đã ký
+                "document.fieldinvite.signed"   // Khi có người ký (để update PARTIALLY_SIGNED)
+        );
 
         String cb = props.getWebhook().getCallbackUrl();
         String secret = props.getWebhook().getSecretKey();
 
-        log.info("[Webhook] Registering webhook for documentId={}, callbackUrl={}", documentId, cb);
-        
-        try {
-            Map<String, Object> created = signNowClient.createDocumentEventSubscriptionBearer(
-                    documentId, cb, secret, true
-            );
-            log.info("[Webhook] Created document.complete (Bearer) for docId={}: {}", documentId, created);
-        } catch (WebClientResponseException e) {
-            int sc = e.getStatusCode().value();
-            String body = e.getResponseBodyAsString();
-            log.error("[Webhook] Create document.complete (Bearer) failed for docId={}: status={} body={}",
-                    documentId, sc, body);
-            // Nếu lỗi 409 (Conflict) hoặc 422 (Unprocessable Entity), có thể webhook đã tồn tại
-            if (sc == 409 || sc == 422) {
-                log.info("[Webhook] Webhook may already exist for docId={}, will verify", documentId);
+        // 4. Duyệt qua từng event cần thiết và đăng ký nếu chưa có
+        for (String targetEvent : requiredEvents) {
+            boolean exists = false;
+            for (var s : subs) {
+                String existingEvent = str(s.get("event"));
+                String existingEntityId = str(s.get("entity_id"));
+                
+                // So sánh chính xác event và documentId
+                if (targetEvent.equalsIgnoreCase(existingEvent) && documentId.equals(existingEntityId)) {
+                    log.info("[Webhook] Event '{}' already subscribed for docId={}", targetEvent, documentId);
+                    exists = true;
+                    break;
+                }
             }
-        } catch (Exception e) {
-            log.error("[Webhook] Create document.complete (Bearer) EX for docId={}: {}", documentId, e.toString(), e);
-        }
 
-        // Verify webhook đã được đăng ký thành công
-        try {
-            Thread.sleep(500); // Đợi một chút để SignNow sync
-            Optional<String> subscriptionId = signNowClient.findDocumentCompleteSubscriptionIdBasic(documentId);
-            if (subscriptionId.isPresent()) {
-                log.info("[Webhook] Verified webhook subscription for docId={}, subscriptionId={}", 
-                        documentId, subscriptionId.get());
-            } else {
-                log.warn("[Webhook] Webhook subscription NOT FOUND for docId={} after registration. " +
-                        "This may cause webhook events to be missed!", documentId);
+            if (!exists) {
+                log.info("[Webhook] Registering event '{}' for documentId={}", targetEvent, documentId);
+                try {
+                    // Gọi hàm create đã sửa, truyền targetEvent vào
+                    Map<String, Object> created = signNowClient.createDocumentEventSubscriptionBearer(
+                            documentId, cb, secret, true, targetEvent
+                    );
+                    log.info("[Webhook] Successfully created event '{}' for docId={}: {}", targetEvent, documentId, created);
+                } catch (WebClientResponseException e) {
+                    int sc = e.getStatusCode().value();
+                    if (sc == 409 || sc == 422) {
+                        log.info("[Webhook] Event '{}' may already exist (Conflict/Unprocessable) for docId={}", 
+                                targetEvent, documentId);
+                    } else {
+                        log.error("[Webhook] Failed to create event '{}' for docId={}: status={} body={}", 
+                                targetEvent, documentId, sc, e.getResponseBodyAsString());
+                    }
+                } catch (Exception e) {
+                    log.error("[Webhook] Exception creating event '{}' for docId={}: {}", 
+                            targetEvent, documentId, e.getMessage(), e);
+                }
             }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            log.warn("[Webhook] Interrupted while verifying webhook for docId={}", documentId);
-        } catch (WebClientResponseException e) {
-            log.warn("[Webhook] Verify subscription (Basic) failed for docId={}: status={} body={}",
-                    documentId, e.getStatusCode().value(), e.getResponseBodyAsString());
-        } catch (Exception e) {
-            log.warn("[Webhook] Verify subscription failed for docId={}: {}", documentId, e.toString());
         }
     }
 

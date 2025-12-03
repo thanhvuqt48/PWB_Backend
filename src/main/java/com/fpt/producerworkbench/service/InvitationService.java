@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service;
 import com.fpt.producerworkbench.common.InvitationStatus;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
+import com.fpt.producerworkbench.dto.response.InvitationSuggestionResponse;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.dto.response.PageResponse;
 import org.springframework.data.domain.Pageable;
@@ -23,4 +24,6 @@ public interface InvitationService {
 
     PageResponse<InvitationResponse> getAllMyInvitations(User currentUser, InvitationStatus status, Pageable pageable);
     PageResponse<InvitationResponse> getAllOwnedInvitations(User currentUser, InvitationStatus status, Pageable pageable);
+    
+    PageResponse<InvitationSuggestionResponse> getSuggestedUsersForInvitation(Long projectId, User currentUser, Pageable pageable);
 }

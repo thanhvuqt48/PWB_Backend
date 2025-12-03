@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.LyricsExtractedEvent;
+import com.fpt.producerworkbench.dto.request.BeatToLyricsRequest;
 import com.fpt.producerworkbench.dto.request.TrackUploadCompleteRequest;
 import com.fpt.producerworkbench.dto.request.TrackUploadUrlRequest;
 import com.fpt.producerworkbench.dto.response.TrackListItemResponse;
@@ -54,6 +55,7 @@ public class TrackServiceImpl implements TrackService {
     private final TrackRepository trackRepo;
     private final ApplicationEventPublisher publisher;
     private final S3Client s3;
+    private final SuggestionServiceBedrockImpl bedrockService;
 
     @Value("${aws.s3.bucket-name:${S3_BUCKET_NAME:}}")
     private String mediaBucket;
@@ -62,72 +64,6 @@ public class TrackServiceImpl implements TrackService {
     private long maxUploadMb;
 
     private long maxBytes() { return maxUploadMb * 1024L * 1024L; }
-
-    @Override
-    public TrackPresignedUrlResponse generateUploadUrl(Long userId, TrackUploadUrlRequest req) {
-        Project p = projectRepo.findById(req.getProjectId())
-                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
-        userRepo.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        ensureMember(p.getId(), userId);
-
-        String objectKey = keyGen.generateInspirationAudioKey(p.getId(), req.getFileName());
-        String url = storage.generatePresignedUploadUrl(objectKey, req.getMimeType(), Duration.ofMinutes(15));
-
-        return TrackPresignedUrlResponse.builder()
-                .objectKey(objectKey)
-                .presignedPutUrl(url)
-                .expiresInSeconds(15L * 60L)
-                .build();
-    }
-
-    @Override
-    public Long uploadComplete(Long userId, TrackUploadCompleteRequest req) {
-        Project p = projectRepo.findById(req.getProjectId())
-                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
-        User u = userRepo.findById(userId).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        ensureMember(p.getId(), userId);
-
-        if (mediaBucket == null || mediaBucket.isBlank()) {
-            log.error("[Track] mediaBucket is not configured");
-            throw new AppException(ErrorCode.FILE_STORAGE_NOT_FOUND);
-        }
-
-        String normalizedKey = normalizeKey(req.getObjectKey());
-        long actualSize;
-        try {
-            var head = s3.headObject(HeadObjectRequest.builder()
-                    .bucket(mediaBucket)
-                    .key(normalizedKey)
-                    .build());
-            actualSize = head.contentLength();
-        } catch (S3Exception e) {
-            log.error("[Track] headObject failed for s3://{}/{} -> {}", mediaBucket, normalizedKey,
-                    e.awsErrorDetails() != null ? e.awsErrorDetails().errorMessage() : e.getMessage());
-            throw new AppException(ErrorCode.FILE_STORAGE_NOT_FOUND);
-        }
-
-        if (actualSize <= 0) {
-            safeDeleteS3(normalizedKey);
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-        if (actualSize > maxBytes()) {
-            safeDeleteS3(normalizedKey);
-            throw new AppException(ErrorCode.FILE_LARGE);
-        }
-
-        InspirationTrack track = trackRepo.save(InspirationTrack.builder()
-                .project(p)
-                .uploader(u)
-                .fileName(req.getFileName())
-                .mimeType(req.getMimeType())
-                .sizeBytes(actualSize)
-                .s3Key(normalizedKey)
-                .status(TrackStatus.TRANSCRIBING)
-                .build());
-
-        publisher.publishEvent(new AudioUploadedEvent(track.getId()));
-        return track.getId();
-    }
 
     @Override
     public TrackUploadDirectResponse uploadDirectRaw(Long userId, Long projectId, byte[] data, String filename, String mimeType) {
@@ -164,7 +100,7 @@ public class TrackServiceImpl implements TrackService {
                 .uploader(u)
                 .fileName(filename != null ? filename : "upload.bin")
                 .mimeType((mimeType != null && !mimeType.isBlank()) ? mimeType : "application/octet-stream")
-                .sizeBytes((long) data.length) // FIX: ép về long để khớp Long
+                .sizeBytes((long) data.length)
                 .s3Key(objectKey)
                 .status(TrackStatus.TRANSCRIBING)
                 .build());
@@ -245,26 +181,35 @@ public class TrackServiceImpl implements TrackService {
             return toSuggestionResponse(t);
         }
 
-        while (t.getStatus() == TrackStatus.TRANSCRIBING && System.currentTimeMillis() < deadline) {
-            sleep(1500);
-            t = trackRepo.findById(trackId).orElse(t);
-        }
-
-        if ((t.getStatus() == TrackStatus.TRANSCRIBED || (t.getLyricsText() != null && !t.getLyricsText().isBlank()))
-                && (t.getAiSuggestions() == null || t.getStatus() != TrackStatus.COMPLETED)) {
-            publisher.publishEvent(new LyricsExtractedEvent(t.getId(), t.getLyricsText()));
-        }
-
         while (System.currentTimeMillis() < deadline) {
-            sleep(1500);
-            t = trackRepo.findById(trackId).orElse(t);
-            if (t.getStatus() == TrackStatus.COMPLETED && t.getAiSuggestions() != null) {
+            if (t.getStatus() == TrackStatus.TRANSCRIBING) {
+                sleep(1500); // Ngủ 1.5s rồi check lại
+                t = trackRepo.findById(trackId).orElse(t);
+                continue;
+            }
+
+            if ((t.getStatus() == TrackStatus.TRANSCRIBED || (t.getLyricsText() != null && !t.getLyricsText().isBlank()))
+                    && (t.getAiSuggestions() == null || t.getStatus() != TrackStatus.COMPLETED)) {
+
+                if (t.getStatus() != TrackStatus.SUGGESTING) {
+                    publisher.publishEvent(new LyricsExtractedEvent(t.getId(), t.getLyricsText()));
+                }
+            }
+
+            if (t.getStatus() == TrackStatus.COMPLETED || t.getStatus() == TrackStatus.FAILED) {
                 return toSuggestionResponse(t);
             }
-            if (t.getStatus() == TrackStatus.FAILED) break;
+
+            sleep(1500);
+            t = trackRepo.findById(trackId).orElse(t);
         }
 
         return toSuggestionResponse(t);
+    }
+
+    @Override
+    public TrackSuggestionResponse generateLyricsFromBeat(Long userId, Long trackId, BeatToLyricsRequest req) {
+        return bedrockService.generateLyricsFromBeat(userId, trackId, req);
     }
 
     @Override
@@ -273,27 +218,6 @@ public class TrackServiceImpl implements TrackService {
                 .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
         ensureMember(t.getProject().getId(), userId);
         return toSuggestionResponse(t);
-    }
-
-    @Override
-    public void resuggest(Long userId, Long trackId) {
-        InspirationTrack t = trackRepo.findById(trackId)
-                .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND));
-        ensureMember(t.getProject().getId(), userId);
-
-        if (t.getLyricsText() == null || t.getLyricsText().isBlank()) {
-            throw new AppException(ErrorCode.BAD_REQUEST);
-        }
-        if (t.getStatus() == TrackStatus.TRANSCRIBING || t.getStatus() == TrackStatus.SUGGESTING) {
-            throw new AppException(ErrorCode.CONFLICT);
-        }
-
-        t.setStatus(TrackStatus.SUGGESTING);
-        t.setAiSuggestions(null);
-        trackRepo.save(t);
-
-        publisher.publishEvent(new LyricsExtractedEvent(t.getId(), t.getLyricsText()));
-        log.info("[Track] Re-suggest triggered for track {}", t.getId());
     }
 
     @Override
@@ -364,17 +288,6 @@ public class TrackServiceImpl implements TrackService {
     private void ensureMember(Long projectId, Long userId) {
         boolean ok = projectMemberRepo.existsByProject_IdAndUser_Id(projectId, userId);
         if (!ok) throw new AppException(ErrorCode.NOT_PROJECT_MEMBER);
-    }
-
-    private String normalizeKey(String key) { return key == null ? "" : key.replaceFirst("^/+", ""); }
-
-    private void safeDeleteS3(String key) {
-        try {
-            s3.deleteObject(DeleteObjectRequest.builder().bucket(mediaBucket).key(key).build());
-            log.info("[Track] Deleted oversize/invalid S3 object s3://{}/{}", mediaBucket, key);
-        } catch (Exception ex) {
-            log.warn("[Track] Failed to delete S3 object s3://{}/{} -> {}", mediaBucket, key, ex.getMessage());
-        }
     }
 
     private static void sleep(long ms) {

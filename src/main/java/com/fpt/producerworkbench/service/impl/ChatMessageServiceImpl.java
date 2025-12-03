@@ -13,6 +13,7 @@ import com.fpt.producerworkbench.mapper.ChatMessageMapper;
 import com.fpt.producerworkbench.repository.ChatMessageRepository;
 import com.fpt.producerworkbench.repository.ConversationRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.service.ChatMessageService;
 import com.fpt.producerworkbench.utils.PaginationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +35,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j(topic = "CHAT-MESSAGE-SERVICE")
-public class ChatMessageService {
+public class ChatMessageServiceImpl implements ChatMessageService {
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
     private static final String FRONTEND_URL = "http://localhost:5173"; // Có thể config từ application.yml
@@ -93,8 +94,13 @@ public class ChatMessageService {
         String principalName = SecurityContextHolder.getContext()
                 .getAuthentication().getName();
 
+        if (!conversationRepository.existsById(conversationId)) {
+            throw new AppException(ErrorCode.CONVERSATION_NOT_FOUND);
+        }
+
         Pageable pageable = PageRequest.of(page - 1, size);
-        Page<ChatMessage> chatMessagePage = chatMessageRepository.findByConversationIdOrderBySentAtDesc(conversationId, pageable);
+        Page<ChatMessage> chatMessagePage = chatMessageRepository.findByConversationIdOrderBySentAtDesc(conversationId,
+                pageable);
 
         return PaginationUtils.paginate(
                 page,
@@ -114,7 +120,7 @@ public class ChatMessageService {
             throw new AppException(ErrorCode.MESSAGE_NOT_PART_OF_STORY);
         }
 
-        if(Objects.equals(chatMessage.getSender().getId(), user.getId())) {
+        if (Objects.equals(chatMessage.getSender().getId(), user.getId())) {
             log.info("Message is marked as read");
             return;
         }
@@ -147,9 +153,8 @@ public class ChatMessageService {
 
         Map<String, Boolean> onlineStatus = userEmails.stream()
                 .collect(Collectors.toMap(
-                    email -> email,
-                    onlineUserEmails::contains
-                ));
+                        email -> email,
+                        onlineUserEmails::contains));
 
         log.info("Retrieved online status for conversation {}: {} users, {} online. Status map: {}",
                 conversationId, userEmails.size(), onlineUserEmails.size(), onlineStatus);
@@ -176,7 +181,7 @@ public class ChatMessageService {
         chatMessage.setIsEdited(false);
         chatMessage.setSentAt(LocalDateTime.now());
 
-        if(messageType == MessageType.TEXT) {
+        if (messageType == MessageType.TEXT) {
             chatMessage.setMessageType(MessageType.TEXT);
         } else {
             chatMessage.setMessageType(request.getMessageType());
@@ -204,9 +209,9 @@ public class ChatMessageService {
     }
 
     private void sendEmailNotificationToOfflineUsers(Set<String> offlineUserEmails,
-                                                      User sender,
-                                                      ChatMessage chatMessage,
-                                                      Conversation conversation) {
+                                                     User sender,
+                                                     ChatMessage chatMessage,
+                                                     Conversation conversation) {
         try {
             List<User> offlineUsers = userRepository.findAllByEmailIn(new ArrayList<>(offlineUserEmails));
 
@@ -228,13 +233,15 @@ public class ChatMessageService {
                             .subject("Tin nhắn mới từ " + sender.getFullName())
                             .templateCode("new-message-notification")
                             .param(Map.of(
-                                    "recipientName", offlineUser.getFullName() != null ? offlineUser.getFullName() : offlineUser.getEmail(),
-                                    "senderName", sender.getFullName() != null ? sender.getFullName() : sender.getEmail(),
+                                    "recipientName",
+                                    offlineUser.getFullName() != null ? offlineUser.getFullName()
+                                            : offlineUser.getEmail(),
+                                    "senderName",
+                                    sender.getFullName() != null ? sender.getFullName() : sender.getEmail(),
                                     "senderAvatar", senderAvatar,
                                     "messageContent", messageContent,
                                     "messageTime", formattedTime,
-                                    "conversationLink", conversationLink
-                            ))
+                                    "conversationLink", conversationLink))
                             .build();
 
                     kafkaTemplate.send(NOTIFICATION_TOPIC, event);

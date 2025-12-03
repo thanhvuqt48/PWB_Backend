@@ -1,6 +1,5 @@
 package com.fpt.producerworkbench.service.impl;
 
-
 import com.fpt.producerworkbench.dto.response.PortfolioWithDistanceResponse;
 import com.fpt.producerworkbench.dto.response.ProducerSummaryResponse;
 import com.fpt.producerworkbench.entity.Portfolio;
@@ -62,7 +61,8 @@ public class ProducerServiceImpl implements ProducerService {
                     .collect(Collectors.toList());
         }
 
-        Specification<Portfolio> spec = (root, query, cb) -> cb.conjunction();
+        // Luôn filter chỉ lấy portfolio của producer
+        Specification<Portfolio> spec = ProducerSpecification.isProducer();
 
         if (StringUtils.hasText(name)) {
             spec = spec.and(ProducerSpecification.hasName(name));
@@ -86,9 +86,7 @@ public class ProducerServiceImpl implements ProducerService {
 
         Page<PortfolioWithDistanceResponse> resultPage = portfolioRepository.findWithDistance(spec, lat, lon, pageable);
 
-        return resultPage.map(p ->
-                portfolioMapper.toProducerSummaryResponse(p.getPortfolio(), p.getDistanceInKm())
-        );
+        return resultPage.map(p -> portfolioMapper.toProducerSummaryResponse(p.getPortfolio(), p.getDistanceInKm()));
     }
 
     @Override
@@ -99,7 +97,9 @@ public class ProducerServiceImpl implements ProducerService {
             return Page.empty(pageable);
         }
 
-        Specification<Portfolio> spec = ProducerSpecification.hasGenresOrTags(musicStylesFromSpotify);
+        // Luôn filter chỉ lấy portfolio của producer
+        Specification<Portfolio> spec = ProducerSpecification.isProducer()
+                .and(ProducerSpecification.hasGenresOrTags(musicStylesFromSpotify));
 
         Page<Portfolio> portfolioPage = portfolioRepository.findAll(spec, pageable);
 
@@ -107,4 +107,3 @@ public class ProducerServiceImpl implements ProducerService {
     }
 
 }
-

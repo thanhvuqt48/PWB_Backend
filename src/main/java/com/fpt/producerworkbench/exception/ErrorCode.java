@@ -47,6 +47,7 @@ public enum ErrorCode {
     PORTFOLIO_ALREADY_EXISTS(4005, "Bạn đã có portfolio. Mỗi người dùng chỉ được có một portfolio.", HttpStatus.CONFLICT),
     PORTFOLIO_NOT_FOUND(4006, "Không tìm thấy portfolio.", HttpStatus.NOT_FOUND),
     PORTFOLIO_NOT_PUBLIC(4007, "Portfolio này không công khai.", HttpStatus.FORBIDDEN),
+    PORTFOLIO_CUSTOM_URL_SLUG_DUPLICATE(4008, "URL tùy chỉnh này đã được sử dụng. Vui lòng chọn URL khác.", HttpStatus.CONFLICT),
 
     // ===== Lỗi liên quan đến Dự án (5xxx) =====
     CLIENT_ALREADY_EXISTS(5001, "Dự án này đã có khách hàng.", HttpStatus.BAD_REQUEST),
@@ -105,7 +106,7 @@ public enum ErrorCode {
     DATABASE_ERROR(9002, "Lỗi truy vấn cơ sở dữ liệu.", HttpStatus.INTERNAL_SERVER_ERROR),
     INVALID_DOB(400, "Ngày sinh phải lớn hơn 1950 và nhỏ hơn ngày hiện tại", HttpStatus.BAD_REQUEST),
     INVALID_PASSWORD(400, "Mật khẩu phải tối thiểu {min} kí tự", HttpStatus.BAD_REQUEST),
-    PASSWORD_EXISTED(409, "Mật khẩu đã tồn tại", HttpStatus.CONFLICT),
+    PASSWORD_EXISTED(409, "Mật khẩu đã được sử dụng trước đó", HttpStatus.CONFLICT),
     CONFIRM_PASSWORD_INVALID(400, "Mật khẩu xác nhận không khớp", HttpStatus.BAD_REQUEST),
 
     // Agora RTC/RTM Token - 6xxx
@@ -255,8 +256,20 @@ public enum ErrorCode {
     CANNOT_SEND_UNAPPROVED_TRACK(8039, "Chỉ có thể gửi track đã được phê duyệt nội bộ", HttpStatus.BAD_REQUEST),
     CLIENT_DELIVERY_NOT_FOUND(8040, "Client delivery không tồn tại", HttpStatus.NOT_FOUND),
     INVALID_DELIVERY_STATUS_TRANSITION(8041, "Không thể chuyển đổi trạng thái delivery này", HttpStatus.BAD_REQUEST),
-    REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST);
+    REASON_REQUIRED_FOR_EDIT_REQUEST(8042, "Vui lòng nêu rõ yêu cầu chỉnh sửa", HttpStatus.BAD_REQUEST),
+    CANNOT_DELETE_ACCEPTED_TRACK(8044, "Không thể xóa track đã được khách hàng chấp nhận. Track này đã được bàn giao cho khách hàng.", HttpStatus.BAD_REQUEST),
+    CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS(8045, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành", HttpStatus.BAD_REQUEST),
+    TRACK_DOWNLOAD_PERMISSION_DENIED(8046, "Bạn không có quyền download track này. Chỉ chủ dự án hoặc thành viên được chỉ định quyền download mới có thể tải xuống.", HttpStatus.FORBIDDEN),
 
+    // ===== User Guide & AI Context Errors (18xxx) =====
+    USER_GUIDE_NOT_FOUND(18001, "Không tìm thấy user guide.", HttpStatus.NOT_FOUND),
+    USER_GUIDE_ALREADY_EXISTS(18002, "User guide đã tồn tại.", HttpStatus.BAD_REQUEST),
+    INVALID_GUIDE_CATEGORY(18003, "Category không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_GUIDE_DIFFICULTY(18004, "Difficulty không hợp lệ.", HttpStatus.BAD_REQUEST),
+    GUIDE_INDEXING_FAILED(18005, "Lỗi khi index guide vào vector DB.", HttpStatus.INTERNAL_SERVER_ERROR),
+    GUIDE_IMAGE_UPLOAD_FAILED(18006, "Lỗi khi upload ảnh cho guide.", HttpStatus.INTERNAL_SERVER_ERROR),
+    POSTGRESQL_CONNECTION_FAILED(18007, "Không thể kết nối PostgreSQL.", HttpStatus.INTERNAL_SERVER_ERROR),
+    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final int code;
     private final String message;

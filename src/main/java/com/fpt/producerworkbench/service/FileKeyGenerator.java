@@ -14,6 +14,8 @@ public interface FileKeyGenerator {
 
     String generatePersonalProjectImageKey(Long userId, Long personalProjectId, String originalFilename);
 
+    String generatePersonalProjectAudioDemoKey(Long userId, Long personalProjectId, String originalFilename);
+
     String generateInspirationAssetKey(Long projectId, String originalFilename);
 
     String generateInspirationAudioKey(Long projectId, String fileName);
@@ -48,4 +50,14 @@ public interface FileKeyGenerator {
      * @return S3 key cho file voice tag
      */
     String generateTrackVoiceTagKey(Long trackId);
+
+    /**
+     * Sinh key cho file CCCD của user
+     *
+     * @param userId ID của user
+     * @param side Mặt CCCD: "front" hoặc "back"
+     * @param originalFilename Tên file gốc
+     * @return S3 key cho file CCCD
+     */
+    String generateCccdKey(Long userId, String side, String originalFilename);
 }

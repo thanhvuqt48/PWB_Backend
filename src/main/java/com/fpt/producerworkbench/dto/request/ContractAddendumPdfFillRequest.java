@@ -1,4 +1,3 @@
-// [NEW] src/main/java/com/fpt/producerworkbench/dto/request/ContractAddendumPdfFillRequest.java
 package com.fpt.producerworkbench.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -7,15 +6,20 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
-@Setter @Getter @Builder
-@AllArgsConstructor @NoArgsConstructor
+@Setter
+@Getter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ContractAddendumPdfFillRequest {
 
-
-    @NotBlank @JsonProperty("addendumNo")
+    @NotBlank
+    @JsonProperty("addendumNo")
     String addendumNo;
 
     @NotNull
@@ -26,40 +30,56 @@ public class ContractAddendumPdfFillRequest {
     @JsonProperty("signPlace")
     String signPlace;
 
-    // BÊN A
-    @NotBlank @JsonProperty("aName")  String aName;
-    @NotBlank @JsonProperty("aId")    String aId;
-    @NotNull  @JsonProperty("aIdIssueDate")
+    // BÊN A - Backend tự động lấy từ ContractParty, FE không cần gửi
+    @JsonProperty("aName")
+    String aName;
+    @JsonProperty("aId")
+    String aId;
+    @JsonProperty("aIdIssueDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     LocalDate aIdIssueDate;
-    @NotBlank @JsonProperty("aIdIssuePlace") String aIdIssuePlace;
-    @NotBlank @JsonProperty("aAddress")      String aAddress;
-    @JsonProperty("aPhone")          String aPhone;
-    @JsonProperty("aRepresentative") String aRepresentative;
-    @JsonProperty("aTitle")          String aTitle;
-    @JsonProperty("aPoANo")          String aPoANo;
+    @JsonProperty("aIdIssuePlace")
+    String aIdIssuePlace;
+    @JsonProperty("aAddress")
+    String aAddress;
+    @JsonProperty("aPhone")
+    String aPhone;
 
-    // BÊN B
-    @NotBlank @JsonProperty("bName")  String bName;
-    @NotBlank @JsonProperty("bId")    String bId;
-    @NotNull  @JsonProperty("bIdIssueDate")
+    // BÊN B - Backend tự động lấy từ ContractParty, FE không cần gửi
+    @JsonProperty("bName")
+    String bName;
+    @JsonProperty("bId")
+    String bId;
+    @JsonProperty("bIdIssueDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     LocalDate bIdIssueDate;
-    @NotBlank @JsonProperty("bIdIssuePlace") String bIdIssuePlace;
-    @NotBlank @JsonProperty("bAddress")      String bAddress;
-    @JsonProperty("bPhone")          String bPhone;
-    @JsonProperty("bRepresentative") String bRepresentative;
-    @JsonProperty("bTitle")          String bTitle;
-    @JsonProperty("bPoANo")          String bPoANo;
-
+    @JsonProperty("bIdIssuePlace")
+    String bIdIssuePlace;
+    @JsonProperty("bAddress")
+    String bAddress;
+    @JsonProperty("bPhone")
+    String bPhone;
 
     @JsonProperty("additional")
     String additional;
 
-    @NotBlank @JsonProperty("title")
+    @JsonProperty("numofmoney")
+    BigDecimal numOfMoney;
+
+    @JsonProperty("numofedit")
+    Integer numOfEdit;
+
+    @JsonProperty("numofrefresh")
+    Integer numOfRefresh;
+
+    @NotBlank
+    @JsonProperty("title")
     String title;
 
     @JsonProperty("effectiveDate")
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     LocalDate effectiveDate;
+
+    @JsonProperty("milestones")
+    List<ContractAddendumMilestoneItemRequest> milestones;
 }

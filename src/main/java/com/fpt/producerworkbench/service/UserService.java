@@ -1,14 +1,11 @@
 package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.request.*;
-import com.fpt.producerworkbench.dto.response.ChangePasswordResponse;
-import com.fpt.producerworkbench.dto.response.ParticipantInfoDetailResponse;
-import com.fpt.producerworkbench.dto.response.UserProfileResponse;
-import com.fpt.producerworkbench.dto.response.UserResponse;
-import com.fpt.producerworkbench.dto.response.VerifyOtpResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import jakarta.mail.MessagingException;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.List;
 
@@ -31,4 +28,8 @@ public interface UserService {
     UserProfileResponse updatePersonalProfile(UpdatePersonalProfileRequest request, MultipartFile avatar);
 
     List<ParticipantInfoDetailResponse> searchUser(String username);
+
+    CccdInfoResponse verifyCccd(MultipartFile front, MultipartFile back, MultipartFile face) throws IOException;
+
+    void saveCccdInfo(CccdRequest request);
 }

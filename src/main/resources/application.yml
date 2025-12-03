@@ -4,6 +4,9 @@ spring:
 
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  
+  main:
+    allow-bean-definition-overriding: true
 
 management:
   endpoints:

@@ -15,13 +15,7 @@ import com.fpt.producerworkbench.dto.request.CreateMilestoneGroupChatRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
 import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.DownloadOriginalTracksZipRequest;
-import com.fpt.producerworkbench.dto.response.AvailableProjectMemberResponse;
-import com.fpt.producerworkbench.dto.response.ConversationCreationResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneListResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneDetailResponse;
-import com.fpt.producerworkbench.dto.response.MilestoneMemberResponse;
-import com.fpt.producerworkbench.dto.response.DownloadOriginalTracksZipResponse;
+import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.Conversation;
 import com.fpt.producerworkbench.entity.Milestone;
@@ -43,11 +37,7 @@ import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.repository.MilestoneMoneySplitRepository;
 import com.fpt.producerworkbench.repository.TrackMilestoneRepository;
 import com.fpt.producerworkbench.repository.ClientDeliveryRepository;
-import com.fpt.producerworkbench.service.MilestoneService;
-import com.fpt.producerworkbench.service.ProjectPermissionService;
-import com.fpt.producerworkbench.service.FileStorageService;
-import com.fpt.producerworkbench.service.FileKeyGenerator;
-import com.fpt.producerworkbench.service.NotificationService;
+import com.fpt.producerworkbench.service.*;
 import com.fpt.producerworkbench.common.ConversationType;
 import com.fpt.producerworkbench.common.MilestoneChatType;
 import com.fpt.producerworkbench.common.NotificationType;
@@ -169,7 +159,12 @@ public class MilestoneServiceImpl implements MilestoneService {
         Contract contract = contractRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
         Project project = contract.getProject();
-        if (project == null || !Boolean.TRUE.equals(project.getIsFunded())) {
+        if (project == null) {
+            throw new AppException(ErrorCode.PROJECT_NOT_FUNDED);
+        }
+        // Kiểm tra contract đã được thanh toán chưa (PAID hoặc COMPLETED)
+        ContractStatus contractStatus = contract.getSignnowStatus();
+        if (contractStatus != ContractStatus.PAID && contractStatus != ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.PROJECT_NOT_FUNDED);
         }
 
@@ -180,7 +175,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
         }
 
-        if (!ContractStatus.COMPLETED.equals(contract.getStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 
@@ -264,7 +259,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
         }
 
-        if (!ContractStatus.COMPLETED.equals(contract.getStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 
@@ -392,7 +387,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .sequence(milestone.getSequence())
                 .createdAt(createdAt)
                 .updatedAt(updatedAt)
-                .isFunded(project != null ? project.getIsFunded() : null)
+                .isFunded(calculateIsFunded(milestone.getContract()))
                 .members(members)
                 .build();
     }
@@ -1226,7 +1221,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         // Kiểm tra milestone có ít nhất 1 track
         long trackCount = trackRepository.countByMilestoneId(milestoneId);
         if (trackCount < 1) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành");
+            throw new AppException(ErrorCode.CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS);
         }
 
         // Kiểm tra milestone chưa được hoàn thành và đang ở trạng thái hợp lệ để complete
@@ -1556,5 +1551,17 @@ public class MilestoneServiceImpl implements MilestoneService {
         } catch (Exception e) {
             log.warn("Lỗi khi xóa file tạm thời: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Tính toán isFunded từ contract status
+     * Contract được coi là funded khi status là PAID hoặc COMPLETED
+     */
+    private Boolean calculateIsFunded(Contract contract) {
+        if (contract == null) {
+            return null;
+        }
+        ContractStatus status = contract.getSignnowStatus();
+        return status == ContractStatus.PAID || status == ContractStatus.COMPLETED;
     }
 }

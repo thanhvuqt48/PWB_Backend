@@ -67,6 +67,39 @@ public class PaymentController {
     }
 
     /**
+     * Tạo link thanh toán cho phụ lục hợp đồng thông qua PayOS.
+     * Thanh toán toàn bộ số tiền trong phụ lục (numOfMoney) cho dù là FULL hay MILESTONE.
+     * Tạo payment order và trả về link thanh toán để client có thể thanh toán.
+     */
+    @PostMapping("/create/projects/{projectId}/contracts/{contractId}/addendum")
+    public ResponseEntity<ApiResponse<PaymentResponse>> createAddendumPayment(
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication,
+            @PathVariable Long projectId,
+            @PathVariable Long contractId,
+            @Valid @RequestBody PaymentRequest paymentRequest) {
+
+        if (projectId == null || projectId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+        if (contractId == null || contractId <= 0) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        log.info("Tạo thanh toán phụ lục cho dự án: {}, hợp đồng: {}", projectId, contractId);
+
+        Long userId = resolveUserId(authentication);
+
+        PaymentResponse response = paymentService.createAddendumPayment(userId, projectId, contractId, paymentRequest);
+
+        return ResponseEntity.ok(ApiResponse.<PaymentResponse>builder()
+                .code(200)
+                .message("Tạo link thanh toán phụ lục thành công")
+                .result(response)
+                .build());
+    }
+
+    /**
      * Xử lý webhook từ PayOS khi có cập nhật về trạng thái thanh toán.
      * Endpoint này được PayOS gọi tự động, không cần authentication.
      */
@@ -111,6 +144,27 @@ public class PaymentController {
     ) {
         Long userId = resolveUserId(authentication);
         var result = paymentService.getLatestPaymentByContract(userId, projectId, contractId);
+        return ResponseEntity.ok(
+                ApiResponse.<PaymentLatestResponse>builder()
+                        .code(200)
+                        .result(result)
+                        .build()
+        );
+    }
+
+    /**
+     * Lấy thông tin thanh toán mới nhất của phụ lục hợp đồng.
+     * Yêu cầu đăng nhập và có quyền truy cập contract.
+     */
+    @GetMapping("/projects/{projectId}/contracts/{contractId}/addendum/latest")
+    public ResponseEntity<ApiResponse<PaymentLatestResponse>> getLatestAddendumPayment(
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication,
+            @PathVariable Long projectId,
+            @PathVariable Long contractId
+    ) {
+        Long userId = resolveUserId(authentication);
+        var result = paymentService.getLatestPaymentByAddendum(userId, projectId, contractId);
         return ResponseEntity.ok(
                 ApiResponse.<PaymentLatestResponse>builder()
                         .code(200)
