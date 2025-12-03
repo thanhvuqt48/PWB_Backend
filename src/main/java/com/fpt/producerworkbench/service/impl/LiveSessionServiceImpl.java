@@ -510,7 +510,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
 
     private String getAgoraAppId() {
         // Get from AgoraConfig or environment
-        return agoraConfig.getAppId(); // TODO: Inject from config
+        return agoraConfig.getId(); // TODO: Inject from config
     }
 
     private SessionSummaryResponse buildSessionSummary(LiveSession session) {
