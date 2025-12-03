@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.repository;
 
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.entity.*;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
@@ -76,6 +77,13 @@ public class ProducerSpecification {
             Predicate tagPredicate = tagJoin.get("name").in(names);
 
             return criteriaBuilder.or(genrePredicate, tagPredicate);
+        };
+    }
+
+    public static Specification<Portfolio> isProducer() {
+        return (root, query, criteriaBuilder) -> {
+            Join<Portfolio, User> userJoin = root.join("user");
+            return criteriaBuilder.equal(userJoin.get("role"), UserRole.PRODUCER);
         };
     }
 
