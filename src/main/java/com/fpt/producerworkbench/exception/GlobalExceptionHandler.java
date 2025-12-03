@@ -11,6 +11,9 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import org.springframework.dao.DataIntegrityViolationException;
+import java.sql.SQLIntegrityConstraintViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -18,6 +21,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+
+import java.io.IOException;
 
 
 import lombok.extern.slf4j.Slf4j;
@@ -187,6 +192,106 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.badRequest().body(errorResponse);
+    }
+
+    @ExceptionHandler(IOException.class)
+    ResponseEntity<ApiResponse> handleIOException(IOException e) {
+        log.error("IO Exception occurred: ", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.builder()
+                        .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                        .message("Lỗi xử lý file: " + (e.getMessage() != null ? e.getMessage() : "Không thể đọc/ghi file"))
+                        .build());
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    ResponseEntity<ApiResponse> handleRuntimeException(RuntimeException e) {
+        log.error("Runtime Exception occurred: ", e);
+
+        String message = e.getMessage();
+        if (message != null && (message.contains("VNPT") || message.contains("VNPT API"))) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.builder()
+                            .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                            .message("Lỗi kết nối đến dịch vụ xác thực: " + message)
+                            .build());
+        }
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.builder()
+                        .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                        .message(message != null ? message : "Đã có lỗi xảy ra. Vui lòng thử lại sau.")
+                        .build());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ApiResponse> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
+        Throwable rootCause = e.getRootCause();
+        String errorMessage = e.getMessage();
+        
+        if (rootCause instanceof SQLIntegrityConstraintViolationException sqlException) {
+            String sqlMessage = sqlException.getMessage();
+            if (sqlMessage != null && sqlMessage.contains("Duplicate entry")) {
+                if (sqlMessage.contains("portfolios") ||
+                    sqlMessage.contains("custom_url_slug") || 
+                    sqlMessage.contains("UKj7dgoqsauxbfthp51sn5kbgn5")) {
+                    
+                    String duplicateValue = extractDuplicateValue(sqlMessage);
+                    String message = ErrorCode.PORTFOLIO_CUSTOM_URL_SLUG_DUPLICATE.getMessage();
+                    if (duplicateValue != null) {
+                        message = "URL tùy chỉnh '" + duplicateValue + "' đã được sử dụng. Vui lòng chọn URL khác.";
+                    }
+                    
+                    log.warn("Duplicate portfolio custom URL slug detected: {}", duplicateValue);
+                    
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body(ApiResponse.builder()
+                                    .code(ErrorCode.PORTFOLIO_CUSTOM_URL_SLUG_DUPLICATE.getCode())
+                                    .message(message)
+                                    .build());
+                }
+            }
+        }
+        
+        if (errorMessage != null && errorMessage.contains("Duplicate entry") &&
+            (errorMessage.contains("portfolios") || errorMessage.contains("custom_url_slug") || 
+             errorMessage.contains("UKj7dgoqsauxbfthp51sn5kbgn5"))) {
+            
+            String duplicateValue = extractDuplicateValue(errorMessage);
+            String message = ErrorCode.PORTFOLIO_CUSTOM_URL_SLUG_DUPLICATE.getMessage();
+            if (duplicateValue != null) {
+                message = "URL tùy chỉnh '" + duplicateValue + "' đã được sử dụng. Vui lòng chọn URL khác.";
+            }
+            
+            log.warn("Duplicate portfolio custom URL slug detected: {}", duplicateValue);
+            
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.builder()
+                            .code(ErrorCode.PORTFOLIO_CUSTOM_URL_SLUG_DUPLICATE.getCode())
+                            .message(message)
+                            .build());
+        }
+        
+        log.error("Data Integrity Violation Exception occurred: ", e);
+        
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.builder()
+                        .code(ErrorCode.INTERNAL_SERVER_ERROR.getCode())
+                        .message("Lỗi vi phạm tính toàn vẹn dữ liệu: " + (errorMessage != null ? errorMessage : "Dữ liệu không hợp lệ"))
+                        .build());
+    }
+    
+    private String extractDuplicateValue(String errorMessage) {
+        if (errorMessage != null) {
+            int startIndex = errorMessage.indexOf("'");
+            if (startIndex != -1) {
+                int endIndex = errorMessage.indexOf("'", startIndex + 1);
+                if (endIndex != -1) {
+                    return errorMessage.substring(startIndex + 1, endIndex);
+                }
+            }
+        }
+        return null;
     }
 
     private String mapAttribute(String message, Map<String, Object> attributes) {

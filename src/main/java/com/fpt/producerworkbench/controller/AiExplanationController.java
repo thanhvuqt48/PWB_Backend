@@ -31,7 +31,7 @@ public class AiExplanationController {
      * Request body:
      * {
      *   "highlightedText": "reverb",
-     *   "contextText": "tôi muốn thêm reverb cho vocal",
+//     *   "contextText": "tôi muốn thêm reverb cho vocal",
      *   "maxRelatedTerms": 3,
      *   "language": "vi"
      * }

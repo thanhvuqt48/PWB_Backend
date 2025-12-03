@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.repository;
 
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.entity.*;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
@@ -53,11 +54,11 @@ public class ProducerSpecification {
 
             return criteriaBuilder.lessThanOrEqualTo(
                     criteriaBuilder.function("ST_Distance_Sphere", Double.class,
-                            criteriaBuilder.function("point", Object.class, root.get("longitude"), root.get("latitude")),
-                            criteriaBuilder.function("point", Object.class, criteriaBuilder.literal(lon), criteriaBuilder.literal(lat))
-                    ),
-                    radiusInKm * 1000
-            );
+                            criteriaBuilder.function("point", Object.class, root.get("longitude"),
+                                    root.get("latitude")),
+                            criteriaBuilder.function("point", Object.class, criteriaBuilder.literal(lon),
+                                    criteriaBuilder.literal(lat))),
+                    radiusInKm * 1000);
         };
     }
 
@@ -76,6 +77,13 @@ public class ProducerSpecification {
             Predicate tagPredicate = tagJoin.get("name").in(names);
 
             return criteriaBuilder.or(genrePredicate, tagPredicate);
+        };
+    }
+
+    public static Specification<Portfolio> isProducer() {
+        return (root, query, criteriaBuilder) -> {
+            Join<Portfolio, User> userJoin = root.join("user");
+            return criteriaBuilder.equal(userJoin.get("role"), UserRole.PRODUCER);
         };
     }
 

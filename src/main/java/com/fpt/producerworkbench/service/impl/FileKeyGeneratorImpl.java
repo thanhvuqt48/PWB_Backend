@@ -50,6 +50,12 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
     }
 
     @Override
+    public String generatePersonalProjectAudioDemoKey(Long userId, Long personalProjectId, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("users/%d/public/portfolio/projects/%d/audio/%s%s", userId, personalProjectId, uuid, getFileExtension(originalFilename));
+    }
+
+    @Override
     public String generateInspirationAssetKey(Long projectId, String originalFilename) {
         String uuid = UUID.randomUUID().toString();
         return String.format("projects/%d/inspiration/%s%s",
@@ -99,6 +105,12 @@ public class FileKeyGeneratorImpl implements FileKeyGenerator {
     @Override
     public String generateTrackVoiceTagKey(Long trackId) {
         return String.format("audio/voice-tag/%d/tag.mp3", trackId);
+    }
+
+    @Override
+    public String generateCccdKey(Long userId, String side, String originalFilename) {
+        String uuid = UUID.randomUUID().toString();
+        return String.format("users/%d/private/cccd/%s_%s%s", userId, side, uuid, getFileExtension(originalFilename));
     }
 
     private String getFileExtension(String filename) {

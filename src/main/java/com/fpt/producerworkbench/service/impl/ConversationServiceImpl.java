@@ -11,6 +11,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.mapper.ConversationMapper;
 import com.fpt.producerworkbench.repository.ConversationRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.service.ConversationService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j(topic = "CONVERSATION-SERVICE")
-public class ConversationService {
+public class ConversationServiceImpl implements ConversationService {
 
     private final ConversationRepository conversationRepository;
     private final UserRepository userRepository;
@@ -185,3 +186,4 @@ public class ConversationService {
     }
 
 }
+

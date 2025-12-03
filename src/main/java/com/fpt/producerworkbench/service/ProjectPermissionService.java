@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service;
 
+import com.fpt.producerworkbench.dto.response.AddendumPermissionResponse;
 import com.fpt.producerworkbench.dto.response.ContractPermissionResponse;
 import com.fpt.producerworkbench.dto.response.MilestonePermissionResponse;
 import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
@@ -9,4 +10,5 @@ public interface ProjectPermissionService {
     ProjectPermissionResponse checkProjectPermissions(Authentication auth, Long projectId);
     MilestonePermissionResponse checkMilestonePermissions(Authentication auth, Long projectId);
     ContractPermissionResponse checkContractPermissions(Authentication auth, Long projectId);
+    AddendumPermissionResponse checkAddendumPermissions(Authentication auth, Long projectId);
 }

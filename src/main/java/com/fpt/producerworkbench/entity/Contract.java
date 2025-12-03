@@ -42,16 +42,14 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "payment_type", nullable = false)
     private PaymentType paymentType;
 
-    /** Trạng thái nghiệp vụ tổng thể của hợp đồng trong hệ thống của bạn */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
-    private ContractStatus status;
-
     @Column(name = "fp_edit_amount")
     private Integer fpEditAmount;
 
     @Column(name = "product_count")
     private Integer productCount;
+
+    @Column(name = "compensation_percentage", precision = 5, scale = 2)
+    private BigDecimal compensationPercentage;
 
     // ====== Bổ sung cho SignNow / ký điện tử ======
     @Column(name = "signnow_template_id", length = 128)

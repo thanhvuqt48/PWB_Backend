@@ -12,7 +12,6 @@ import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
 import com.fpt.producerworkbench.service.PortfolioService;
-import com.fpt.producerworkbench.service.PublicUrlService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -42,7 +42,8 @@ public class PortfolioServiceImpl implements PortfolioService {
     PortfolioMapper portfolioMapper;
     FileStorageService fileStorageService;
     FileKeyGenerator fileKeyGenerator;
-    PublicUrlService publicUrlService;
+
+    private static final long MAX_AUDIO_DEMO_SIZE = 20L * 1024 * 1024; // 20MB
 
     @Override
     @Transactional
@@ -181,7 +182,11 @@ public class PortfolioServiceImpl implements PortfolioService {
 
     @Override
     @Transactional
-    public PortfolioResponse updatePersonalPortfolio(PortfolioUpdateRequest request, MultipartFile coverImage) {
+    public PortfolioResponse updatePersonalPortfolio(
+            PortfolioUpdateRequest request,
+            MultipartFile coverImage,
+            Map<String, MultipartFile> projectAudioDemos,
+            Map<String, MultipartFile> projectCoverImages) {
         String email = SecurityUtils.getCurrentUserLogin()
                 .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
 
@@ -194,7 +199,6 @@ public class PortfolioServiceImpl implements PortfolioService {
         if (coverImage != null && !coverImage.isEmpty()) {
             log.info("Updating cover image for portfolio ID: {}", portfolio.getId());
 
-            // Xóa ảnh cũ nếu có
             if (portfolio.getCoverImageUrl() != null && !portfolio.getCoverImageUrl().isEmpty()) {
                 try {
                     fileStorageService.deleteFile(portfolio.getCoverImageUrl());
@@ -260,9 +264,17 @@ public class PortfolioServiceImpl implements PortfolioService {
         }
 
         if (request.getPersonalProjects() != null) {
+            log.debug("Processing {} personal projects", request.getPersonalProjects().size());
+            log.debug("projectAudioDemos: {}", projectAudioDemos != null ? projectAudioDemos.keySet() : "null");
+            log.debug("projectCoverImages: {}", projectCoverImages != null ? projectCoverImages.keySet() : "null");
 
-            for (PersonalProjectUpdateRequest projectReq : request.getPersonalProjects()) {
+            for (int i = 0; i < request.getPersonalProjects().size(); i++) {
+                PersonalProjectUpdateRequest projectReq = request.getPersonalProjects().get(i);
+                String indexKey = String.valueOf(i);
+                log.debug("Processing project at index {} with key: {}", i, indexKey);
+
                 if (projectReq.getId() != null) {
+                    // Update existing project
                     PersonalProject existingProject = personalProjectRepository.findById(projectReq.getId())
                             .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
@@ -272,22 +284,104 @@ public class PortfolioServiceImpl implements PortfolioService {
 
                     existingProject.setTitle(projectReq.getTitle());
                     existingProject.setDescription(projectReq.getDescription());
-                    existingProject.setAudioDemoUrl(projectReq.getAudioDemoUrl());
-                    existingProject.setCoverImageUrl(projectReq.getCoverImageUrl());
                     existingProject.setReleaseYear(projectReq.getReleaseYear());
+
+                    // Xử lý upload audio demo
+                    if (projectAudioDemos != null && projectAudioDemos.containsKey(indexKey)) {
+                        MultipartFile audioFile = projectAudioDemos.get(indexKey);
+                        if (audioFile != null && !audioFile.isEmpty()) {
+                            // Validate file size
+                            if (audioFile.getSize() > MAX_AUDIO_DEMO_SIZE) {
+                                throw new AppException(ErrorCode.FILE_TOO_LARGE);
+                            }
+
+                            // Xóa file cũ nếu có
+                            if (existingProject.getAudioDemoUrl() != null) {
+                                try {
+                                    fileStorageService.deleteFile(existingProject.getAudioDemoUrl());
+                                } catch (Exception e) {
+                                    log.warn("Failed to delete old audio demo: {}", e.getMessage());
+                                }
+                            }
+
+                            // Upload file mới
+                            String audioKey = fileKeyGenerator.generatePersonalProjectAudioDemoKey(
+                                    user.getId(), existingProject.getId(), audioFile.getOriginalFilename());
+                            fileStorageService.uploadFile(audioFile, audioKey);
+                            String audioUrl = fileStorageService.generatePermanentUrl(audioKey);
+                            existingProject.setAudioDemoUrl(audioUrl);
+                            log.info("Uploaded audio demo for project ID: {}", existingProject.getId());
+                        }
+                    }
+
+                    // Xử lý upload cover image
+                    if (projectCoverImages != null && projectCoverImages.containsKey(indexKey)) {
+                        MultipartFile coverFile = projectCoverImages.get(indexKey);
+                        if (coverFile != null && !coverFile.isEmpty()) {
+                            // Xóa file cũ nếu có
+                            if (existingProject.getCoverImageUrl() != null) {
+                                try {
+                                    fileStorageService.deleteFile(existingProject.getCoverImageUrl());
+                                } catch (Exception e) {
+                                    log.warn("Failed to delete old cover image: {}", e.getMessage());
+                                }
+                            }
+
+                            // Upload file mới
+                            String coverKey = fileKeyGenerator.generatePersonalProjectImageKey(
+                                    user.getId(), existingProject.getId(), coverFile.getOriginalFilename());
+                            fileStorageService.uploadFile(coverFile, coverKey);
+                            String coverUrl = fileStorageService.generatePermanentUrl(coverKey);
+                            existingProject.setCoverImageUrl(coverUrl);
+                            log.info("Uploaded cover image for project ID: {}", existingProject.getId());
+                        }
+                    }
+
                     personalProjectRepository.save(existingProject);
                     log.debug("Updated personal project ID: {}", projectReq.getId());
                 } else {
+                    // Tạo project mới - cần save trước để có ID
                     PersonalProject newProject = PersonalProject.builder()
                             .portfolio(portfolio)
                             .title(projectReq.getTitle())
                             .description(projectReq.getDescription())
-                            .audioDemoUrl(projectReq.getAudioDemoUrl())
-                            .coverImageUrl(projectReq.getCoverImageUrl())
                             .releaseYear(projectReq.getReleaseYear())
                             .build();
-                    portfolio.getPersonalProjects().add(newProject);
-                    personalProjectRepository.save(newProject);
+
+                    PersonalProject savedProject = personalProjectRepository.save(newProject);
+
+                    // Upload audio demo nếu có
+                    if (projectAudioDemos != null && projectAudioDemos.containsKey(indexKey)) {
+                        MultipartFile audioFile = projectAudioDemos.get(indexKey);
+                        if (audioFile != null && !audioFile.isEmpty()) {
+                            if (audioFile.getSize() > MAX_AUDIO_DEMO_SIZE) {
+                                throw new AppException(ErrorCode.FILE_TOO_LARGE);
+                            }
+
+                            String audioKey = fileKeyGenerator.generatePersonalProjectAudioDemoKey(
+                                    user.getId(), savedProject.getId(), audioFile.getOriginalFilename());
+                            fileStorageService.uploadFile(audioFile, audioKey);
+                            String audioUrl = fileStorageService.generatePermanentUrl(audioKey);
+                            savedProject.setAudioDemoUrl(audioUrl);
+                            log.info("Uploaded audio demo for new project ID: {}", savedProject.getId());
+                        }
+                    }
+
+                    // Upload cover image nếu có
+                    if (projectCoverImages != null && projectCoverImages.containsKey(indexKey)) {
+                        MultipartFile coverFile = projectCoverImages.get(indexKey);
+                        if (coverFile != null && !coverFile.isEmpty()) {
+                            String coverKey = fileKeyGenerator.generatePersonalProjectImageKey(
+                                    user.getId(), savedProject.getId(), coverFile.getOriginalFilename());
+                            fileStorageService.uploadFile(coverFile, coverKey);
+                            String coverUrl = fileStorageService.generatePermanentUrl(coverKey);
+                            savedProject.setCoverImageUrl(coverUrl);
+                            log.info("Uploaded cover image for new project ID: {}", savedProject.getId());
+                        }
+                    }
+
+                    personalProjectRepository.save(savedProject);
+                    portfolio.getPersonalProjects().add(savedProject);
                     log.debug("Created new personal project: {}", projectReq.getTitle());
                 }
             }
@@ -325,8 +419,9 @@ public class PortfolioServiceImpl implements PortfolioService {
     public PortfolioResponse getPortfolioByUserId(Long userId) {
         log.info("Finding portfolio by user ID: {}", userId);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        if (!userRepository.existsById(userId)) {
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+        }
 
         Portfolio portfolio = portfolioRepository.findByUserId(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PORTFOLIO_NOT_FOUND));

@@ -2,7 +2,7 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fpt.producerworkbench.configuration.GeminiProperties;
+import com.fpt.producerworkbench.configuration.GeminiConfig;
 import com.fpt.producerworkbench.dto.request.ExplanationRequest;
 import com.fpt.producerworkbench.dto.request.VectorSearchRequest;
 import com.fpt.producerworkbench.dto.response.ExplanationResponse;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 public class AiExplanationServiceImpl implements AiExplanationService {
     
     private final VectorDbIndexingService vectorDbIndexingService;
-    private final GeminiProperties geminiProperties;
+    private final GeminiConfig geminiConfig;
     private final WebClient.Builder webClientBuilder;
     private final ObjectMapper objectMapper;
     
@@ -113,7 +113,7 @@ public class AiExplanationServiceImpl implements AiExplanationService {
                 .relatedTerms(relatedTerms)
                 .foundInDatabase(foundInDatabase)
                 .processingTimeMs(processingTime)
-                .model(geminiProperties.getModel())
+                .model(geminiConfig.getModel())
                 .build();
     }
     
@@ -163,8 +163,8 @@ public class AiExplanationServiceImpl implements AiExplanationService {
             ));
             
             String url = String.format("%s/models/%s:generateContent",
-                    geminiProperties.getBaseUrl(),
-                    geminiProperties.getModel());
+                    geminiConfig.getBaseUrl(),
+                    geminiConfig.getModel());
             
             log.debug("📤 Sending prompt to Gemini REST API...");
             
@@ -173,7 +173,7 @@ public class AiExplanationServiceImpl implements AiExplanationService {
             String response = webClient.post()
                     .uri(url)
                     .header("Content-Type", "application/json")
-                    .header("x-goog-api-key", geminiProperties.getApiKey())
+                    .header("x-goog-api-key", geminiConfig.getApiKey())
                     .bodyValue(requestBody)
                     .retrieve()
                     .bodyToMono(String.class)

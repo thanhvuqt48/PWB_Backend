@@ -142,7 +142,7 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
 
         if (isClientMember) {
             var contractOpt = contractRepository.findByProjectId(projectId);
-            if (contractOpt.isPresent() && ContractStatus.COMPLETED.equals(contractOpt.get().getStatus())) {
+            if (contractOpt.isPresent() && (ContractStatus.PAID.equals(contractOpt.get().getSignnowStatus()) || ContractStatus.COMPLETED.equals(contractOpt.get().getSignnowStatus()))) {
                 throw new AppException(ErrorCode.PROJECT_CLIENT_CONTRACT_COMPLETED);
             }
             project.setClient(null);

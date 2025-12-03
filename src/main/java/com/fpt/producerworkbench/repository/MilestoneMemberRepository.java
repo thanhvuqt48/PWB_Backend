@@ -17,6 +17,7 @@ public interface MilestoneMemberRepository extends JpaRepository<MilestoneMember
     List<MilestoneMember> findByMilestoneIdInAndUserId(List<Long> milestoneIds, Long userId);
 
     Optional<MilestoneMember> findByMilestoneIdAndUserId(Long milestoneId, Long userId);
+
 }
 
 

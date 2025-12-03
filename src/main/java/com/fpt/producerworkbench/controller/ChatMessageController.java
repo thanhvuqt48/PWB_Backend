@@ -4,7 +4,7 @@ import com.fpt.producerworkbench.dto.request.ChatRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ChatResponse;
 import com.fpt.producerworkbench.dto.response.PageResponse;
-import com.fpt.producerworkbench.service.impl.ChatMessageService;
+import com.fpt.producerworkbench.service.ChatMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
