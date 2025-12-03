@@ -36,8 +36,8 @@ public class AgoraTokenServiceImpl implements AgoraTokenService {
             // ✅ Create instance and call instance method
             RtcTokenBuilder2 tokenBuilder = new RtcTokenBuilder2();
             String token = tokenBuilder.buildTokenWithUid(
-                    agoraConfig.getAppId(),
-                    agoraConfig.getAppCertificate(),
+                    agoraConfig.getId(),
+                    agoraConfig.getCertificate(),
                     channelName,
                     uid,
                     role,
@@ -82,8 +82,8 @@ public class AgoraTokenServiceImpl implements AgoraTokenService {
     }
 
     private void validateConfig() {
-        String appId = agoraConfig.getAppId();
-        String appCert = agoraConfig.getAppCertificate();
+        String appId = agoraConfig.getId();
+        String appCert = agoraConfig.getCertificate();
 
         if (appId == null || appId.trim().isEmpty()) {
             throw new AgoraTokenException(
