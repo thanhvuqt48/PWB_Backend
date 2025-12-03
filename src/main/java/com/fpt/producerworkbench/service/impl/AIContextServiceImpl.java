@@ -141,7 +141,7 @@ public class AIContextServiceImpl implements AIContextService {
             String aiResponse;
             try {
                 aiResponse = aiChatClient.prompt()
-                        .user(enhancedPrompt)
+                        .user(u -> u.text("{prompt_content}").param("prompt_content", enhancedPrompt))
                         .advisors(advisorSpec -> advisorSpec
                                 .param("conversationId", request.getSessionId())
                         )
@@ -202,7 +202,7 @@ public class AIContextServiceImpl implements AIContextService {
             UserGuideSearchRequest searchRequest = UserGuideSearchRequest.builder()
                     .query(request.getQuery())
                     .topK(maxGuides)
-                    .minScore(0.7)
+                    .minScore(0.4)
                     .includeInactive(false)
                     .build();
             
