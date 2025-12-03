@@ -7,10 +7,12 @@ import com.fpt.producerworkbench.dto.response.AuthenticationResponse;
 import com.fpt.producerworkbench.dto.response.ExchangeTokenResponse;
 import com.fpt.producerworkbench.dto.response.IntrospectResponse;
 import com.fpt.producerworkbench.entity.InvalidatedToken;
+import com.fpt.producerworkbench.entity.Portfolio;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.InvalidatedTokenRepository;
+import com.fpt.producerworkbench.repository.PortfolioRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.repository.http_client.OutboundIdentityClient;
 import com.fpt.producerworkbench.repository.http_client.OutboundUserClient;
@@ -33,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.ParseException;
 import java.util.Date;
+import java.util.HashSet;
 
 
 @Service
@@ -62,6 +65,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     AuthenticationManager authenticationManager;
     OutboundIdentityClient outboundIdentityClient;
     OutboundUserClient outboundUserClient;
+    PortfolioRepository portfolioRepository;
 
     private void ensureActive(User user) {
         if (user.getStatus() != UserStatus.ACTIVE) {
@@ -94,6 +98,20 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .build()));
 
         ensureActive(user);
+
+        // Tạo portfolio mặc định cho user mới
+        portfolioRepository.findByUserId(user.getId()).orElseGet(() -> {
+            Portfolio defaultPortfolio = Portfolio.builder()
+                    .user(user)
+                    .isPublic(false)
+                    .sections(new HashSet<>())
+                    .personalProjects(new HashSet<>())
+                    .socialLinks(new HashSet<>())
+                    .genres(new HashSet<>())
+                    .tags(new HashSet<>())
+                    .build();
+            return portfolioRepository.save(defaultPortfolio);
+        });
 
         var token = jwtService.generateToken(user);
 

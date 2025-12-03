@@ -54,11 +54,11 @@ public class ProducerSpecification {
 
             return criteriaBuilder.lessThanOrEqualTo(
                     criteriaBuilder.function("ST_Distance_Sphere", Double.class,
-                            criteriaBuilder.function("point", Object.class, root.get("longitude"), root.get("latitude")),
-                            criteriaBuilder.function("point", Object.class, criteriaBuilder.literal(lon), criteriaBuilder.literal(lat))
-                    ),
-                    radiusInKm * 1000
-            );
+                            criteriaBuilder.function("point", Object.class, root.get("longitude"),
+                                    root.get("latitude")),
+                            criteriaBuilder.function("point", Object.class, criteriaBuilder.literal(lon),
+                                    criteriaBuilder.literal(lat))),
+                    radiusInKm * 1000);
         };
     }
 
