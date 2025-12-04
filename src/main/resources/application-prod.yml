@@ -34,6 +34,8 @@ spring:
       hibernate:
         show_sql: false
         format_sql: true
+        jdbc:
+          time_zone: Asia/Ho_Chi_Minh
   servlet:
     multipart:
       max-file-size: 1GB
