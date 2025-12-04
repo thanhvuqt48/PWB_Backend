@@ -9,6 +9,10 @@ RUN mvn package -DskipTests
 # Stage 2: Runtime (Temurin JDK 21 - Debian)
 FROM eclipse-temurin:21-jre
 
+# Set timezone
+ENV TZ=Asia/Ho_Chi_Minh
+ENV JAVA_OPTS="-Duser.timezone=Asia/Ho_Chi_Minh"
+
 # Install ffmpeg static binary
 RUN apt-get update && \
     apt-get install -y curl xz-utils && \
@@ -23,4 +27,5 @@ RUN apt-get update && \
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Update ENTRYPOINT to use JAVA_OPTS
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
