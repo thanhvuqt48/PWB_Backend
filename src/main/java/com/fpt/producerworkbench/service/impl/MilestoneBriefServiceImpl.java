@@ -44,22 +44,33 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     private final UserRepository userRepository;
     private final FileStorageService storage;
 
-    private static final long MAX_SIZE = 20L * 1024 * 1024;
+    private static final long MAX_SIZE = 20L * 1024 * 1024; // 20MB
     private static final Set<String> IMAGE_MIMES = Set.of(MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif");
     private static final Set<String> AUDIO_MIMES = Set.of("audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/webm", "audio/ogg");
 
+    @Override
+    public String getBriefFileUrl(Long projectId, Long milestoneId, String fileKey, Authentication auth) {
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+
+        var roleInfo = getRoleInfo(auth, projectId);
+        if (roleInfo.userRole == null && roleInfo.projectRole == null) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        if (fileKey == null ||
+                (!fileKey.startsWith("brief-images/") && !fileKey.startsWith("brief-audios/"))) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT, "File key không hợp lệ");
+        }
+
+        return storage.generatePresignedUrl(fileKey, false, null);
+    }
 
     @Override
     @Transactional(readOnly = true)
     public MilestoneBriefDetailResponse getMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
         log.info("[EXTERNAL] Get brief: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        var roleInfo = getRoleInfo(auth, projectId);
-        boolean isProducerOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
-        boolean isCustomerClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
-
-        if (!isProducerOwner && !isCustomerClient) throw new AppException(ErrorCode.ACCESS_DENIED);
-
+        validateExternalReadPermission(auth, projectId);
         return buildDetailResponse(milestone, MilestoneBriefScope.EXTERNAL);
     }
 
@@ -68,7 +79,7 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     public List<MilestoneBriefGroupResponse> createBriefGroups(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
         log.info("[EXTERNAL] Batch create (Append): projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        validateClientPermission(auth, projectId);
+        validateExternalWritePermission(auth, projectId);
 
         List<MilestoneBriefGroup> savedGroups = new ArrayList<>();
         if (request != null && request.getGroups() != null) {
@@ -89,7 +100,7 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     public MilestoneBriefDetailResponse upsertMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
         log.info("[EXTERNAL] Upsert ALL (Replace): projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        validateClientPermission(auth, projectId);
+        validateExternalWritePermission(auth, projectId);
 
         briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.EXTERNAL);
 
@@ -112,7 +123,7 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     public void deleteBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth) {
         log.info("[EXTERNAL] Delete group: projectId={}, groupId={}", projectId, groupId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        validateClientPermission(auth, projectId);
+        validateExternalWritePermission(auth, projectId);
         MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
         briefGroupRepository.delete(group);
     }
@@ -121,20 +132,9 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     @Override
     @Transactional(readOnly = true)
     public MilestoneBriefDetailResponse getInternalMilestoneBrief(Long projectId, Long milestoneId, Authentication auth) {
-        // ... (Logic check member cũ)
         log.info("[INTERNAL] Get brief: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        var roleInfo = getRoleInfo(auth, projectId);
-        boolean isOwner = roleInfo.projectRole == ProjectRole.OWNER;
-        boolean isCollaborator = roleInfo.projectRole == ProjectRole.COLLABORATOR;
-
-        if (!isOwner && !isCollaborator) throw new AppException(ErrorCode.ACCESS_DENIED);
-        if (isCollaborator) {
-            User currentUser = userRepository.findByEmail(auth.getName()).orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-            if (!milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId, currentUser.getId())) {
-                throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không phải thành viên của cột mốc này");
-            }
-        }
+        validateInternalReadPermission(auth, projectId, milestoneId);
         return buildDetailResponse(milestone, MilestoneBriefScope.INTERNAL);
     }
 
@@ -143,9 +143,10 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     public MilestoneBriefDetailResponse upsertInternalMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
         log.info("[INTERNAL] Upsert ALL: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        validateOwnerPermission(auth, projectId);
+        validateOwnerOnly(auth, projectId);
 
         briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.INTERNAL);
+
         List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
         if (request != null && request.getGroups() != null) {
             for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
@@ -162,24 +163,64 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     public void deleteInternalBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth) {
         log.info("[INTERNAL] Delete group: projectId={}, groupId={}", projectId, groupId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        validateOwnerPermission(auth, projectId);
+        validateOwnerOnly(auth, projectId);
         MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.INTERNAL);
         briefGroupRepository.delete(group);
+    }
+
+
+    @Override
+    @Transactional
+    public List<MilestoneBriefGroupResponse> forwardAllExternalToInternal(Long projectId, Long milestoneId, Authentication auth) {
+        log.info("Forwarding ALL groups from EXTERNAL to INTERNAL: milestoneId={}", milestoneId);
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+        validateOwnerOnly(auth, projectId);
+
+        List<MilestoneBriefGroup> sourceGroups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
+        if (sourceGroups.isEmpty()) throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không có nội dung ngoại bộ nào để chuyển tiếp");
+
+        List<MilestoneBriefGroup> targetGroups = new ArrayList<>();
+        for (MilestoneBriefGroup sourceGroup : sourceGroups) {
+            MilestoneBriefGroup targetGroup = MilestoneBriefGroup.builder()
+                    .milestone(milestone)
+                    .scope(MilestoneBriefScope.INTERNAL)
+                    .title(sourceGroup.getTitle() + " (Forwarded)")
+                    .position(sourceGroup.getPosition())
+                    .build();
+
+            if (sourceGroup.getBlocks() != null) {
+                List<MilestoneBriefBlock> targetBlocks = new ArrayList<>();
+                for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
+                    MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
+                            .group(targetGroup)
+                            .type(sourceBlock.getType())
+                            .label(sourceBlock.getLabel())
+                            .contentText(sourceBlock.getContentText())
+                            .fileKey(sourceBlock.getFileKey())
+                            .position(sourceBlock.getPosition())
+                            .build();
+                    targetBlocks.add(targetBlock);
+                }
+                targetGroup.setBlocks(targetBlocks);
+            }
+            targetGroups.add(targetGroup);
+        }
+
+        briefGroupRepository.saveAll(targetGroups);
+        return targetGroups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public String uploadBriefFile(Long projectId, Long milestoneId, MultipartFile file, String type, Authentication auth) {
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
-        var roleInfo = getRoleInfo(auth, projectId);
-        boolean isClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
-        boolean isProducerOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
-        if (!isClient && !isProducerOwner) throw new AppException(ErrorCode.ACCESS_DENIED);
+        validateExternalWritePermission(auth, projectId);
+
         if (file == null || file.isEmpty()) throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         if (file.getSize() > MAX_SIZE) throw new AppException(ErrorCode.FILE_TOO_LARGE);
 
         String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase();
-        String folder = "brief-files"; // Default
+        String folder = "brief-files";
         if ("IMAGE".equalsIgnoreCase(type)) {
             if (!IMAGE_MIMES.contains(mime)) throw new AppException(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
             folder = "brief-images";
@@ -192,35 +233,76 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         return key;
     }
 
+    private void validateExternalReadPermission(Authentication auth, Long projectId) {
+        var roleInfo = getRoleInfo(auth, projectId);
+        boolean isOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
+        boolean isClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
+        boolean isObserver = roleInfo.projectRole == ProjectRole.OBSERVER;
+
+        if (!isOwner && !isClient && !isObserver) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền xem nội dung ngoại bộ");
+        }
+    }
+
+    private void validateExternalWritePermission(Authentication auth, Long projectId) {
+        var roleInfo = getRoleInfo(auth, projectId);
+        boolean isOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
+        boolean isClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
+
+        if (!isOwner && !isClient) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền chỉnh sửa nội dung ngoại bộ");
+        }
+    }
+
+    private void validateOwnerOnly(Authentication auth, Long projectId) {
+        var roleInfo = getRoleInfo(auth, projectId);
+        boolean isOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
+        if (!isOwner) {
+            throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ Owner mới có quyền thực hiện thao tác này");
+        }
+    }
+
+    private void validateInternalReadPermission(Authentication auth, Long projectId, Long milestoneId) {
+        var roleInfo = getRoleInfo(auth, projectId);
+
+        if (roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER) return;
+
+        if (roleInfo.projectRole == ProjectRole.COLLABORATOR || roleInfo.projectRole == ProjectRole.OBSERVER) {
+            User currentUser = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            boolean isMember = milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId, currentUser.getId());
+            if (!isMember) throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn chưa được thêm vào cột mốc này");
+            return;
+        }
+
+        throw new AppException(ErrorCode.ACCESS_DENIED);
+    }
+
     private Milestone loadMilestoneAndCheckAuth(Long projectId, Long milestoneId, Authentication auth) {
         if (auth == null || auth.getName() == null) throw new AppException(ErrorCode.UNAUTHENTICATED);
         Milestone milestone = milestoneRepository.findById(milestoneId).orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
         if (!milestone.getContract().getProject().getId().equals(projectId)) throw new AppException(ErrorCode.ACCESS_DENIED);
         return milestone;
     }
+
     private RoleInfo getRoleInfo(Authentication auth, Long projectId) {
         ProjectPermissionResponse permission = projectPermissionService.checkProjectPermissions(auth, projectId);
         var role = permission.getRole();
         return new RoleInfo(role != null ? role.getUserRole() : null, role != null ? role.getProjectRole() : null);
     }
-    private void validateClientPermission(Authentication auth, Long projectId) {
-        var roleInfo = getRoleInfo(auth, projectId);
-        if (roleInfo.userRole != UserRole.CUSTOMER || roleInfo.projectRole != ProjectRole.CLIENT) throw new AppException(ErrorCode.ACCESS_DENIED);
-    }
-    private void validateOwnerPermission(Authentication auth, Long projectId) {
-        var roleInfo = getRoleInfo(auth, projectId);
-        if (roleInfo.userRole != UserRole.PRODUCER || roleInfo.projectRole != ProjectRole.OWNER) throw new AppException(ErrorCode.ACCESS_DENIED);
-    }
+
     private MilestoneBriefGroup findGroupAndValidateBelonging(Long groupId, Long milestoneId, MilestoneBriefScope scope) {
         MilestoneBriefGroup group = briefGroupRepository.findById(groupId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
         if (!group.getMilestone().getId().equals(milestoneId) || group.getScope() != scope) throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         return group;
     }
+
     private MilestoneBriefGroup createGroupEntity(Milestone milestone, MilestoneBriefGroupRequest req, MilestoneBriefScope scope) {
         MilestoneBriefGroup group = MilestoneBriefGroup.builder().milestone(milestone).scope(scope).title(req.getTitle()).position(req.getPosition() != null ? req.getPosition() : 999).build();
         if (req.getBlocks() != null) group.setBlocks(mapBlocksRequestToEntity(req.getBlocks(), group));
         return group;
     }
+
     private List<MilestoneBriefBlock> mapBlocksRequestToEntity(List<MilestoneBriefBlockRequest> blockReqs, MilestoneBriefGroup group) {
         List<MilestoneBriefBlock> blocks = new ArrayList<>();
         int index = 1;
@@ -232,24 +314,28 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         }
         return blocks;
     }
+
     private MilestoneBriefDetailResponse buildDetailResponse(Milestone milestone, MilestoneBriefScope scope) {
         List<MilestoneBriefGroup> groups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestone.getId(), scope);
-        List<MilestoneBriefGroupResponse> groupResponses = groups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
-        return MilestoneBriefDetailResponse.builder().milestoneId(milestone.getId()).projectId(milestone.getContract().getProject().getId()).scope(scope).groups(groupResponses).build();
+        return MilestoneBriefDetailResponse.builder().milestoneId(milestone.getId()).projectId(milestone.getContract().getProject().getId()).scope(scope).groups(groups.stream().map(this::mapToGroupResponse).collect(Collectors.toList())).build();
     }
+
     private MilestoneBriefGroupResponse mapToGroupResponse(MilestoneBriefGroup group) {
         List<MilestoneBriefBlockResponse> blockResponses = group.getBlocks() == null ? Collections.emptyList() :
                 group.getBlocks().stream().sorted(Comparator.comparing(MilestoneBriefBlock::getPosition, Comparator.nullsLast(Integer::compareTo))).map(this::mapToBlockResponse).collect(Collectors.toList());
         return MilestoneBriefGroupResponse.builder().id(group.getId()).title(group.getTitle()).position(group.getPosition()).blocks(blockResponses).build();
     }
+
     private MilestoneBriefBlockResponse mapToBlockResponse(MilestoneBriefBlock block) {
         String content = block.getContentText();
         if (block.getFileKey() != null) content = storage.generatePresignedUrl(block.getFileKey(), false, null);
         return MilestoneBriefBlockResponse.builder().id(block.getId()).type(block.getType()).label(block.getLabel()).content(content).position(block.getPosition()).build();
     }
+
     private String defaultLabelByType(MilestoneBriefBlockType type) {
         if (type == null) return null;
         return switch (type) { case DESCRIPTION -> "Miêu tả"; case HARMONY -> "Hòa âm"; case IMAGE -> "Ảnh"; case HUM_MELODY -> "Ngân nga giai điệu"; };
     }
+
     private static class RoleInfo { final UserRole userRole; final ProjectRole projectRole; RoleInfo(UserRole u, ProjectRole p) { this.userRole = u; this.projectRole = p; }}
 }

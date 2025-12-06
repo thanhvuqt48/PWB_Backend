@@ -357,6 +357,26 @@ public class MilestoneController {
                 .build();
     }
 
+    @GetMapping("/{projectId}/milestones/{milestoneId}/brief/file")
+    public ApiResponse<String> getBriefFileUrl(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @RequestParam("key") String fileKey,
+            Authentication authentication) {
+
+        if (projectId == null || milestoneId == null || fileKey == null || fileKey.isBlank()) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        String url = milestoneBriefService.getBriefFileUrl(projectId, milestoneId, fileKey, authentication);
+
+        return ApiResponse.<String>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy đường dẫn file thành công")
+                .result(url)
+                .build();
+    }
+
     @GetMapping("/{projectId}/milestones/{milestoneId}/brief")
     public ApiResponse<MilestoneBriefDetailResponse> getMilestoneBrief(
             @PathVariable Long projectId,
@@ -427,6 +447,25 @@ public class MilestoneController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Xóa mô tả thành công")
+                .build();
+    }
+
+    @PostMapping("/{projectId}/milestones/{milestoneId}/brief/forward")
+    public ApiResponse<List<MilestoneBriefGroupResponse>> forwardAllExternalToInternal(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            Authentication authentication) {
+
+        if (projectId == null || milestoneId == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        List<MilestoneBriefGroupResponse> response = milestoneBriefService.forwardAllExternalToInternal(projectId, milestoneId, authentication);
+
+        return ApiResponse.<List<MilestoneBriefGroupResponse>>builder()
+                .code(HttpStatus.OK.value())
+                .message("Đã chuyển tiếp toàn bộ nội dung sang phòng nội bộ")
+                .result(response)
                 .build();
     }
 
