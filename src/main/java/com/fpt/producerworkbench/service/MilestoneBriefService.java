@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service;
 
+import com.fpt.producerworkbench.dto.request.MilestoneBriefGroupRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneBriefUpsertRequest;
 import com.fpt.producerworkbench.dto.response.MilestoneBriefDetailResponse;
 import com.fpt.producerworkbench.dto.response.MilestoneBriefGroupResponse;
@@ -9,6 +10,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public interface MilestoneBriefService {
+
+    String getBriefFileUrl(Long projectId, Long milestoneId, String fileKey, Authentication auth);
 
     String uploadBriefFile(Long projectId, Long milestoneId, MultipartFile file, String type, Authentication auth);
 
@@ -25,4 +28,5 @@ public interface MilestoneBriefService {
     MilestoneBriefDetailResponse upsertInternalMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth);
 
     void deleteInternalBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth);
+    List<MilestoneBriefGroupResponse> forwardAllExternalToInternal(Long projectId, Long milestoneId, Authentication auth);
 }
