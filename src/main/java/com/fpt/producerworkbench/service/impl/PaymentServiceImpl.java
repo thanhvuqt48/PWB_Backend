@@ -14,6 +14,7 @@ import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
+import com.fpt.producerworkbench.service.ContractAddendumService;
 import com.fpt.producerworkbench.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import vn.payos.model.webhooks.WebhookData;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +44,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final TransactionRepository transactionRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ContractAddendumRepository contractAddendumRepository;
+    private final ContractAddendumService contractAddendumService;
     private final com.fpt.producerworkbench.service.ProSubscriptionService proSubscriptionService;
 
     @Override
@@ -268,6 +271,16 @@ public class PaymentServiceImpl implements PaymentService {
                         addendum.setSignnowStatus(ContractStatus.PAID);
                         contractAddendumRepository.save(addendum);
                         log.info("Đánh dấu THÀNH CÔNG thanh toán phụ lục. Mã đơn hàng: {}, Addendum ID: {}, Status: PAID", orderCode, addendum.getId());
+                        
+                        // Cập nhật contract và milestones khi phụ lục được thanh toán
+                        try {
+                            contractAddendumService.updateContractAndMilestonesOnAddendumPaid(addendum.getId());
+                            log.info("Đã cập nhật contract và milestones cho addendum {} sau khi thanh toán thành công", addendum.getId());
+                        } catch (Exception e) {
+                            log.error("Lỗi khi cập nhật contract và milestones cho addendum {}: {}", 
+                                    addendum.getId(), e.getMessage(), e);
+                            // Không throw exception để không ảnh hưởng đến việc đánh dấu thanh toán
+                        }
                     } else {
                         log.warn("Addendum {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}", addendum.getId(), addendum.getSignnowStatus());
                     }
@@ -281,35 +294,41 @@ public class PaymentServiceImpl implements PaymentService {
 
                         // Nếu hợp đồng là dạng thanh toán theo MILESTONE,
                         // tự động thêm chủ dự án (owner) và khách hàng (client)
-                        // vào thành viên của milestone đầu tiên (tx.relatedMilestone)
+                        // vào thành viên của TẤT CẢ các milestones
                         if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
-                            Milestone milestone = tx.getRelatedMilestone();
                             Project project = contract.getProject();
 
-                            if (milestone != null && project != null) {
+                            if (project != null) {
                                 User owner = project.getCreator();
                                 User client = project.getClient();
 
-                                // Thêm owner nếu chưa có
-                                if (owner != null
-                                        && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), owner.getId())) {
-                                    MilestoneMember ownerMember = MilestoneMember.builder()
-                                            .milestone(milestone)
-                                            .user(owner)
-                                            .build();
-                                    milestoneMemberRepository.save(ownerMember);
-                                }
+                                // Lấy tất cả milestones của contract
+                                List<Milestone> milestones = milestoneRepository.findByContractIdOrderBySequenceAsc(contract.getId());
 
-                                // Thêm client nếu khác owner và chưa có
-                                if (client != null) {
-                                    boolean sameAsOwner = owner != null && owner.getId().equals(client.getId());
-                                    if (!sameAsOwner
-                                            && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), client.getId())) {
-                                        MilestoneMember clientMember = MilestoneMember.builder()
+                                for (Milestone milestone : milestones) {
+                                    // Thêm owner nếu chưa có
+                                    if (owner != null
+                                            && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), owner.getId())) {
+                                        MilestoneMember ownerMember = MilestoneMember.builder()
                                                 .milestone(milestone)
-                                                .user(client)
+                                                .user(owner)
                                                 .build();
-                                        milestoneMemberRepository.save(clientMember);
+                                        milestoneMemberRepository.save(ownerMember);
+                                        log.info("Đã thêm owner vào milestone {} sau khi thanh toán", milestone.getId());
+                                    }
+
+                                    // Thêm client nếu khác owner và chưa có
+                                    if (client != null) {
+                                        boolean sameAsOwner = owner != null && owner.getId().equals(client.getId());
+                                        if (!sameAsOwner
+                                                && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), client.getId())) {
+                                            MilestoneMember clientMember = MilestoneMember.builder()
+                                                    .milestone(milestone)
+                                                    .user(client)
+                                                    .build();
+                                            milestoneMemberRepository.save(clientMember);
+                                            log.info("Đã thêm client vào milestone {} sau khi thanh toán", milestone.getId());
+                                        }
                                     }
                                 }
                             }
