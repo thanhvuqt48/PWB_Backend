@@ -28,5 +28,6 @@ public interface MilestoneBriefService {
     MilestoneBriefDetailResponse upsertInternalMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth);
 
     void deleteInternalBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth);
-    List<MilestoneBriefGroupResponse> forwardAllExternalToInternal(Long projectId, Long milestoneId, Authentication auth);
+
+    MilestoneBriefGroupResponse forwardExternalGroupToInternal(Long projectId, Long milestoneId, Long groupId, Authentication auth);
 }
