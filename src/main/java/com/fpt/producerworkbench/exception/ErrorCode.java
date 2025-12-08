@@ -26,6 +26,7 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(2006, "Tài khoản đã bị khóa.", HttpStatus.FORBIDDEN),
     ACCOUNT_DISABLED(2007, "Tài khoản đã bị vô hiệu hóa.", HttpStatus.FORBIDDEN),
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
+    ACCOUNT_NOT_VERIFIED(2010, "Tài khoản chưa được xác thực. Vui lòng xác thực tài khoản trước khi tạo dự án.", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
     FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
@@ -37,6 +38,7 @@ public enum ErrorCode {
     OTP_INVALID(3004, "Mã OTP không hợp lệ.", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(3005, "Mã OTP đã hết hạn.", HttpStatus.BAD_REQUEST),
     ACCOUNT_ALREADY_VERIFIED(3006, "Tài khoản này đã được xác thực trước đó.", HttpStatus.BAD_REQUEST),
+    USER_NOT_VERIFIED(3008, "Tài khoản chưa xác thực CCCD. Vui lòng xác thực trước khi sử dụng tính năng này.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi liên quan đến Tài nguyên chung (4xxx) =====
     USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),

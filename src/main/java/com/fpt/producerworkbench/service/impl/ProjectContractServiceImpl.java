@@ -7,14 +7,17 @@ import com.fpt.producerworkbench.configuration.SignNowProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
+import com.fpt.producerworkbench.dto.response.PartyBInfoResponse;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
 import com.fpt.producerworkbench.entity.Project;
+import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
+import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +48,7 @@ public class ProjectContractServiceImpl implements ProjectContractService {
     private final SignNowClient signNowClient;
     private final SignNowProperties signNowProperties;
     private final FileKeyGenerator fileKeyGenerator;
+    private final UserRepository userRepository;
 
     @Override
     public Map<String, Object> getContractByProject(Long projectId) {
@@ -329,6 +333,67 @@ public class ProjectContractServiceImpl implements ProjectContractService {
             log.error("[SyncStatus] Sync failed for contract {}: {}", c.getId(), ex.getMessage(), ex);
             throw new AppException(ErrorCode.SIGNNOW_DOWNLOAD_FAILED);
         }
+    }
+
+    @Override
+    public PartyBInfoResponse getVerifiedPartyBInfo(Authentication auth) {
+        // Lấy email từ Authentication
+        String email = auth == null ? null : auth.getName();
+        if (email == null || email.isBlank()) {
+            throw new AppException(ErrorCode.UNAUTHENTICATED);
+        }
+
+        // Lấy user từ database
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Kiểm tra user đã xác thực CCCD chưa
+        if (user.getIsVerified() == null || !user.getIsVerified()) {
+            throw new AppException(ErrorCode.USER_NOT_VERIFIED);
+        }
+
+        // Parse date từ String sang LocalDate
+        java.time.LocalDate issueDate = parseCccdIssueDate(user.getCccdIssueDate());
+
+        // Map từ User sang PartyBInfoResponse
+        return PartyBInfoResponse.builder()
+                .bName(user.getCccdFullName())
+                .bCccd(user.getCccdNumber())
+                .bCccdIssueDate(issueDate)
+                .bCccdIssuePlace(user.getCccdIssuePlace())
+                .bAddress(user.getCccdRecentLocation())
+                .bPhone(user.getPhoneNumber())
+                .isVerified(true)
+                .build();
+    }
+
+    /**
+     * Parse CCCD issue date từ String sang LocalDate.
+     * Hỗ trợ các format: "dd/MM/yyyy", "yyyy-MM-dd", "yyyy/MM/dd"
+     */
+    private java.time.LocalDate parseCccdIssueDate(String dateString) {
+        if (dateString == null || dateString.isBlank()) {
+            log.warn("CCCD issue date is null or blank");
+            return null;
+        }
+
+        String trimmed = dateString.trim();
+        java.time.format.DateTimeFormatter[] formatters = {
+                java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+                java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        };
+
+        for (java.time.format.DateTimeFormatter formatter : formatters) {
+            try {
+                return java.time.LocalDate.parse(trimmed, formatter);
+            } catch (java.time.format.DateTimeParseException e) {
+                // Try next format
+            }
+        }
+
+        log.warn("Cannot parse CCCD issue date: {}", dateString);
+        return null;
     }
 }
 
