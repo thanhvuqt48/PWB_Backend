@@ -20,4 +20,13 @@ public class PlaybackEvent {
     private Float playbackRate; // 1.0 = normal speed
     private Long triggeredByUserId;
     private String triggeredByUserName;
+    
+    // ✅ NEW: Additional metadata for member sync
+    private String roomType; // "INTERNAL" or "CLIENT"
+    private Boolean voiceTagEnabled;
+    private String version; // v1, v2, ...
+    private String artist; // Milestone title or artist name
+    private Long trackId; // Alias for fileId
+    private String trackName; // Alias for fileName
+    private String hlsPlaybackUrl; // Alias for fileUrl
 }
