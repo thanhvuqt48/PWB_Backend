@@ -269,7 +269,15 @@ public enum ErrorCode {
     GUIDE_INDEXING_FAILED(18005, "Lỗi khi index guide vào vector DB.", HttpStatus.INTERNAL_SERVER_ERROR),
     GUIDE_IMAGE_UPLOAD_FAILED(18006, "Lỗi khi upload ảnh cho guide.", HttpStatus.INTERNAL_SERVER_ERROR),
     POSTGRESQL_CONNECTION_FAILED(18007, "Không thể kết nối PostgreSQL.", HttpStatus.INTERNAL_SERVER_ERROR),
-    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR);
+    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    WITHDRAWAL_NOT_FOUND(10005, "Không tìm thấy yêu cầu rút tiền", HttpStatus.NOT_FOUND),
+    INVALID_BANK_CODE(10001, "Mã ngân hàng không hợp lệ", HttpStatus.BAD_REQUEST),
+    AMOUNT_TOO_SMALL(10002, "Số tiền rút không được nhỏ hơn 50.000đ", HttpStatus.BAD_REQUEST),
+    AMOUNT_TOO_LARGE(10003, "Số tiền rút không được lớn hơn 100,000,000đ", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_BALANCE(10004, "Số dư không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
+    INVALID_WITHDRAWAL_STATUS(10006, "Trạng thái yêu cầu rút tiền không hợp lệ", HttpStatus.BAD_REQUEST)
+    ;
 
     private final int code;
     private final String message;
