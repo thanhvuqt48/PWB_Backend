@@ -86,6 +86,11 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
 
         validateTotalAmountForExpense(milestone, amount, null);
 
+        // Kiểm tra milestone đã completed thì không được tạo phân chia tiền nữa
+        if (milestone.getStatus() == com.fpt.producerworkbench.common.MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã hoàn thành, không thể tạo phân chia tiền");
+        }
+
         MilestoneMoneySplit moneySplit = MilestoneMoneySplit.builder()
                 .milestone(milestone)
                 .user(user)
@@ -154,6 +159,11 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         }
         if (moneySplit.getStatus() == MoneySplitStatus.REJECTED) {
             throw new AppException(ErrorCode.MONEY_SPLIT_CANNOT_UPDATE_REJECTED);
+        }
+
+        // Kiểm tra milestone đã completed thì không được cập nhật phân chia tiền nữa
+        if (milestone.getStatus() == com.fpt.producerworkbench.common.MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã hoàn thành, không thể cập nhật phân chia tiền");
         }
 
         BigDecimal newAmount = new BigDecimal(request.getAmount());
@@ -233,6 +243,11 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         }
         if (moneySplit.getStatus() == MoneySplitStatus.REJECTED) {
             throw new AppException(ErrorCode.MONEY_SPLIT_ALREADY_REJECTED);
+        }
+
+        // Kiểm tra milestone đã completed thì không được chấp nhận phân chia tiền nữa
+        if (milestone.getStatus() == com.fpt.producerworkbench.common.MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã hoàn thành, không thể chấp nhận phân chia tiền");
         }
 
         moneySplit.setStatus(MoneySplitStatus.APPROVED);
