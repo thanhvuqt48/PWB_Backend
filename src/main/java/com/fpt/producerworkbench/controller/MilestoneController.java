@@ -450,21 +450,22 @@ public class MilestoneController {
                 .build();
     }
 
-    @PostMapping("/{projectId}/milestones/{milestoneId}/brief/forward")
-    public ApiResponse<List<MilestoneBriefGroupResponse>> forwardAllExternalToInternal(
+    @PostMapping("/{projectId}/milestones/{milestoneId}/brief/forward/{groupId}")
+    public ApiResponse<MilestoneBriefGroupResponse> forwardExternalToInternal(
             @PathVariable Long projectId,
             @PathVariable Long milestoneId,
+            @PathVariable Long groupId,
             Authentication authentication) {
 
-        if (projectId == null || milestoneId == null) {
+        if (projectId == null || milestoneId == null || groupId == null) {
             throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         }
 
-        List<MilestoneBriefGroupResponse> response = milestoneBriefService.forwardAllExternalToInternal(projectId, milestoneId, authentication);
+        MilestoneBriefGroupResponse response = milestoneBriefService.forwardExternalGroupToInternal(projectId, milestoneId, groupId, authentication);
 
-        return ApiResponse.<List<MilestoneBriefGroupResponse>>builder()
+        return ApiResponse.<MilestoneBriefGroupResponse>builder()
                 .code(HttpStatus.OK.value())
-                .message("Đã chuyển tiếp toàn bộ nội dung sang phòng nội bộ")
+                .message("Đã chuyển tiếp nội dung này sang phòng nội bộ")
                 .result(response)
                 .build();
     }

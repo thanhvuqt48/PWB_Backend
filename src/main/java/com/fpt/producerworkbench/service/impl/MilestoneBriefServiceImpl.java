@@ -171,43 +171,45 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
 
     @Override
     @Transactional
-    public List<MilestoneBriefGroupResponse> forwardAllExternalToInternal(Long projectId, Long milestoneId, Authentication auth) {
-        log.info("Forwarding ALL groups from EXTERNAL to INTERNAL: milestoneId={}", milestoneId);
+    public MilestoneBriefGroupResponse forwardExternalGroupToInternal(Long projectId, Long milestoneId, Long groupId, Authentication auth) {
+        log.info("Forwarding Group ID {} from EXTERNAL to INTERNAL", groupId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+
+        // 1. Chỉ Owner mới được quyền
         validateOwnerOnly(auth, projectId);
 
-        List<MilestoneBriefGroup> sourceGroups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
-        if (sourceGroups.isEmpty()) throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không có nội dung ngoại bộ nào để chuyển tiếp");
+        // 2. Tìm group cụ thể (Phải thuộc Scope EXTERNAL và đúng Milestone)
+        MilestoneBriefGroup sourceGroup = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
 
-        List<MilestoneBriefGroup> targetGroups = new ArrayList<>();
-        for (MilestoneBriefGroup sourceGroup : sourceGroups) {
-            MilestoneBriefGroup targetGroup = MilestoneBriefGroup.builder()
-                    .milestone(milestone)
-                    .scope(MilestoneBriefScope.INTERNAL)
-                    .title(sourceGroup.getTitle() + " (Forwarded)")
-                    .position(sourceGroup.getPosition())
-                    .build();
+        // 3. Clone sang Group mới (Scope INTERNAL)
+        MilestoneBriefGroup targetGroup = MilestoneBriefGroup.builder()
+                .milestone(milestone)
+                .scope(MilestoneBriefScope.INTERNAL)
+                .title(sourceGroup.getTitle() + " (Forwarded)")
+                .position(sourceGroup.getPosition())
+                .build();
 
-            if (sourceGroup.getBlocks() != null) {
-                List<MilestoneBriefBlock> targetBlocks = new ArrayList<>();
-                for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
-                    MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
-                            .group(targetGroup)
-                            .type(sourceBlock.getType())
-                            .label(sourceBlock.getLabel())
-                            .contentText(sourceBlock.getContentText())
-                            .fileKey(sourceBlock.getFileKey())
-                            .position(sourceBlock.getPosition())
-                            .build();
-                    targetBlocks.add(targetBlock);
-                }
-                targetGroup.setBlocks(targetBlocks);
+        // 4. Clone các Blocks
+        if (sourceGroup.getBlocks() != null) {
+            List<MilestoneBriefBlock> targetBlocks = new ArrayList<>();
+            for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
+                MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
+                        .group(targetGroup)
+                        .type(sourceBlock.getType())
+                        .label(sourceBlock.getLabel())
+                        .contentText(sourceBlock.getContentText())
+                        .fileKey(sourceBlock.getFileKey()) // Giữ nguyên file key
+                        .position(sourceBlock.getPosition())
+                        .build();
+                targetBlocks.add(targetBlock);
             }
-            targetGroups.add(targetGroup);
+            targetGroup.setBlocks(targetBlocks);
         }
 
-        briefGroupRepository.saveAll(targetGroups);
-        return targetGroups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
+        // 5. Lưu vào DB
+        briefGroupRepository.save(targetGroup);
+
+        return mapToGroupResponse(targetGroup);
     }
 
     @Override
