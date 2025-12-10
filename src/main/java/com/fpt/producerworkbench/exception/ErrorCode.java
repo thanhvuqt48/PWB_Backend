@@ -276,7 +276,8 @@ public enum ErrorCode {
     AMOUNT_TOO_SMALL(10002, "Số tiền rút không được nhỏ hơn 50.000đ", HttpStatus.BAD_REQUEST),
     AMOUNT_TOO_LARGE(10003, "Số tiền rút không được lớn hơn 100,000,000đ", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_BALANCE(10004, "Số dư không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
-    INVALID_WITHDRAWAL_STATUS(10006, "Trạng thái yêu cầu rút tiền không hợp lệ", HttpStatus.BAD_REQUEST)
+    INVALID_WITHDRAWAL_STATUS(10006, "Trạng thái yêu cầu rút tiền không hợp lệ", HttpStatus.BAD_REQUEST),
+    USER_BANK_NOT_FOUND(10007, "Không tìm thấy thông tin ngân hàng", HttpStatus.NOT_FOUND)
     ;
 
     private final int code;
