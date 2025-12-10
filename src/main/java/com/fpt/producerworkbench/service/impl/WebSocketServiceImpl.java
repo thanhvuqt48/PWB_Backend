@@ -73,8 +73,11 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     @Override
     public void broadcastPlaybackEvent(String sessionId, PlaybackEvent event) {
-        log.debug("Broadcasting playback event: {} - {} in session {}",
-                event.getAction(), event.getFileName(), sessionId);
+        String destination = "/topic/session/" + sessionId + "/playback";
+        log.info("🎵 Broadcasting playback event to destination: {}", destination);
+        log.info("🎵 Event details: action={}, triggeredBy={}, fileName={}", 
+                event.getAction(), event.getTriggeredByUserId(), event.getFileName());
+        
         SessionEventMessage message = SessionEventMessage.builder()
                 .eventType("PLAYBACK_" + event.getAction())
                 .sessionId(sessionId)
@@ -82,10 +85,10 @@ public class WebSocketServiceImpl implements WebSocketService {
                 .payload(event)
                 .build();
         try {
-            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/playback", message);
-            log.info("✅ Playback event broadcasted: {} - {}", event.getAction(), event.getFileName());
+            messagingTemplate.convertAndSend(destination, message);
+            log.info("✅ Playback event broadcasted to {} : {} - {}", destination, event.getAction(), event.getFileName());
         } catch (Exception e) {
-            log.error("❌ Failed to broadcast playback event: {}", e.getMessage());
+            log.error("❌ Failed to broadcast playback event: {}", e.getMessage(), e);
         }
     }
 
