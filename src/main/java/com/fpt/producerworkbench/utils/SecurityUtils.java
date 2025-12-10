@@ -22,7 +22,6 @@ public class SecurityUtils {
     private final UserRepository userRepository;
     private static final Random RANDOM = new Random();
 
-
     public Long getCurrentUserId() {
         SecurityContext contextHolder = SecurityContextHolder.getContext();
         Authentication authentication = contextHolder.getAuthentication();
