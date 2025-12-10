@@ -27,4 +27,9 @@ public class CreateTrackNoteRequest {
      * Thời điểm trong bài hát (giây) - optional
      */
     private Double timestamp;
+
+    /**
+     * Session ID để broadcast real-time (optional) - chỉ cần khi trong Live Room
+     */
+    private String sessionId;
 }

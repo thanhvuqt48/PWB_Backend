@@ -17,4 +17,9 @@ public class UpdateTrackNoteRequest {
 
     @NotBlank(message = "Nội dung ghi chú không được để trống")
     private String content;
+
+    /**
+     * Session ID để broadcast real-time (optional)
+     */
+    private String sessionId;
 }

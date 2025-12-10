@@ -160,6 +160,24 @@ public class WebSocketServiceImpl implements WebSocketService {
         }
     }
 
+    @Override
+    public void broadcastTrackNoteEvent(String sessionId, TrackNoteEvent event) {
+        log.debug("Broadcasting track note event: {} for track {} in session {}",
+                event.getAction(), event.getTrackId(), sessionId);
+        SessionEventMessage message = SessionEventMessage.builder()
+                .eventType("TRACK_NOTE_" + event.getAction())
+                .sessionId(sessionId)
+                .timestamp(LocalDateTime.now())
+                .payload(event)
+                .build();
+        try {
+            messagingTemplate.convertAndSend("/topic/session/" + sessionId + "/notes", message);
+            log.info("✅ Track note event broadcasted: {} for track {}", event.getAction(), event.getTrackId());
+        } catch (Exception e) {
+            log.error("❌ Failed to broadcast track note event: {}", e.getMessage());
+        }
+    }
+
     @lombok.Data
     @lombok.AllArgsConstructor
     private static class UserStatusChangePayload {
