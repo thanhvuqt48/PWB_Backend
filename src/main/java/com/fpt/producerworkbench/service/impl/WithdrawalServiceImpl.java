@@ -6,7 +6,7 @@ import com.fpt.producerworkbench.dto.request.RejectWithdrawalRequest;
 import com.fpt.producerworkbench.dto.request.WithdrawalRequest;
 import com.fpt.producerworkbench.dto.response.BalanceResponse;
 import com.fpt.producerworkbench.dto.response.WithdrawalResponse;
-import com.fpt.producerworkbench.repository.WithdrawalSpecification;
+import com.fpt.producerworkbench.repository.spec.WithdrawalSpecification;
 import org.springframework.data.jpa.domain.Specification;
 import com.fpt.producerworkbench.dto.vietqr.VietQrGenerateRequest;
 import com.fpt.producerworkbench.dto.vietqr.VietQrGenerateResponse;
