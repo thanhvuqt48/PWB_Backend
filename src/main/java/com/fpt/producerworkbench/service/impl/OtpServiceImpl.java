@@ -17,7 +17,7 @@ public class OtpServiceImpl implements OtpService {
     RedisTemplate<String, Object> redisTemplate;
 
     public void saveOtp(String email, String otp) {
-        redisTemplate.opsForValue().set(email, otp, 30, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(email, otp, 5, TimeUnit.MINUTES);
     }
 
     public String getOtp(String email) {
