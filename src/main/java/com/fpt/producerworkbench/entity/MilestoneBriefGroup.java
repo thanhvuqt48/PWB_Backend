@@ -32,6 +32,9 @@ public class MilestoneBriefGroup extends AbstractEntity<Long> {
     @Column(name = "position")
     private Integer position;
 
+    @Column(name = "forward_id")
+    private Long forwardId;
+
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<MilestoneBriefBlock> blocks = new ArrayList<>();

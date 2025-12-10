@@ -143,7 +143,9 @@ public enum ErrorCode {
     PROJECT_NOT_FUNDED(8004, "Dự án chưa được thanh toán.", HttpStatus.BAD_REQUEST),
     PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
     NOT_FOUND(8006, "Không tìm thấy.", HttpStatus.BAD_REQUEST),
-    INVALID_REQUEST(8007, "Yếu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_REQUEST(8007, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_ACTION(8008, "Dự án phải hoàn thành mới được phép đánh giá.", HttpStatus.BAD_REQUEST),
+    RESOURCE_EXISTED(8008, "Bạn đã gửi đánh giá cho dự án này rồi.", HttpStatus.BAD_REQUEST),
 
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
     MILESTONE_TITLE_DUPLICATE(8010, "Tên cột mốc đã tồn tại trong dự án này. Vui lòng chọn tên khác.", HttpStatus.BAD_REQUEST),
