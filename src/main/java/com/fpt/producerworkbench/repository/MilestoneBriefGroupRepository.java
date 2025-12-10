@@ -3,7 +3,7 @@ package com.fpt.producerworkbench.repository;
 import com.fpt.producerworkbench.common.MilestoneBriefScope;
 import com.fpt.producerworkbench.entity.MilestoneBriefGroup;
 import org.springframework.data.jpa.repository.JpaRepository;
-
+import java.util.Optional;
 import java.util.List;
 
 public interface MilestoneBriefGroupRepository extends JpaRepository<MilestoneBriefGroup, Long> {
@@ -13,4 +13,6 @@ public interface MilestoneBriefGroupRepository extends JpaRepository<MilestoneBr
                                                                           MilestoneBriefScope scope);
 
     void deleteByMilestoneIdAndScope(Long milestoneId, MilestoneBriefScope scope);
+
+    Optional<MilestoneBriefGroup> findByForwardIdAndScope(Long forwardId, MilestoneBriefScope scope);
 }
