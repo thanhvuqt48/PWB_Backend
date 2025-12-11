@@ -2,15 +2,19 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.configuration.SignNowProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractDocument;
 import com.fpt.producerworkbench.entity.Project;
+import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ContractDocumentRepository;
@@ -45,6 +49,7 @@ public class ProjectContractServiceImpl implements ProjectContractService {
     private final SignNowClient signNowClient;
     private final SignNowProperties signNowProperties;
     private final FileKeyGenerator fileKeyGenerator;
+    private final NotificationService notificationService;
 
     @Override
     public Map<String, Object> getContractByProject(Long projectId) {
@@ -180,6 +185,32 @@ public class ProjectContractServiceImpl implements ProjectContractService {
             }
         } else {
             log.warn("Không tìm thấy email của owner để gửi thông báo từ chối hợp đồng");
+        }
+
+        try {
+            User owner = c.getProject() != null && c.getProject().getCreator() != null
+                    ? c.getProject().getCreator()
+                    : null;
+            
+            if (owner != null) {
+                String actionUrl = String.format("/contractSpace?id=%d",
+                        c.getProject().getId());
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.CONTRACT_SIGNING)
+                                .title("Hợp đồng bị từ chối")
+                                .message(String.format("Hợp đồng của dự án \"%s\" đã bị từ chối.%s",
+                                        c.getProject().getTitle(),
+                                        reason != null ? " Lý do: " + reason : ""))
+                                .relatedEntityType(RelatedEntityType.CONTRACT)
+                                .relatedEntityId(c.getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi hợp đồng bị từ chối: {}", e.getMessage());
         }
 
         return "DECLINED";

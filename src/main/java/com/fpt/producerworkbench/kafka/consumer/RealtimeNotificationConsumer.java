@@ -28,8 +28,6 @@ public class RealtimeNotificationConsumer {
                 event.getUserId(), event.getNotificationId(), event.getType(), event.getTitle());
 
         try {
-            // Gửi realtime qua WebSocket (notification đã được lưu vào DB ở
-            // NotificationService)
             SystemNotification wsNotification = SystemNotification.builder()
                     .type("INFO")
                     .title(event.getTitle())
@@ -52,7 +50,7 @@ public class RealtimeNotificationConsumer {
         } catch (Exception e) {
             log.error("Failed to send notification via WebSocket for user {}: {}",
                     event.getUserId(), e.getMessage(), e);
-            throw e; // Re-throw để Kafka retry
+            throw e;
         }
     }
 }

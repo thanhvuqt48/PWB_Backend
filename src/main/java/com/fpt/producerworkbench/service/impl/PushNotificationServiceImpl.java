@@ -19,9 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Implementation of Push Notification Service using Firebase Cloud Messaging
- */
 @Service
 public class PushNotificationServiceImpl implements PushNotificationService {
 
@@ -47,12 +44,10 @@ public class PushNotificationServiceImpl implements PushNotificationService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        // Check if token already exists
         Optional<FcmToken> existingToken = fcmTokenRepository.findByToken(request.getToken());
         
         if (existingToken.isPresent()) {
             FcmToken token = existingToken.get();
-            // Update existing token (might belong to different user if they logged out and logged in with different account)
             token.setUser(user);
             token.setDeviceType(request.getDeviceType());
             token.setBrowser(request.getBrowser());
@@ -60,7 +55,6 @@ public class PushNotificationServiceImpl implements PushNotificationService {
             fcmTokenRepository.save(token);
             log.info("✅ Updated FCM token for user: {}", user.getEmail());
         } else {
-            // Create new token
             FcmToken newToken = FcmToken.builder()
                     .user(user)
                     .token(request.getToken())

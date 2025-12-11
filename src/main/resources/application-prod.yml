@@ -231,6 +231,9 @@ outbound:
 cors:
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
 
+frontend:
+  url: ${FRONTEND_URL:https://www.producerworkbench.io.vn}
+
 payos:
   client-id: ${PAYOS_CLIENT_ID}
   api-key: ${PAYOS_API_KEY}

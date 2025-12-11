@@ -33,26 +33,6 @@ public class MyInvitationController {
     private final InvitationService invitationService;
     private final UserRepository userRepository;
 
-    /**
-     * Chấp nhận lời mời tham gia project bằng token.
-     * Token được lấy từ link lời mời gửi qua email.
-     */
-    @PostMapping("/accept")
-    public ResponseEntity<ApiResponse<Void>> acceptInvitation(
-            @Valid @RequestBody AcceptInvitationRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-
-        String userEmail = jwt.getSubject();
-
-        User acceptingUser = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        invitationService.acceptInvitation(request.getToken(), acceptingUser);
-
-        return ResponseEntity.ok(ApiResponse.<Void>builder()
-                .message("Lời mời đã được chấp nhận thành công.")
-                .build());
-    }
 
     /**
      * Chấp nhận lời mời tham gia project bằng ID của lời mời.
