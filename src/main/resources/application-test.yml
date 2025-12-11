@@ -268,3 +268,6 @@ vietqr:
   base-url: ${VIETQR_BASE_URL}
   api-key: ${VIETQR_API_KEY}
   client-id: ${VIETQR_CLIENT_ID}
+
+firebase:
+  config-path: ${FIREBASE_CONFIG_PATH:firebase/serviceAccountKey.json}

@@ -270,4 +270,7 @@ vietqr:
   api-key: ${VIETQR_API_KEY}
   client-id: ${VIETQR_CLIENT_ID}
 
+# Firebase Cloud Messaging
+firebase:
+  config-path: ${FIREBASE_CONFIG_PATH:firebase/serviceAccountKey.json}
 
