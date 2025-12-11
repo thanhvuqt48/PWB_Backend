@@ -176,13 +176,15 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.INTERNAL);
 
         List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
-        if (request != null && request.getGroups() != null) {
+        if (request != null && request.getGroups() != null && !request.getGroups().isEmpty()) {
             for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
                 MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.INTERNAL);
                 groupsToSave.add(group);
             }
         }
-        if (!groupsToSave.isEmpty()) briefGroupRepository.saveAll(groupsToSave);
+        if (!groupsToSave.isEmpty()) {
+            briefGroupRepository.saveAll(groupsToSave);
+        }
         return buildDetailResponse(milestone, MilestoneBriefScope.INTERNAL);
     }
 
@@ -215,8 +217,10 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
             targetGroup = existingGroupOpt.get();
             targetGroup.setTitle(sourceGroup.getTitle());
             targetGroup.setPosition(sourceGroup.getPosition());
-            if (targetGroup.getBlocks() != null) targetGroup.getBlocks().clear();
-            else targetGroup.setBlocks(new ArrayList<>());
+            // Clear blocks một cách an toàn
+            if (targetGroup.getBlocks() != null) {
+                targetGroup.getBlocks().clear();
+            }
         } else {
             // CHƯA CÓ -> TẠO MỚI
             targetGroup = MilestoneBriefGroup.builder()
@@ -225,12 +229,12 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
                     .forwardId(groupId) // Lưu dấu vết
                     .title(sourceGroup.getTitle())
                     .position(sourceGroup.getPosition())
-                    .blocks(new ArrayList<>())
+                    .blocks(new ArrayList<>()) // Khởi tạo rõ ràng
                     .build();
         }
 
-        // Clone Blocks
-        if (sourceGroup.getBlocks() != null) {
+        // Clone Blocks - thêm vào collection hiện tại
+        if (sourceGroup.getBlocks() != null && !sourceGroup.getBlocks().isEmpty()) {
             for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
                 MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
                         .group(targetGroup)
@@ -336,8 +340,18 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     }
 
     private MilestoneBriefGroup createGroupEntity(Milestone milestone, MilestoneBriefGroupRequest req, MilestoneBriefScope scope) {
-        MilestoneBriefGroup group = MilestoneBriefGroup.builder().milestone(milestone).scope(scope).title(req.getTitle()).position(req.getPosition() != null ? req.getPosition() : 999).build();
-        if (req.getBlocks() != null) group.setBlocks(mapBlocksRequestToEntity(req.getBlocks(), group));
+        MilestoneBriefGroup group = MilestoneBriefGroup.builder()
+                .milestone(milestone)
+                .scope(scope)
+                .title(req.getTitle())
+                .position(req.getPosition() != null ? req.getPosition() : 999)
+                .blocks(new ArrayList<>()) // Khởi tạo rõ ràng thay vì dùng @Builder.Default
+                .build();
+        
+        if (req.getBlocks() != null && !req.getBlocks().isEmpty()) {
+            // Sử dụng addAll để thêm vào collection hiện tại thay vì thay thế
+            group.getBlocks().addAll(mapBlocksRequestToEntity(req.getBlocks(), group));
+        }
         return group;
     }
 
