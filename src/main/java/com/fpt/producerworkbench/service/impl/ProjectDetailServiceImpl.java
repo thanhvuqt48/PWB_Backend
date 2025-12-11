@@ -30,21 +30,17 @@ public class ProjectDetailServiceImpl implements ProjectDetailService {
 
     @Override
     public ProjectDetailResponse getProjectDetail(Authentication auth, Long projectId) {
-        // Kiểm tra authentication
         if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
             throw new AppException(ErrorCode.UNAUTHENTICATED);
         }
 
-        // Lấy thông tin user hiện tại
         User currentUser = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // Lấy thông tin project
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
-        // Kiểm tra quyền truy cập - chỉ thành viên của dự án mới được xem
-        boolean isProjectOwner = project.getCreator() != null && 
+        boolean isProjectOwner = project.getCreator() != null &&
                 currentUser.getId().equals(project.getCreator().getId());
         
         Optional<ProjectMember> memberOpt = projectMemberRepository
@@ -54,10 +50,8 @@ public class ProjectDetailServiceImpl implements ProjectDetailService {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        // Lấy thông tin contract (nếu có) theo projectId
         var contractOpt = contractRepository.findByProjectId(projectId);
 
-        // Tạo response
         return ProjectDetailResponse.builder()
                 .id(project.getId())
                 .title(project.getTitle())

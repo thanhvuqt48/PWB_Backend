@@ -13,6 +13,7 @@ import com.fpt.producerworkbench.mapper.ChatMessageMapper;
 import com.fpt.producerworkbench.repository.ChatMessageRepository;
 import com.fpt.producerworkbench.repository.ConversationRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.service.ChatMessageService;
 import com.fpt.producerworkbench.utils.PaginationUtils;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,6 @@ import java.util.stream.Collectors;
 public class ChatMessageServiceImpl implements ChatMessageService {
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
-    private static final String FRONTEND_URL = "http://localhost:5173"; // Có thể config từ application.yml
 
     private final ChatMessageRepository chatMessageRepository;
     private final ConversationRepository conversationRepository;
@@ -46,6 +46,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketSessionRedisService socketSessionRedisService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final FrontendProperties frontendProperties;
 
     @Transactional
     public ChatResponse createMessage(ChatRequest request) {
@@ -222,7 +223,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
                     String formattedTime = chatMessage.getSentAt().format(formatter);
 
-                    String conversationLink = FRONTEND_URL + "/chat/" + conversation.getId();
+                    String conversationLink = frontendProperties.getUrl() + "/chat/" + conversation.getId();
 
                     String senderAvatar = sender.getAvatarUrl() != null
                             ? sender.getAvatarUrl()

@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.PaymentType;
@@ -90,6 +91,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     private final NotificationService notificationService;
     private final TrackMilestoneRepository trackRepository;
     private final ClientDeliveryRepository clientDeliveryRepository;
+    private final FrontendProperties frontendProperties;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -843,7 +845,8 @@ public class MilestoneServiceImpl implements MilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d",
+            String projectUrl = String.format("%s/projects/%d/milestones/%d",
+                    frontendProperties.getUrl(),
                     project.getId(), milestone.getId());
 
             String roleName = projectRole != null ? projectRole.name() : "MEMBER";
@@ -1154,7 +1157,8 @@ public class MilestoneServiceImpl implements MilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d",
+            String projectUrl = String.format("%s/projects/%d/milestones/%d",
+                    frontendProperties.getUrl(),
                     project.getId(), milestone.getId());
 
             Map<String, Object> params = new HashMap<>();
@@ -1260,7 +1264,8 @@ public class MilestoneServiceImpl implements MilestoneService {
         }
 
         try {
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d",
+            String projectUrl = String.format("%s/projects/%d/milestones/%d",
+                    frontendProperties.getUrl(),
                     project.getId(), milestone.getId());
 
             Map<String, Object> params = new HashMap<>();

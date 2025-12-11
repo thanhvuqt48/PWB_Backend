@@ -1,5 +1,6 @@
-package com.fpt.producerworkbench.service.impl;
+package com.fpt.producerworkbench.scheduler;
 
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.SubscriptionOrderType;
 import com.fpt.producerworkbench.common.SubscriptionStatus;
 import com.fpt.producerworkbench.common.TransactionStatus;
@@ -12,6 +13,7 @@ import com.fpt.producerworkbench.entity.Transaction;
 import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.entity.UserSubscription;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.kafka.core.KafkaTemplate;
+import com.fpt.producerworkbench.service.NotificationService;
 import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 
@@ -40,6 +43,7 @@ public class SubscriptionScheduler {
     private final PayosProperties payosProperties;
     private final SubscriptionProperties subscriptionProperties;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     // Run every hour
     @Scheduled(cron = "0 0 * * * *")
@@ -123,6 +127,27 @@ public class SubscriptionScheduler {
                 kafkaTemplate.send("notification-delivery", event);
             } catch (Exception ex) {
                 log.warn("Failed to publish renewal email event for {}: {}", s.getUser().getEmail(), ex.getMessage());
+            }
+
+            // Gửi notification realtime cho người dùng
+            try {
+                if (s.getUser() != null && s.getUser().getId() != null) {
+                    String actionUrl = "/proPackage";
+
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(s.getUser().getId())
+                                    .type(NotificationType.SYSTEM)
+                                    .title("Yêu cầu gia hạn gói đăng ký")
+                                    .message(String.format("Gói đăng ký của bạn sắp hết hạn. Bạn có %d ngày để gia hạn để tiếp tục sử dụng dịch vụ.",
+                                            subscriptionProperties.getGraceDays()))
+                                    .relatedEntityType(null)
+                                    .relatedEntityId(null)
+                                    .actionUrl(actionUrl)
+                                    .build());
+                }
+            } catch (Exception ex) {
+                log.error("Gặp lỗi khi gửi notification realtime cho người dùng về gia hạn gói đăng ký: {}", ex.getMessage());
             }
         } catch (Exception e) {
             log.error("Failed to initiate renewal for subscription {}", s.getId(), e);

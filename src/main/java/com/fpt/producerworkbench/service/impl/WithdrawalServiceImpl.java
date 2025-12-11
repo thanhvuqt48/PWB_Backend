@@ -1,8 +1,11 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.WithdrawalStatus;
 import com.fpt.producerworkbench.configuration.VietQrProperties;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.RejectWithdrawalRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.WithdrawalRequest;
 import com.fpt.producerworkbench.dto.response.BalanceResponse;
 import com.fpt.producerworkbench.dto.response.WithdrawalResponse;
@@ -20,17 +23,21 @@ import com.fpt.producerworkbench.repository.BankRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.repository.WithdrawalRepository;
 import com.fpt.producerworkbench.repository.http_client.VietQrClient;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.WithdrawalService;
 import com.fpt.producerworkbench.utils.OrderCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -43,9 +50,12 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     private final WithdrawalMapper withdrawalMapper;
     private final VietQrClient vietQrClient;
     private final VietQrProperties vietQrProperties;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final BigDecimal MIN_WITHDRAWAL_AMOUNT = new BigDecimal("50000"); // 50,000 VND
     private static final BigDecimal MAX_WITHDRAWAL_AMOUNT = new BigDecimal("100000000"); // 100,000,000 VND
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
     @Override
     @Transactional
@@ -119,6 +129,9 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         log.info("Tạo yêu cầu rút tiền thành công. Withdrawal ID: {}, Code: {}",
                 saved.getId(), saved.getWithdrawalCode());
 
+        // Gửi email và notification realtime cho người dùng
+        sendWithdrawalCreatedNotification(saved, user, newBalance);
+
         return withdrawalMapper.toWithdrawalResponse(saved, newBalance);
     }
 
@@ -172,6 +185,9 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         log.info("Admin đã chấp nhận chuyển tiền thành công. Withdrawal ID: {}, Code: {}",
                 saved.getId(), saved.getWithdrawalCode());
 
+        // Gửi email và notification realtime cho người dùng
+        sendWithdrawalApprovedNotification(saved, saved.getUser());
+
         BigDecimal balance = saved.getUser().getBalance();
         return withdrawalMapper.toWithdrawalResponse(saved, balance);
     }
@@ -203,6 +219,8 @@ public class WithdrawalServiceImpl implements WithdrawalService {
 
         log.info("Admin đã từ chối chuyển tiền. Withdrawal ID: {}, Code: {}. Đã hoàn lại {} VND cho user {}",
                 saved.getId(), saved.getWithdrawalCode(), withdrawal.getAmount(), user.getId());
+
+        sendWithdrawalRejectedNotification(saved, user, newBalance, request.getRejectionReason());
 
         return withdrawalMapper.toWithdrawalResponse(saved, newBalance);
     }
@@ -278,6 +296,151 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         return BalanceResponse.builder()
                 .balance(balance)
                 .build();
+    }
+
+    private void sendWithdrawalCreatedNotification(Withdrawal withdrawal, User user, BigDecimal newBalance) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Không thể gửi thông báo tạo yêu cầu rút tiền vì user {} không có email", user.getId());
+            return;
+        }
+
+        try {
+            // Gửi email
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
+            params.put("withdrawalCode", withdrawal.getWithdrawalCode());
+            params.put("amount", withdrawal.getAmount().toString());
+            params.put("accountNumber", withdrawal.getAccountNumber());
+            params.put("accountHolderName", withdrawal.getAccountHolderName());
+            params.put("bankName", withdrawal.getBank().getName());
+            params.put("newBalance", newBalance.toString());
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(user.getEmail())
+                    .subject("Yêu cầu rút tiền đã được tạo - " + withdrawal.getWithdrawalCode())
+                    .templateCode("withdrawal-created-notification")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo tạo yêu cầu rút tiền qua Kafka: userId={}, withdrawalId={}",
+                    user.getId(), withdrawal.getId());
+
+            // Gửi notification realtime
+            String actionUrl = String.format("/withdrawals/%d", withdrawal.getId());
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(user.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Yêu cầu rút tiền đã được tạo")
+                            .message(String.format("Yêu cầu rút tiền của bạn với mã %s đã được tạo thành công. Số tiền: %s VND. Yêu cầu đang được xử lý.",
+                                    withdrawal.getWithdrawalCode(),
+                                    withdrawal.getAmount().toString()))
+                            .relatedEntityType(null)
+                            .relatedEntityId(null)
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo tạo yêu cầu rút tiền: userId={}, withdrawalId={}",
+                    user.getId(), withdrawal.getId(), e);
+        }
+    }
+
+    private void sendWithdrawalApprovedNotification(Withdrawal withdrawal, User user) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Không thể gửi thông báo chấp nhận yêu cầu rút tiền vì user {} không có email", user.getId());
+            return;
+        }
+
+        try {
+            // Gửi email
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
+            params.put("withdrawalCode", withdrawal.getWithdrawalCode());
+            params.put("amount", withdrawal.getAmount().toString());
+            params.put("accountNumber", withdrawal.getAccountNumber());
+            params.put("accountHolderName", withdrawal.getAccountHolderName());
+            params.put("bankName", withdrawal.getBank().getName());
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(user.getEmail())
+                    .subject("Yêu cầu rút tiền đã được chấp nhận - " + withdrawal.getWithdrawalCode())
+                    .templateCode("withdrawal-approved-notification")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo chấp nhận yêu cầu rút tiền qua Kafka: userId={}, withdrawalId={}",
+                    user.getId(), withdrawal.getId());
+
+            // Gửi notification realtime
+            String actionUrl = String.format("/withdrawals");
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(user.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Yêu cầu rút tiền đã được chấp nhận")
+                            .message(String.format("Yêu cầu rút tiền của bạn với mã %s đã được chấp nhận. Số tiền %s VND sẽ được chuyển đến tài khoản của bạn trong thời gian sớm nhất.",
+                                    withdrawal.getWithdrawalCode(),
+                                    withdrawal.getAmount().toString()))
+                            .relatedEntityType(null)
+                            .relatedEntityId(null)
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo chấp nhận yêu cầu rút tiền: userId={}, withdrawalId={}",
+                    user.getId(), withdrawal.getId(), e);
+        }
+    }
+
+    private void sendWithdrawalRejectedNotification(Withdrawal withdrawal, User user, BigDecimal newBalance, String rejectionReason) {
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            log.warn("Không thể gửi thông báo từ chối yêu cầu rút tiền vì user {} không có email", user.getId());
+            return;
+        }
+
+        try {
+            // Gửi email
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
+            params.put("withdrawalCode", withdrawal.getWithdrawalCode());
+            params.put("amount", withdrawal.getAmount().toString());
+            params.put("rejectionReason", rejectionReason != null ? rejectionReason : "Không có lý do cụ thể");
+            params.put("newBalance", newBalance.toString());
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(user.getEmail())
+                    .subject("Yêu cầu rút tiền đã bị từ chối - " + withdrawal.getWithdrawalCode())
+                    .templateCode("withdrawal-rejected-notification")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo từ chối yêu cầu rút tiền qua Kafka: userId={}, withdrawalId={}",
+                    user.getId(), withdrawal.getId());
+
+            // Gửi notification realtime
+            String actionUrl = String.format("/withdrawals");
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(user.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Yêu cầu rút tiền đã bị từ chối")
+                            .message(String.format("Yêu cầu rút tiền của bạn với mã %s đã bị từ chối. Số tiền %s VND đã được hoàn lại vào tài khoản của bạn.%s",
+                                    withdrawal.getWithdrawalCode(),
+                                    withdrawal.getAmount().toString(),
+                                    rejectionReason != null ? " Lý do: " + rejectionReason : ""))
+                            .relatedEntityType(null)
+                            .relatedEntityId(null)
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo từ chối yêu cầu rút tiền: userId={}, withdrawalId={}",
+                    user.getId(), withdrawal.getId(), e);
+        }
     }
 
     private Specification<Withdrawal> combineSpec(Specification<Withdrawal> existing,
