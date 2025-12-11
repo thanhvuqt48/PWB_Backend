@@ -1,0 +1,171 @@
+@startuml PWB_Backend_Package_Diagram
+
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam packageBorderColor #2C3E50
+skinparam packageFontColor #2C3E50
+skinparam packageFontSize 12
+skinparam defaultFontName Arial
+skinparam arrowColor #34495E
+skinparam shadowing false
+skinparam noteFontSize 9
+skinparam noteBackgroundColor #FFFDE7
+
+title Producer Workbench Backend - Package Diagram
+
+' ========================================
+' ROOT PACKAGE
+' ========================================
+package "com.fpt.producerworkbench" as root {
+    
+    ' PRESENTATION LAYER
+    package "controller\n(39 REST Controllers)" as controller #E8F6F3
+    
+    ' WEBSOCKET LAYER
+    package "websocket" as websocket #FCF3CF {
+        package "listener" as ws_listener #FEF9E7
+    }
+    
+    ' BUSINESS LOGIC LAYER
+    package "service" as service #EBF5FB {
+        package "impl\n(67 implementations)" as service_impl #D6EAF8
+    }
+    
+    ' DATA TRANSFER OBJECTS
+    package "dto" as dto #FDEDEC {
+        package "request\n(83 DTOs)" as dto_request #F9EBEA
+        package "response\n(100 DTOs)" as dto_response #F5EEF8
+        package "websocket\n(12 DTOs)" as dto_websocket #FEF9E7
+        package "event\n(5 DTOs)" as dto_event #E8F8F5
+        package "ai" as dto_ai #F4ECF7
+        package "vnpt\n(19 DTOs)" as dto_vnpt #FDF2E9
+    }
+    
+    ' MAPPER LAYER
+    package "mapper\n(12 MapStruct Mappers)" as mapper #FCF3CF
+    
+    ' DATA ACCESS LAYER
+    package "repository" as repository #E8DAEF {
+        package "impl" as repo_impl #D7BDE2
+        package "http_client\n(4 clients)" as http_client #D7BDE2
+        package "userguide" as repo_userguide #D7BDE2
+    }
+    
+    ' DOMAIN / ENTITY LAYER
+    package "entity\n(52 JPA Entities)" as entity #FAE5D3 {
+        package "userguide" as entity_userguide #F5CBA7
+    }
+    
+    ' COMMON / ENUMS
+    package "common\n(41 Enums)" as common #E5E8E8
+    
+    ' CONSTANTS
+    package "constant" as constant #EAECEE
+    
+    ' CONFIGURATION LAYER
+    package "configuration\n(39 configs)" as configuration #D5F5E3
+    
+    ' EXCEPTION HANDLING
+    package "exception" as exception #FADBD8 {
+        package "validation\n(8 validators)" as validation #F1948A
+    }
+    
+    ' KAFKA MESSAGING
+    package "kafka" as kafka #D6DBDF {
+        package "producer" as kafka_producer #BDC3C7
+        package "consumer" as kafka_consumer #BDC3C7
+    }
+    
+    ' SCHEDULER / JOBS
+    package "scheduler\n(4 Jobs)" as scheduler #FDEBD0
+    
+    ' UTILITIES
+    package "utils" as utils #E8F8F5
+    package "util" as util #E8F8F5
+}
+
+' ========================================
+' DEPENDENCIES WITH NOTES
+' ========================================
+
+' === Presentation Layer ===
+controller ..> service : <<use>>
+note on link : Gọi business logic\nVD: UserController → UserService
+
+controller ..> dto : <<import>>
+note on link : Nhận Request DTO\nTrả Response DTO
+
+controller ..> exception : <<use>>
+note on link : Throw AppException\nkhi có lỗi
+
+websocket ..> service : <<use>>
+websocket ..> configuration : <<import>>
+
+' === Service Layer ===
+service ..> repository : <<use>>
+note on link : Truy vấn database\nCRUD operations
+
+service ..> entity : <<use>>
+note on link : Xử lý domain objects
+
+service ..> dto : <<import>>
+
+service ..> mapper : <<use>>
+note on link : Convert Entity ↔ DTO
+
+service ..> common : <<import>>
+note on link : Sử dụng Enums\n(Status, Role, Type)
+
+service ..> exception : <<use>>
+
+service ..> kafka : <<use>>
+note on link : Publish messages\ncho async processing
+
+service <|.. service_impl : <<implements>>
+note on link : Impl triển khai\ninterface (DIP)
+
+' === Mapper ===
+mapper ..> entity : <<use>>
+mapper ..> dto : <<use>>
+
+' === Repository ===
+repository ..> entity : <<use>>
+note on link : JPA Repository\noperates on Entity
+
+http_client ..> configuration : <<import>>
+
+' === Entity ===
+entity ..> common : <<import>>
+note on link : Enum fields\n@Enumerated
+
+' === Scheduler ===
+scheduler ..> service : <<use>>
+note on link : Cron jobs gọi\nService xử lý
+
+' === Kafka ===
+kafka_producer ..> constant : <<import>>
+note on link : Topic names
+
+kafka_consumer ..> service : <<use>>
+note on link : Nhận message\ngọi Service xử lý
+
+' ========================================
+' LEGEND
+' ========================================
+legend right
+    |= Arrow |= Meaning |
+    | ..> | Dependency (uses/imports) |
+    | <|.. | Implements interface |
+    ----
+    |= Color |= Layer |
+    | <#E8F6F3> | Presentation |
+    | <#EBF5FB> | Business Logic |
+    | <#FDEDEC> | DTO |
+    | <#E8DAEF> | Repository |
+    | <#FAE5D3> | Entity |
+    | <#D5F5E3> | Configuration |
+    | <#FADBD8> | Exception |
+    | <#D6DBDF> | Kafka |
+endlegend
+
+@enduml
