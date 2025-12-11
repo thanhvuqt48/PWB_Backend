@@ -5,7 +5,7 @@ import com.fpt.producerworkbench.dto.response.ProducerSummaryResponse;
 import com.fpt.producerworkbench.entity.Portfolio;
 import com.fpt.producerworkbench.mapper.PortfolioMapper;
 import com.fpt.producerworkbench.repository.PortfolioRepository;
-import com.fpt.producerworkbench.repository.ProducerSpecification;
+import com.fpt.producerworkbench.repository.spec.ProducerSpecification;
 import com.fpt.producerworkbench.service.ProducerService;
 import com.fpt.producerworkbench.service.SpotifyService;
 import lombok.RequiredArgsConstructor;

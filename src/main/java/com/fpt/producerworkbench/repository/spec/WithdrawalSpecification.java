@@ -1,4 +1,4 @@
-package com.fpt.producerworkbench.repository;
+package com.fpt.producerworkbench.repository.spec;
 
 import com.fpt.producerworkbench.common.WithdrawalStatus;
 import com.fpt.producerworkbench.entity.Withdrawal;
