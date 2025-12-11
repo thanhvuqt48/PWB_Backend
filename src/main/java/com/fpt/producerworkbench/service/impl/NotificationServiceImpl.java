@@ -11,12 +11,16 @@ import com.fpt.producerworkbench.kafka.producer.RealtimeNotificationProducer;
 import com.fpt.producerworkbench.repository.NotificationRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.NotificationService;
+import com.fpt.producerworkbench.service.PushNotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +30,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final RealtimeNotificationProducer notificationProducer;
+    private final PushNotificationService pushNotificationService;
 
     @Override
     @Transactional
@@ -49,6 +54,7 @@ public class NotificationServiceImpl implements NotificationService {
         Notification saved = notificationRepository.save(notification);
         log.info("Notification saved to DB: id={}", saved.getId());
 
+        // Send realtime notification via WebSocket (through Kafka)
         RealtimeNotificationEvent event = RealtimeNotificationEvent.builder()
                 .notificationId(saved.getId())
                 .userId(request.getUserId())
@@ -61,6 +67,42 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
 
         notificationProducer.sendNotification(event);
+
+        // Send Push Notification via FCM
+        sendPushNotification(request, saved.getId());
+    }
+
+    /**
+     * Send push notification via Firebase Cloud Messaging
+     */
+    private void sendPushNotification(SendNotificationRequest request, Long notificationId) {
+        try {
+            Map<String, String> data = new HashMap<>();
+            data.put("notificationId", String.valueOf(notificationId));
+            data.put("type", request.getType().name());
+            
+            if (request.getRelatedEntityType() != null) {
+                data.put("relatedEntityType", request.getRelatedEntityType().name());
+            }
+            if (request.getRelatedEntityId() != null) {
+                data.put("relatedEntityId", String.valueOf(request.getRelatedEntityId()));
+            }
+            if (request.getActionUrl() != null) {
+                data.put("actionUrl", request.getActionUrl());
+            }
+
+            pushNotificationService.sendToUser(
+                    request.getUserId(),
+                    request.getTitle(),
+                    request.getMessage(),
+                    data
+            );
+            
+            log.info("✅ Push notification sent to user {}: type={}", request.getUserId(), request.getType());
+        } catch (Exception e) {
+            // Don't fail the whole notification if push fails
+            log.warn("⚠️ Failed to send push notification to user {}: {}", request.getUserId(), e.getMessage());
+        }
     }
 
     @Override
@@ -107,4 +149,3 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
     }
 }
-
