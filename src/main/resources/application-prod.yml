@@ -198,7 +198,7 @@ aws:
 
 gcp:
   project-id: ${GCP_PROJECT_ID}
-  credentials-file: classpath:google-cloud/producer-workbench-478512-048275ebbad8.json
+  credentials-file: classpath:google-cloud/pwb-tts-sa-key.json
   gcs:
     bucket: ${GCS_BUCKET}
     delete-after-finish: true
