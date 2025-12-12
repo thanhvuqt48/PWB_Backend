@@ -60,6 +60,18 @@ public class UserController extends User {
                 .build();
     }
 
+    @PostMapping("/send-otp-change-password")
+    @PreAuthorize("isAuthenticated()")
+    public ApiResponse<Void> sendOtpChangePassword() throws MessagingException, UnsupportedEncodingException {
+
+        userService.sendOtpChangePassword();
+
+        return ApiResponse.<Void>builder()
+                .code(HttpStatus.OK.value())
+                .message("Mã OTP đã được gửi thành công tới email!")
+                .build();
+    }
+
     @PostMapping("/verify-otp")
     public ApiResponse<VerifyOtpResponse> verifyOtp(@RequestBody VerifyOtpRequest request) {
         var result = userService.verifyOtp(request);

@@ -58,12 +58,6 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     @Column(precision = 15, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
-    @Column(name = "otp")
-    String otp;
-
-    @Column(name = "otp_expiry_date")
-    LocalDateTime otpExpiryDate;
-
     @Column(name = "cccd_number", unique = true)
     private String cccdNumber;
 
