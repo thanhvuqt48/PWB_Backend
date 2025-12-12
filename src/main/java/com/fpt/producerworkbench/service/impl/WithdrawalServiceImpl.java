@@ -327,7 +327,7 @@ public class WithdrawalServiceImpl implements WithdrawalService {
                     user.getId(), withdrawal.getId());
 
             // Gửi notification realtime
-            String actionUrl = String.format("/withdrawals/%d", withdrawal.getId());
+            String actionUrl = String.format("/withdrawals");
 
             notificationService.sendNotification(
                     SendNotificationRequest.builder()
