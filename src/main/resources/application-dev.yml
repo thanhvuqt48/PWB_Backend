@@ -104,7 +104,7 @@ pinecone:
 # Gemini API Configuration
 gemini:
   api-key: ${GEMINI_API_KEY}
-  model: ${GEMINI_MODEL:gemini-2.0-flash}
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
   embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
   max-tokens: ${GEMINI_MAX_TOKENS:2048}
   temperature: ${GEMINI_TEMPERATURE:0.3}
@@ -230,6 +230,9 @@ outbound:
 cors:
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
 
+frontend:
+  url: ${FRONTEND_URL:http://localhost:5173}
+
 payos:
   client-id: ${PAYOS_CLIENT_ID}
   api-key: ${PAYOS_API_KEY}
@@ -262,4 +265,12 @@ vnpt:
     username: ${VNPT_EKYC_USERNAME}
     password: ${VNPT_EKYC_PASSWORD}
 
+vietqr:
+  base-url: ${VIETQR_BASE_URL}
+  api-key: ${VIETQR_API_KEY}
+  client-id: ${VIETQR_CLIENT_ID}
+
+# Firebase Cloud Messaging
+firebase:
+  config-path: ${FIREBASE_CONFIG_PATH:firebase/serviceAccountKey.json}
 

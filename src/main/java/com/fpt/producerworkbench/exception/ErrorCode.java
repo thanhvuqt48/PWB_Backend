@@ -16,7 +16,7 @@ public enum ErrorCode {
     EXPIRED_TOKEN(401, "Token hết hạn.", HttpStatus.UNAUTHORIZED),
     TOKEN_CREATION_FAIL(400, "Tạo token thất bại.", HttpStatus.BAD_REQUEST),
     URL_GENERATION_FAILED(1012, "Không thể tạo URL. Vui lòng thử lại.", HttpStatus.INTERNAL_SERVER_ERROR),
-
+    USER_NOT_EXISTED(1006, "Người dùng không tồn tại.", HttpStatus.NOT_FOUND),
     // ===== Lỗi Xác thực & Phân quyền (2xxx) =====
     UNAUTHENTICATED(2001, "Yêu cầu xác thực. Vui lòng đăng nhập.", HttpStatus.UNAUTHORIZED),
     ACCESS_DENIED(2002, "Không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
@@ -145,7 +145,9 @@ public enum ErrorCode {
     PROJECT_NOT_FUNDED(8004, "Dự án chưa được thanh toán.", HttpStatus.BAD_REQUEST),
     PROJECT_ALREADY_FUNDED(8005, "Dự án đã được thanh toán.", HttpStatus.BAD_REQUEST),
     NOT_FOUND(8006, "Không tìm thấy.", HttpStatus.BAD_REQUEST),
-    INVALID_REQUEST(8007, "Yếu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_REQUEST(8007, "Yêu cầu không hợp lệ.", HttpStatus.BAD_REQUEST),
+    INVALID_ACTION(8008, "Dự án phải hoàn thành mới được phép đánh giá.", HttpStatus.BAD_REQUEST),
+    RESOURCE_EXISTED(8008, "Bạn đã gửi đánh giá cho dự án này rồi.", HttpStatus.BAD_REQUEST),
 
     MILESTONE_NOT_FOUND(8009, "Không tìm thấy milestone.", HttpStatus.NOT_FOUND),
     MILESTONE_TITLE_DUPLICATE(8010, "Tên cột mốc đã tồn tại trong dự án này. Vui lòng chọn tên khác.", HttpStatus.BAD_REQUEST),
@@ -293,7 +295,16 @@ public enum ErrorCode {
     GUIDE_INDEXING_FAILED(18005, "Lỗi khi index guide vào vector DB.", HttpStatus.INTERNAL_SERVER_ERROR),
     GUIDE_IMAGE_UPLOAD_FAILED(18006, "Lỗi khi upload ảnh cho guide.", HttpStatus.INTERNAL_SERVER_ERROR),
     POSTGRESQL_CONNECTION_FAILED(18007, "Không thể kết nối PostgreSQL.", HttpStatus.INTERNAL_SERVER_ERROR),
-    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR);
+    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    WITHDRAWAL_NOT_FOUND(10005, "Không tìm thấy yêu cầu rút tiền", HttpStatus.NOT_FOUND),
+    INVALID_BANK_CODE(10001, "Mã ngân hàng không hợp lệ", HttpStatus.BAD_REQUEST),
+    AMOUNT_TOO_SMALL(10002, "Số tiền rút không được nhỏ hơn 50.000đ", HttpStatus.BAD_REQUEST),
+    AMOUNT_TOO_LARGE(10003, "Số tiền rút không được lớn hơn 100,000,000đ", HttpStatus.BAD_REQUEST),
+    INSUFFICIENT_BALANCE(10004, "Số dư không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
+    INVALID_WITHDRAWAL_STATUS(10006, "Trạng thái yêu cầu rút tiền không hợp lệ", HttpStatus.BAD_REQUEST),
+    USER_BANK_NOT_FOUND(10007, "Không tìm thấy thông tin ngân hàng", HttpStatus.NOT_FOUND)
+    ;
 
     private final int code;
     private final String message;

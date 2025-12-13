@@ -1,8 +1,11 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.UpdateProjectMemberRoleRequest;
 import com.fpt.producerworkbench.dto.response.PageResponse;
 import com.fpt.producerworkbench.dto.response.ProjectMemberResponse;
@@ -22,6 +25,7 @@ import com.fpt.producerworkbench.repository.MilestoneRepository;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.ProjectMemberService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +57,7 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
     private final MilestoneMoneySplitRepository milestoneMoneySplitRepository;
     private final ContractRepository contractRepository;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -174,6 +179,26 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
         User removedUser = member.getUser();
         projectMemberRepository.delete(member);
         sendProjectMemberRemovalEmail(project, removedUser);
+
+        try {
+            if (removedUser != null && removedUser.getId() != null) {
+                String actionUrl = String.format("/projectDetail?id=%d", projectId);
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(removedUser.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Bạn đã bị xóa khỏi dự án")
+                                .message(String.format("Bạn đã bị xóa khỏi dự án \"%s\".",
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.PROJECT)
+                                .relatedEntityId(projectId)
+                                .actionUrl(actionUrl)
+                                .build());
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho người bị xóa khỏi dự án: {}", e.getMessage());
+        }
     }
 
     @Override

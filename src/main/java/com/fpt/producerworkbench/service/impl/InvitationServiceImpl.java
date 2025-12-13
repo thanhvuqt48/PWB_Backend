@@ -149,72 +149,6 @@ public class InvitationServiceImpl implements InvitationService {
 
     @Override
     @Transactional
-    public void acceptInvitation(String token, User acceptingUser) {
-        ProjectInvitation invitation = invitationRepository.findByToken(token)
-                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
-
-        validateInvitation(invitation, acceptingUser);
-
-        Project project = invitation.getProject();
-        User projectOwner = project.getCreator();
-
-        if (invitation.getInvitedRole() == ProjectRole.CLIENT) {
-            projectRepository.findById(project.getId()).ifPresent(p -> {
-                if (p.getClient() != null) {
-                    throw new AppException(ErrorCode.CLIENT_EXISTED);
-                }
-            });
-        }
-
-        boolean anonymousFlag = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous())
-                && invitation.getInvitedRole() == ProjectRole.COLLABORATOR;
-
-        ProjectMember newMember = ProjectMember.builder()
-                .project(project)
-                .user(acceptingUser)
-                .projectRole(invitation.getInvitedRole())
-                .anonymous(anonymousFlag)
-                .build();
-        projectMemberRepository.save(newMember);
-
-        if (invitation.getInvitedRole() == ProjectRole.CLIENT) {
-            project.setClient(acceptingUser);
-            projectRepository.save(project);
-        }
-
-        invitation.setStatus(InvitationStatus.ACCEPTED);
-        invitationRepository.save(invitation);
-
-        NotificationEvent confirmationEvent = NotificationEvent.builder()
-                .recipient(acceptingUser.getEmail())
-                .subject("Chào mừng bạn đến với dự án: " + project.getTitle())
-                .templateCode("invitation-accepted-confirmation-template")
-                .param(Map.of(
-                        "userName", acceptingUser.getFullName(),
-                        "projectName", project.getTitle(),
-                        "role", invitation.getInvitedRole().name()))
-                .build();
-        kafkaTemplate.send(NOTIFICATION_TOPIC, confirmationEvent);
-
-        NotificationEvent ownerNotificationEvent = NotificationEvent.builder()
-                .recipient(projectOwner.getEmail())
-                .subject("Thành viên mới đã tham gia dự án của bạn")
-                .templateCode("owner-notification-new-member-template")
-                .param(Map.of(
-                        "ownerName", projectOwner.getFullName(),
-                        "newMemberName", acceptingUser.getFullName(),
-                        "newMemberEmail", acceptingUser.getEmail(),
-                        "projectName", project.getTitle(),
-                        "role", invitation.getInvitedRole().name()))
-                .build();
-        kafkaTemplate.send(NOTIFICATION_TOPIC, ownerNotificationEvent);
-
-        log.info("Thành công: {} đã tham gia dự án '{}' với vai trò {}", acceptingUser.getEmail(), project.getTitle(),
-                invitation.getInvitedRole());
-    }
-
-    @Override
-    @Transactional
     public void acceptInvitationById(Long invitationId, User acceptingUser) {
         ProjectInvitation invitation = invitationRepository.findById(invitationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
@@ -275,6 +209,29 @@ public class InvitationServiceImpl implements InvitationService {
                         "role", invitation.getInvitedRole().name()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, ownerNotificationEvent);
+
+        try {
+            String roleName = invitation.getInvitedRole() == ProjectRole.COLLABORATOR ? "Cộng tác viên"
+                    : invitation.getInvitedRole() == ProjectRole.OBSERVER ? "Người quan sát"
+                            : "Khách hàng";
+            String actionUrl = String.format("/teamInvitation?id=%d", project.getId());
+            
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(projectOwner.getId())
+                            .type(NotificationType.PROJECT_INVITATION)
+                            .title("Thành viên mới đã tham gia dự án")
+                            .message(String.format("%s đã chấp nhận lời mời và tham gia dự án \"%s\" với vai trò %s.",
+                                    acceptingUser.getFullName() != null ? acceptingUser.getFullName() : acceptingUser.getEmail(),
+                                    project.getTitle(),
+                                    roleName))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi accept invitation: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -319,13 +276,26 @@ public class InvitationServiceImpl implements InvitationService {
                 .param(Map.of("projectName", project.getTitle()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-    }
 
-    @Override
-    public List<InvitationResponse> getMyPendingInvitations(User currentUser) {
-        List<ProjectInvitation> invitations = invitationRepository.findByEmailAndStatus(currentUser.getEmail(),
-                InvitationStatus.PENDING);
-        return invitations.stream().map(invitationMapper::toInviteeInvitationResponse).collect(Collectors.toList());
+        try {
+            userRepository.findByEmail(invitation.getEmail()).ifPresent(user -> {
+                String actionUrl = "/myInvitations";
+                
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(user.getId())
+                                .type(NotificationType.PROJECT_INVITATION)
+                                .title("Lời mời đã được hủy")
+                                .message(String.format("Lời mời tham gia dự án \"%s\" đã được hủy bởi chủ dự án.",
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.PROJECT)
+                                .relatedEntityId(project.getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            });
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime khi cancel invitation: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -365,16 +335,25 @@ public class InvitationServiceImpl implements InvitationService {
                         "inviteeName", currentUser.getFullName()))
                 .build();
         kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-    }
 
-    @Override
-    public PageResponse<InvitationResponse> getAllMyInvitations(User currentUser, InvitationStatus status,
-            Pageable pageable) {
-        Page<ProjectInvitation> page = (status == null)
-                ? invitationRepository.findByEmail(currentUser.getEmail(), pageable)
-                : invitationRepository.findByEmailAndStatus(currentUser.getEmail(), status, pageable);
-        Page<InvitationResponse> mapped = page.map(invitationMapper::toInviteeInvitationResponse);
-        return PageResponse.fromPage(mapped);
+        try {
+            String actionUrl = String.format("/projectDetail?id=%d", project.getId());
+            
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(owner.getId())
+                            .type(NotificationType.PROJECT_INVITATION)
+                            .title("Lời mời đã bị từ chối")
+                            .message(String.format("%s đã từ chối lời mời tham gia dự án \"%s\".",
+                                    currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail(),
+                                    project.getTitle()))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi decline invitation: {}", e.getMessage());
+        }
     }
 
     @Override

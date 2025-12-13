@@ -14,6 +14,7 @@ import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
+import com.fpt.producerworkbench.repository.MilestoneBriefBlockRepository;
 import com.fpt.producerworkbench.repository.MilestoneBriefGroupRepository;
 import com.fpt.producerworkbench.repository.MilestoneMemberRepository;
 import com.fpt.producerworkbench.repository.MilestoneRepository;
@@ -39,6 +40,7 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
 
     private final MilestoneRepository milestoneRepository;
     private final MilestoneBriefGroupRepository briefGroupRepository;
+    private final MilestoneBriefBlockRepository briefBlockRepository;
     private final ProjectPermissionService projectPermissionService;
     private final MilestoneMemberRepository milestoneMemberRepository;
     private final UserRepository userRepository;
@@ -47,6 +49,7 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     private static final long MAX_SIZE = 20L * 1024 * 1024; // 20MB
     private static final Set<String> IMAGE_MIMES = Set.of(MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif");
     private static final Set<String> AUDIO_MIMES = Set.of("audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/webm", "audio/ogg");
+
 
     @Override
     public String getBriefFileUrl(Long projectId, Long milestoneId, String fileKey, Authentication auth) {
@@ -75,44 +78,97 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     }
 
     @Override
-    @Transactional
     public List<MilestoneBriefGroupResponse> createBriefGroups(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
         log.info("[EXTERNAL] Batch create (Append): projectId={}, milestoneId={}", projectId, milestoneId);
+        
+        // Step 1: Save data in separate transaction
+        List<Long> savedGroupIds = doSaveBriefGroups(projectId, milestoneId, request, auth);
+        
+        // Step 2: Map to response (outside transaction)
+        List<MilestoneBriefGroupResponse> responses = new ArrayList<>();
+        for (Long groupId : savedGroupIds) {
+            try {
+                MilestoneBriefGroup group = briefGroupRepository.findById(groupId).orElse(null);
+                if (group != null) {
+                    responses.add(mapToGroupResponse(group));
+                }
+            } catch (Exception e) {
+                log.error("[ERROR] Failed to map group {} to response: {}", groupId, e.getMessage());
+                responses.add(MilestoneBriefGroupResponse.builder()
+                        .id(groupId)
+                        .blocks(Collections.emptyList())
+                        .build());
+            }
+        }
+        return responses;
+    }
+    
+    @Transactional
+    public List<Long> doSaveBriefGroups(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
         validateExternalWritePermission(auth, projectId);
 
-        List<MilestoneBriefGroup> savedGroups = new ArrayList<>();
+
+        List<Long> savedGroupIds = new ArrayList<>();
         if (request != null && request.getGroups() != null) {
             for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
-                MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.EXTERNAL);
-                savedGroups.add(group);
+                // Step 1: Create group WITHOUT blocks
+                MilestoneBriefGroup group = MilestoneBriefGroup.builder()
+                        .milestone(milestone)
+                        .scope(MilestoneBriefScope.EXTERNAL)
+                        .title(groupReq.getTitle())
+                        .position(groupReq.getPosition() != null ? groupReq.getPosition() : 999)
+                        .build();
+                
+                MilestoneBriefGroup savedGroup = briefGroupRepository.save(group);
+                
+                if (groupReq.getBlocks() != null && !groupReq.getBlocks().isEmpty()) {
+                    List<MilestoneBriefBlock> blocks = mapBlocksRequestToEntity(groupReq.getBlocks(), savedGroup);
+                    briefBlockRepository.saveAll(blocks);
+                }
+                
+                savedGroupIds.add(savedGroup.getId());
             }
         }
-        if (!savedGroups.isEmpty()) {
-            briefGroupRepository.saveAll(savedGroups);
-        }
 
-        return savedGroups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
+        return savedGroupIds;
     }
 
     @Override
     @Transactional
     public MilestoneBriefDetailResponse upsertMilestoneBrief(Long projectId, Long milestoneId, MilestoneBriefUpsertRequest request, Authentication auth) {
-        log.info("[EXTERNAL] Upsert ALL (Replace): projectId={}, milestoneId={}", projectId, milestoneId);
+        log.info("[EXTERNAL] Smart Upsert: projectId={}, milestoneId={}", projectId, milestoneId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
         validateExternalWritePermission(auth, projectId);
 
-        briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.EXTERNAL);
-
-        List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
-        if (request != null && request.getGroups() != null) {
-            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
-                MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.EXTERNAL);
-                groupsToSave.add(group);
-            }
+        // 1. Get existing groups
+        List<MilestoneBriefGroup> currentGroups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
+        
+        // 2. Delete ALL existing blocks and groups first (clean slate approach)
+        for (MilestoneBriefGroup group : currentGroups) {
+            briefBlockRepository.deleteAllByGroupId(group.getId());
         }
-        if (!groupsToSave.isEmpty()) {
-            briefGroupRepository.saveAll(groupsToSave);
+        briefGroupRepository.deleteAll(currentGroups);
+        briefGroupRepository.flush(); // Ensure deletes are committed
+        
+        // 3. Create new groups and blocks
+        if (request != null && request.getGroups() != null) {
+            int position = 1;
+            for (MilestoneBriefGroupRequest req : request.getGroups()) {
+                MilestoneBriefGroup group = MilestoneBriefGroup.builder()
+                        .milestone(milestone)
+                        .scope(MilestoneBriefScope.EXTERNAL)
+                        .title(req.getTitle())
+                        .position(req.getPosition() != null ? req.getPosition() : position++)
+                        .build();
+                
+                MilestoneBriefGroup savedGroup = briefGroupRepository.save(group);
+                
+                if (req.getBlocks() != null && !req.getBlocks().isEmpty()) {
+                    List<MilestoneBriefBlock> blocks = mapBlocksRequestToEntity(req.getBlocks(), savedGroup);
+                    briefBlockRepository.saveAll(blocks);
+                }
+            }
         }
 
         return buildDetailResponse(milestone, MilestoneBriefScope.EXTERNAL);
@@ -125,6 +181,11 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
         validateExternalWritePermission(auth, projectId);
         MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
+        
+        // Delete blocks first (no cascade)
+        if (group.getBlocks() != null && !group.getBlocks().isEmpty()) {
+            briefBlockRepository.deleteAll(group.getBlocks());
+        }
         briefGroupRepository.delete(group);
     }
 
@@ -145,16 +206,35 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
         validateOwnerOnly(auth, projectId);
 
-        briefGroupRepository.deleteByMilestoneIdAndScope(milestoneId, MilestoneBriefScope.INTERNAL);
-
-        List<MilestoneBriefGroup> groupsToSave = new ArrayList<>();
-        if (request != null && request.getGroups() != null) {
-            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
-                MilestoneBriefGroup group = createGroupEntity(milestone, groupReq, MilestoneBriefScope.INTERNAL);
-                groupsToSave.add(group);
+        // Delete existing groups and their blocks
+        List<MilestoneBriefGroup> existingGroups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.INTERNAL);
+        for (MilestoneBriefGroup group : existingGroups) {
+            if (group.getBlocks() != null && !group.getBlocks().isEmpty()) {
+                briefBlockRepository.deleteAll(group.getBlocks());
             }
         }
-        if (!groupsToSave.isEmpty()) briefGroupRepository.saveAll(groupsToSave);
+        briefGroupRepository.deleteAll(existingGroups);
+
+        // Create new groups and blocks
+        if (request != null && request.getGroups() != null && !request.getGroups().isEmpty()) {
+            for (MilestoneBriefGroupRequest groupReq : request.getGroups()) {
+                // Save group first
+                MilestoneBriefGroup group = MilestoneBriefGroup.builder()
+                        .milestone(milestone)
+                        .scope(MilestoneBriefScope.INTERNAL)
+                        .title(groupReq.getTitle())
+                        .position(groupReq.getPosition() != null ? groupReq.getPosition() : 999)
+                        .build();
+                
+                MilestoneBriefGroup savedGroup = briefGroupRepository.save(group);
+                
+                // Then save blocks
+                if (groupReq.getBlocks() != null && !groupReq.getBlocks().isEmpty()) {
+                    List<MilestoneBriefBlock> blocks = mapBlocksRequestToEntity(groupReq.getBlocks(), savedGroup);
+                    briefBlockRepository.saveAll(blocks);
+                }
+            }
+        }
         return buildDetailResponse(milestone, MilestoneBriefScope.INTERNAL);
     }
 
@@ -165,49 +245,70 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
         validateOwnerOnly(auth, projectId);
         MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.INTERNAL);
+        
+        // Delete blocks first (no cascade)
+        if (group.getBlocks() != null && !group.getBlocks().isEmpty()) {
+            briefBlockRepository.deleteAll(group.getBlocks());
+        }
         briefGroupRepository.delete(group);
     }
 
 
     @Override
     @Transactional
-    public List<MilestoneBriefGroupResponse> forwardAllExternalToInternal(Long projectId, Long milestoneId, Authentication auth) {
-        log.info("Forwarding ALL groups from EXTERNAL to INTERNAL: milestoneId={}", milestoneId);
+    public MilestoneBriefGroupResponse forwardExternalGroupToInternal(Long projectId, Long milestoneId, Long groupId, Authentication auth) {
+        log.info("Forwarding/Syncing Group ID {} from EXTERNAL to INTERNAL", groupId);
         Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
         validateOwnerOnly(auth, projectId);
 
-        List<MilestoneBriefGroup> sourceGroups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
-        if (sourceGroups.isEmpty()) throw new AppException(ErrorCode.RESOURCE_NOT_FOUND, "Không có nội dung ngoại bộ nào để chuyển tiếp");
+        MilestoneBriefGroup sourceGroup = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
 
-        List<MilestoneBriefGroup> targetGroups = new ArrayList<>();
-        for (MilestoneBriefGroup sourceGroup : sourceGroups) {
-            MilestoneBriefGroup targetGroup = MilestoneBriefGroup.builder()
+        // Tìm bản sao cũ trong Internal
+        Optional<MilestoneBriefGroup> existingGroupOpt = briefGroupRepository.findByForwardIdAndScope(groupId, MilestoneBriefScope.INTERNAL);
+        MilestoneBriefGroup targetGroup;
+
+        if (existingGroupOpt.isPresent()) {
+            // CÓ RỒI -> UPDATE
+            targetGroup = existingGroupOpt.get();
+            targetGroup.setTitle(sourceGroup.getTitle());
+            targetGroup.setPosition(sourceGroup.getPosition());
+            
+            // Delete old blocks manually
+            if (targetGroup.getBlocks() != null && !targetGroup.getBlocks().isEmpty()) {
+                briefBlockRepository.deleteAll(targetGroup.getBlocks());
+            }
+            briefGroupRepository.save(targetGroup);
+        } else {
+            // CHƯA CÓ -> TẠO MỚI và save trước
+            targetGroup = MilestoneBriefGroup.builder()
                     .milestone(milestone)
                     .scope(MilestoneBriefScope.INTERNAL)
-                    .title(sourceGroup.getTitle() + " (Forwarded)")
+                    .forwardId(groupId)
+                    .title(sourceGroup.getTitle())
                     .position(sourceGroup.getPosition())
                     .build();
-
-            if (sourceGroup.getBlocks() != null) {
-                List<MilestoneBriefBlock> targetBlocks = new ArrayList<>();
-                for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
-                    MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
-                            .group(targetGroup)
-                            .type(sourceBlock.getType())
-                            .label(sourceBlock.getLabel())
-                            .contentText(sourceBlock.getContentText())
-                            .fileKey(sourceBlock.getFileKey())
-                            .position(sourceBlock.getPosition())
-                            .build();
-                    targetBlocks.add(targetBlock);
-                }
-                targetGroup.setBlocks(targetBlocks);
-            }
-            targetGroups.add(targetGroup);
+            targetGroup = briefGroupRepository.save(targetGroup);
         }
 
-        briefGroupRepository.saveAll(targetGroups);
-        return targetGroups.stream().map(this::mapToGroupResponse).collect(Collectors.toList());
+        // Clone Blocks - save manually
+        List<MilestoneBriefBlock> clonedBlocks = new ArrayList<>();
+        if (sourceGroup.getBlocks() != null && !sourceGroup.getBlocks().isEmpty()) {
+            for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
+                MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
+                        .group(targetGroup)
+                        .type(sourceBlock.getType())
+                        .label(sourceBlock.getLabel())
+                        .contentText(sourceBlock.getContentText())
+                        .fileKey(sourceBlock.getFileKey())
+                        .position(sourceBlock.getPosition())
+                        .build();
+                clonedBlocks.add(targetBlock);
+            }
+            briefBlockRepository.saveAll(clonedBlocks);
+        }
+        
+        targetGroup.setBlocks(clonedBlocks); // Set for response mapping
+        return mapToGroupResponse(targetGroup);
     }
 
     @Override
@@ -247,7 +348,7 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     private void validateExternalWritePermission(Authentication auth, Long projectId) {
         var roleInfo = getRoleInfo(auth, projectId);
         boolean isOwner = roleInfo.userRole == UserRole.PRODUCER && roleInfo.projectRole == ProjectRole.OWNER;
-        boolean isClient = roleInfo.userRole == UserRole.CUSTOMER && roleInfo.projectRole == ProjectRole.CLIENT;
+        boolean isClient = roleInfo.projectRole == ProjectRole.CLIENT;
 
         if (!isOwner && !isClient) {
             throw new AppException(ErrorCode.ACCESS_DENIED, "Bạn không có quyền chỉnh sửa nội dung ngoại bộ");
@@ -298,8 +399,18 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
     }
 
     private MilestoneBriefGroup createGroupEntity(Milestone milestone, MilestoneBriefGroupRequest req, MilestoneBriefScope scope) {
-        MilestoneBriefGroup group = MilestoneBriefGroup.builder().milestone(milestone).scope(scope).title(req.getTitle()).position(req.getPosition() != null ? req.getPosition() : 999).build();
-        if (req.getBlocks() != null) group.setBlocks(mapBlocksRequestToEntity(req.getBlocks(), group));
+        MilestoneBriefGroup group = MilestoneBriefGroup.builder()
+                .milestone(milestone)
+                .scope(scope)
+                .title(req.getTitle())
+                .position(req.getPosition() != null ? req.getPosition() : 999)
+                .blocks(new ArrayList<>()) // Khởi tạo rõ ràng thay vì dùng @Builder.Default
+                .build();
+        
+        if (req.getBlocks() != null && !req.getBlocks().isEmpty()) {
+            // Sử dụng addAll để thêm vào collection hiện tại thay vì thay thế
+            group.getBlocks().addAll(mapBlocksRequestToEntity(req.getBlocks(), group));
+        }
         return group;
     }
 
@@ -328,7 +439,15 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
 
     private MilestoneBriefBlockResponse mapToBlockResponse(MilestoneBriefBlock block) {
         String content = block.getContentText();
-        if (block.getFileKey() != null) content = storage.generatePresignedUrl(block.getFileKey(), false, null);
+        if (block.getFileKey() != null) {
+            try {
+                content = storage.generatePresignedUrl(block.getFileKey(), false, null);
+            } catch (Exception e) {
+                log.warn("[WARN] Failed to generate presigned URL for fileKey: {}, error: {}", 
+                    block.getFileKey(), e.getMessage());
+                content = block.getFileKey(); // Fallback to raw key
+            }
+        }
         return MilestoneBriefBlockResponse.builder().id(block.getId()).type(block.getType()).label(block.getLabel()).content(content).position(block.getPosition()).build();
     }
 

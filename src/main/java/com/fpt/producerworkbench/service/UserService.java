@@ -15,6 +15,8 @@ public interface UserService {
 
     void sendOtpForgotPassword(EmailRequest request) throws MessagingException, UnsupportedEncodingException;
 
+    void sendOtpChangePassword() throws MessagingException, UnsupportedEncodingException;
+
     void sendOtpRegister(EmailRequest request) throws MessagingException, UnsupportedEncodingException;
 
     VerifyOtpResponse verifyOtp(VerifyOtpRequest request);

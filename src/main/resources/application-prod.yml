@@ -105,7 +105,7 @@ pinecone:
 
 gemini:
   api-key: ${GEMINI_API_KEY}
-  model: ${GEMINI_MODEL:gemini-2.0-flash}
+  model: ${GEMINI_MODEL:gemini-2.5-flash}
   embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
   max-tokens: ${GEMINI_MAX_TOKENS:2048}
   temperature: ${GEMINI_TEMPERATURE:0.3}
@@ -198,7 +198,7 @@ aws:
 
 gcp:
   project-id: ${GCP_PROJECT_ID}
-  credentials-file: classpath:google-cloud/producer-workbench-478512-048275ebbad8.json
+  credentials-file: classpath:google-cloud/pwb-tts-sa-key.json
   gcs:
     bucket: ${GCS_BUCKET}
     delete-after-finish: true
@@ -231,6 +231,9 @@ outbound:
 cors:
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173}
 
+frontend:
+  url: ${FRONTEND_URL:https://www.producerworkbench.io.vn}
+
 payos:
   client-id: ${PAYOS_CLIENT_ID}
   api-key: ${PAYOS_API_KEY}
@@ -262,3 +265,11 @@ vnpt:
     access-token: ${VNPT_EKYC_ACCESS_TOKEN}
     username: ${VNPT_EKYC_USERNAME}
     password: ${VNPT_EKYC_PASSWORD}
+
+vietqr:
+  base-url: ${VIETQR_BASE_URL}
+  api-key: ${VIETQR_API_KEY}
+  client-id: ${VIETQR_CLIENT_ID}
+
+firebase:
+  config-path: ${FIREBASE_CONFIG_PATH:firebase/serviceAccountKey.json}

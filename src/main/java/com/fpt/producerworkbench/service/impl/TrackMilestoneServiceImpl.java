@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ClientDeliveryStatus;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.ProcessingStatus;
@@ -69,6 +70,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
     private final AudioProcessingService audioProcessingService;
+    private final FrontendProperties frontendProperties;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
@@ -940,8 +942,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
-                    project.getId(), track.getMilestone().getId());
+            String projectUrl = String.format("%s/projects/%d/milestones/%d", 
+                    frontendProperties.getUrl(), project.getId(), track.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
             String recipientName = projectCreator.getFullName();
@@ -989,8 +991,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
-                    project.getId(), track.getMilestone().getId());
+            String projectUrl = String.format("%s/projects/%d/milestones/%d", 
+                    frontendProperties.getUrl(), project.getId(), track.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
             String recipientName = trackOwner.getFullName();

@@ -6,7 +6,10 @@ import com.fpt.producerworkbench.dto.request.ProjectCreateRequest;
 import com.fpt.producerworkbench.dto.request.UpdateProjectMemberRoleRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.ProjectDetailResponse;
+import com.fpt.producerworkbench.dto.response.ProjectExpenseChartResponse;
+import com.fpt.producerworkbench.dto.response.ProjectExpenseDetailResponse;
 import com.fpt.producerworkbench.dto.response.ProjectMemberResponse;
+import com.fpt.producerworkbench.dto.response.ProjectMoneySplitDetailResponse;
 import com.fpt.producerworkbench.dto.response.ProjectMembersViewResponse;
 import com.fpt.producerworkbench.dto.response.ProjectPermissionResponse;
 import com.fpt.producerworkbench.dto.response.ProjectResponse;
@@ -19,6 +22,7 @@ import com.fpt.producerworkbench.mapper.ProjectMapper;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.MyProjectsService;
 import com.fpt.producerworkbench.service.ProjectDetailService;
+import com.fpt.producerworkbench.service.ProjectExpenseService;
 import com.fpt.producerworkbench.service.ProjectMemberService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import com.fpt.producerworkbench.service.ProjectService;
@@ -35,11 +39,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Controller quản lý các thao tác liên quan đến project.
- * Bao gồm: tạo project, xem chi tiết project, lấy danh sách project của người dùng,
- * quản lý thành viên project (xem, xóa, cập nhật vai trò), và kiểm tra quyền truy cập.
- */
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor
@@ -51,6 +52,7 @@ public class ProjectController {
     private final MyProjectsService myProjectsService;
     private final ProjectMemberService projectMemberService;
     private final ProjectPermissionService projectPermissionService;
+    private final ProjectExpenseService projectExpenseService;
     private final UserRepository userRepository;
 
     /**
@@ -58,6 +60,7 @@ public class ProjectController {
      * Chỉ Producer hoặc Admin mới có thể tạo project. Tài khoản phải được verify trước khi tạo project.
      * Tự động tạo ProjectMember với role OWNER.
      */
+
     @PostMapping("/projects")
     public ResponseEntity<ApiResponse<ProjectResponse>> createProject(
             @Valid @RequestBody ProjectCreateRequest request,
@@ -90,10 +93,6 @@ public class ProjectController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Lấy thông tin chi tiết của project.
-     * Yêu cầu đăng nhập và có quyền truy cập project.
-     */
     @GetMapping("/projects/{projectId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ProjectDetailResponse>> getProjectDetail(
@@ -108,11 +107,6 @@ public class ProjectController {
                 .build());
     }
 
-
-    /**
-     * Lấy danh sách project của người dùng hiện tại.
-     * Hỗ trợ tìm kiếm theo tên, lọc theo trạng thái, và phân trang. Mặc định sắp xếp theo updatedAt DESC.
-     */
     @GetMapping("/my-projects")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Page<ProjectSummaryResponse>>> getMyProjects(
@@ -131,10 +125,6 @@ public class ProjectController {
                 .build());
     }
 
-    /**
-     * Lấy danh sách thành viên của project.
-     * Yêu cầu đăng nhập và có quyền xem project.
-     */
     @GetMapping("/projects/{projectId}/members")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ProjectMembersViewResponse>> getProjectMembers(
@@ -148,10 +138,6 @@ public class ProjectController {
                 .build());
     }
 
-    /**
-     * Xóa thành viên khỏi project.
-     * Yêu cầu đăng nhập và có quyền quản lý thành viên.
-     */
     @DeleteMapping("/projects/{projectId}/members/{userId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Void>> removeProjectMember(
@@ -169,10 +155,6 @@ public class ProjectController {
                 .build());
     }
 
-    /**
-     * Cập nhật vai trò của thành viên trong project.
-     * Yêu cầu đăng nhập và có quyền quản lý thành viên.
-     */
     @PatchMapping("/projects/{projectId}/members/{userId}/role")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ProjectMemberResponse>> updateProjectMemberRole(
@@ -193,11 +175,6 @@ public class ProjectController {
                 .build());
     }
 
-    /**
-     * Lấy danh sách quyền của người dùng hiện tại đối với project.
-     * Trả về các quyền như: xem project, chỉnh sửa project, quản lý thành viên, contract, addendum, payment, v.v.
-     * Bao gồm cả quyền addendum: canCreateAddendum, canViewAddendum, canInviteToSign, canDeclineAddendum, canEditAddendum, canCreateAddendumPayment.
-     */
     @GetMapping("/projects/{projectId}/permissions")
     public ResponseEntity<ApiResponse<ProjectPermissionResponse>> getProjectPermissions(
             @PathVariable Long projectId,
@@ -206,6 +183,51 @@ public class ProjectController {
         return ResponseEntity.ok(ApiResponse.<ProjectPermissionResponse>builder()
                 .code(200)
                 .result(permissions)
+                .build());
+    }
+
+    @GetMapping("/projects/{projectId}/expense-chart")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ProjectExpenseChartResponse>> getProjectExpenseChart(
+            @PathVariable Long projectId,
+            Authentication auth) {
+        
+        ProjectExpenseChartResponse chartData = projectExpenseService.getProjectExpenseChart(projectId, auth);
+        
+        return ResponseEntity.ok(ApiResponse.<ProjectExpenseChartResponse>builder()
+                .code(200)
+                .message("Lấy thống kê chi phí dự án thành công")
+                .result(chartData)
+                .build());
+    }
+
+    @GetMapping("/projects/{projectId}/expense-details")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ProjectExpenseDetailResponse>>> getProjectExpenseDetails(
+            @PathVariable Long projectId,
+            Authentication auth) {
+        
+        java.util.List<ProjectExpenseDetailResponse> details = projectExpenseService.getProjectExpenseDetails(projectId, auth);
+        
+        return ResponseEntity.ok(ApiResponse.<List<ProjectExpenseDetailResponse>>builder()
+                .code(200)
+                .message("Lấy chi tiết chi phí dịch vụ thành công")
+                .result(details)
+                .build());
+    }
+
+    @GetMapping("/projects/{projectId}/money-split-details")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ProjectMoneySplitDetailResponse>>> getProjectMoneySplitDetails(
+            @PathVariable Long projectId,
+            Authentication auth) {
+        
+        java.util.List<ProjectMoneySplitDetailResponse> details = projectExpenseService.getProjectMoneySplitDetails(projectId, auth);
+        
+        return ResponseEntity.ok(ApiResponse.<List<ProjectMoneySplitDetailResponse>>builder()
+                .code(200)
+                .message("Lấy chi tiết chi phí chia tiền thành viên thành công")
+                .result(details)
                 .build());
     }
 }

@@ -1,9 +1,12 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.common.SessionStatus;
 import com.fpt.producerworkbench.configuration.AgoraConfig;
 import com.fpt.producerworkbench.dto.request.CreateSessionRequest;
 import com.fpt.producerworkbench.dto.request.InviteMoreMembersRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.UpdateSessionRequest;
 import com.fpt.producerworkbench.dto.response.LiveSessionResponse;
 import com.fpt.producerworkbench.dto.response.SessionSummaryResponse;
@@ -21,6 +24,7 @@ import com.fpt.producerworkbench.repository.SessionParticipantRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.EmailService;
 import com.fpt.producerworkbench.service.LiveSessionService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.WebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +53,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
     private final AgoraConfig agoraConfig;
     private final com.fpt.producerworkbench.utils.SecurityUtils securityUtils; // ✅ Add SecurityUtils
     private final EmailService emailService; // ✅ Add Email service
+    private final NotificationService notificationService;
     
     @Override
     @Transactional
@@ -58,22 +63,18 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         Project project = projectRepository.findById(request.getProjectId())
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
-
         User host = userRepository.findById(hostId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
 
         if (!project.getCreator().getId().equals(hostId)) {
             throw new AppException(ErrorCode.ONLY_PROJECT_OWNER_CAN_CREATE_SESSION);
         }
 
-        // ✅ NEW: Validate scheduledStart if provided
-        if (request.getScheduledStart() != null 
+        if (request.getScheduledStart() != null
             && request.getScheduledStart().isBefore(LocalDateTime.now())) {
             throw new AppException(ErrorCode.SCHEDULED_START_MUST_BE_FUTURE);
         }
 
-        // ✅ NEW: Check max concurrent sessions (max 3 SCHEDULED/ACTIVE sessions)
         long activeSessions = sessionRepository.countActiveSessionsForProject(request.getProjectId());
         if (activeSessions >= 3) {
             throw new AppException(ErrorCode.MAX_CONCURRENT_SESSIONS_REACHED);
@@ -81,7 +82,6 @@ public class LiveSessionServiceImpl implements LiveSessionService {
 
         String channelName = generateChannelName(request.getProjectId());
 
-        // ✅ Determine if session is public or private based on invites
         boolean hasInvites = (request.getInvitedMemberIds() != null && !request.getInvitedMemberIds().isEmpty())
                 || (request.getInviteRoles() != null && !request.getInviteRoles().isEmpty());
         boolean isPublic = !hasInvites; // If no invites -> PUBLIC, otherwise PRIVATE
@@ -109,7 +109,6 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                 determineInvitedMembers(request, hostId);
 
             if (!invitedMembers.isEmpty()) {
-                // Create SessionParticipant for each invited member
                 for (com.fpt.producerworkbench.entity.ProjectMember member : invitedMembers) {
                     com.fpt.producerworkbench.common.ParticipantRole role = 
                         mapProjectRoleToParticipantRole(member.getProjectRole());
@@ -133,7 +132,6 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                     participantRepository.save(participant);
                 }
                 
-                // Send email to all invited members
                 List<String> memberEmails = invitedMembers.stream()
                         .map(member -> member.getUser().getEmail())
                         .collect(Collectors.toList());
@@ -141,6 +139,41 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                 emailService.sendSessionInviteNotification(saved, memberEmails);
                 log.info("Session invite emails sent to {} members and SessionParticipants created", 
                         memberEmails.size());
+                
+                // Gửi notification realtime cho các thành viên được mời
+                try {
+                    String hostName = host.getFullName() != null 
+                            ? host.getFullName() 
+                            : host.getEmail();
+                    // Send email to all invited members
+                    String actionUrl = String.format("/live-sessions?id=%d", project.getId());
+                    
+                    for (com.fpt.producerworkbench.entity.ProjectMember member : invitedMembers) {
+                        User invitedUser = member.getUser();
+                        if (invitedUser != null && invitedUser.getEmail() != null && !invitedUser.getEmail().isBlank()) {
+                            String scheduledTime = saved.getScheduledStart() != null
+                                    ? saved.getScheduledStart().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                                    : "Chưa xác định";
+                            
+                            notificationService.sendNotification(
+                                    SendNotificationRequest.builder()
+                                            .userId(invitedUser.getId())
+                                            .type(NotificationType.SYSTEM)
+                                            .title("Lời mời tham gia phiên làm việc")
+                                            .message(String.format("%s đã mời bạn tham gia phiên làm việc \"%s\" trong dự án \"%s\". Thời gian: %s",
+                                                    hostName,
+                                                    saved.getTitle(),
+                                                    project.getTitle(),
+                                                    scheduledTime))
+                                            .relatedEntityType(RelatedEntityType.PROJECT)
+                                            .relatedEntityId(project.getId())
+                                            .actionUrl(actionUrl)
+                                            .build());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Gặp lỗi khi gửi notification realtime cho session invite: {}", e.getMessage());
+                }
             } else {
                 log.info("No members invited for session: {}", saved.getId());
             }

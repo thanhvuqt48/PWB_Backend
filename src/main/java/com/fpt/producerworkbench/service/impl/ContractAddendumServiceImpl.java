@@ -4,7 +4,10 @@ import com.fpt.producerworkbench.common.AddendumDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.PaymentType;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.entity.ContractAddendumMilestone;
@@ -23,6 +26,7 @@ import com.fpt.producerworkbench.repository.MilestoneMemberRepository;
 import com.fpt.producerworkbench.service.ContractAddendumService;
 import com.fpt.producerworkbench.service.EmailService;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.ProjectPermissionService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +57,7 @@ public class ContractAddendumServiceImpl implements ContractAddendumService {
     MilestoneRepository milestoneRepository;
     ContractAddendumMilestoneRepository addendumMilestoneRepository;
     MilestoneMemberRepository milestoneMemberRepository;
+    NotificationService notificationService;
 
     @Override
     public List<Map<String, Object>> getAllAddendumsByContract(Long contractId) {
@@ -252,6 +257,34 @@ public class ContractAddendumServiceImpl implements ContractAddendumService {
             }
         } else {
             log.warn("Không tìm thấy email của owner để gửi thông báo từ chối phụ lục hợp đồng");
+        }
+
+        try {
+            User owner = contract.getProject() != null && contract.getProject().getCreator() != null
+                    ? contract.getProject().getCreator()
+                    : null;
+            
+            if (owner != null) {
+                String actionUrl = String.format("/contractId=%d", contract.getProject().getId());
+                String addendumTitle = addendum.getTitle() != null ? addendum.getTitle() : "Phụ lục hợp đồng";
+                String declineReason = reason != null ? reason : "(không cung cấp)";
+                
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.CONTRACT_SIGNING)
+                                .title("Phụ lục hợp đồng bị từ chối")
+                                .message(String.format("Phụ lục hợp đồng \"%s\" của dự án \"%s\" đã bị từ chối.%s",
+                                        addendumTitle,
+                                        contract.getProject().getTitle(),
+                                        " Lý do: " + declineReason))
+                                .relatedEntityType(RelatedEntityType.CONTRACT)
+                                .relatedEntityId(contractId)
+                                .actionUrl(actionUrl)
+                                .build());
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi decline addendum: {}", e.getMessage());
         }
 
         return "DECLINED";
