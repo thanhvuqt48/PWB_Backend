@@ -229,7 +229,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
                     String formattedTime = chatMessage.getSentAt().format(formatter);
 
-                    String conversationLink = frontendProperties.getUrl() + "/chat/" + conversation.getId();
+                    String conversationLink = frontendProperties.getUrl();
 
                     String senderAvatar = sender.getAvatarUrl() != null
                             ? sender.getAvatarUrl()
