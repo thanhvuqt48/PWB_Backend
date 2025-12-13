@@ -26,6 +26,7 @@ public enum ErrorCode {
     ACCOUNT_LOCKED(2006, "Tài khoản đã bị khóa.", HttpStatus.FORBIDDEN),
     ACCOUNT_DISABLED(2007, "Tài khoản đã bị vô hiệu hóa.", HttpStatus.FORBIDDEN),
     EMAIL_NOT_VERIFIED(2008, "Email chưa được xác thực.", HttpStatus.FORBIDDEN),
+    ACCOUNT_NOT_VERIFIED(2010, "Tài khoản chưa được xác thực. Vui lòng xác thực tài khoản trước khi tạo dự án.", HttpStatus.FORBIDDEN),
     UNAUTHORIZED(1007, "Bạn không có quyền truy cập tài nguyên này.", HttpStatus.FORBIDDEN),
 
     FORBIDDEN(2009, "Hành động không được phép.", HttpStatus.FORBIDDEN),
@@ -37,6 +38,7 @@ public enum ErrorCode {
     OTP_INVALID(3004, "Mã OTP không hợp lệ.", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED(3005, "Mã OTP đã hết hạn.", HttpStatus.BAD_REQUEST),
     ACCOUNT_ALREADY_VERIFIED(3006, "Tài khoản này đã được xác thực trước đó.", HttpStatus.BAD_REQUEST),
+    USER_NOT_VERIFIED(3008, "Tài khoản chưa xác thực CCCD. Vui lòng xác thực trước khi sử dụng tính năng này.", HttpStatus.BAD_REQUEST),
 
     // ===== Lỗi liên quan đến Tài nguyên chung (4xxx) =====
     USER_INACTIVE(3007, "Tài khoản chưa được kích hoạt.", HttpStatus.FORBIDDEN),
@@ -205,6 +207,28 @@ public enum ErrorCode {
     SESSION_ALREADY_STARTED(5014, "Phiên đã bắt đầu", HttpStatus.BAD_REQUEST),
     CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Chỉ có thể hủy phiên đã lên lịch", HttpStatus.BAD_REQUEST),
     MUST_REQUEST_JOIN_FIRST(5017, "Bạn phải gửi yêu cầu tham gia và được phê duyệt trước", HttpStatus.FORBIDDEN),
+    
+    // ========== Contract Termination & Tax (11xxx) ==========
+    CONTRACT_ALREADY_TERMINATED(11001, "Hợp đồng đã được chấm dứt trước đó.", HttpStatus.BAD_REQUEST),
+    CONTRACT_NOT_TERMINATED(11002, "Hợp đồng chưa được chấm dứt.", HttpStatus.BAD_REQUEST),
+    TERMINATION_NOT_FOUND(11003, "Không tìm thấy thông tin chấm dứt hợp đồng.", HttpStatus.NOT_FOUND),
+    INSUFFICIENT_BALANCE_FOR_COMPENSATION(11004, "Số dư không đủ để đền bù cho Team. Vui lòng nạp thêm tiền.", HttpStatus.BAD_REQUEST),
+    OWNER_COMPENSATION_PAYMENT_NOT_FOUND(11005, "Không tìm thấy thông tin thanh toán đền bù của Owner.", HttpStatus.NOT_FOUND),
+    OWNER_COMPENSATION_PAYMENT_PENDING(11006, "Đang chờ Owner thanh toán đền bù cho Team.", HttpStatus.PAYMENT_REQUIRED),
+    OWNER_COMPENSATION_PAYMENT_EXPIRED(11007, "Yêu cầu thanh toán đã hết hạn.", HttpStatus.BAD_REQUEST),
+    ONLY_OWNER_CAN_TERMINATE_AS_OWNER(11008, "Chỉ Owner mới có thể chấm dứt với vai trò Owner.", HttpStatus.FORBIDDEN),
+    ONLY_CLIENT_CAN_TERMINATE_AS_CLIENT(11009, "Chỉ Client mới có thể chấm dứt với vai trò Client.", HttpStatus.FORBIDDEN),
+    INVALID_TERMINATION_REQUEST(11010, "Yêu cầu chấm dứt không hợp lệ.", HttpStatus.BAD_REQUEST),
+    
+    // Tax related errors
+    TAX_RECORD_NOT_FOUND(11011, "Không tìm thấy bản ghi thuế.", HttpStatus.NOT_FOUND),
+    TAX_DECLARATION_NOT_FOUND(11012, "Không tìm thấy tờ khai thuế.", HttpStatus.NOT_FOUND),
+    TAX_DECLARATION_ALREADY_SUBMITTED(11013, "Tờ khai thuế đã được nộp.", HttpStatus.BAD_REQUEST),
+    USER_IDENTITY_NOT_VERIFIED(11014, "Chưa xác thực CCCD. Vui lòng xác thực trước khi thực hiện giao dịch.", HttpStatus.BAD_REQUEST),
+    CCCD_ALREADY_EXISTS(11015, "Số CCCD này đã được đăng ký bởi tài khoản khác.", HttpStatus.CONFLICT),
+    INVALID_TAX_PERIOD(11016, "Kỳ thuế không hợp lệ.", HttpStatus.BAD_REQUEST),
+    TAX_SUMMARY_NOT_FOUND(11017, "Không tìm thấy báo cáo thuế.", HttpStatus.NOT_FOUND),
+    
     CANNOT_REMOVE_HOST(5106, "Không thể xóa người chủ trì phiên", HttpStatus.BAD_REQUEST),
 
 
@@ -250,7 +274,7 @@ public enum ErrorCode {
     CANNOT_REPLY_TO_DELETED_COMMENT(8006, "Không thể trả lời comment đã bị xóa", HttpStatus.BAD_REQUEST),
     INVALID_TIMESTAMP(8007, "Timestamp không hợp lệ hoặc vượt quá độ dài track", HttpStatus.BAD_REQUEST),
     TRACK_NOT_READY(8008, "Track chưa sẵn sàng để gửi", HttpStatus.BAD_REQUEST),
-    
+
     // Client Delivery errors (8017-8022)
     PRODUCT_COUNT_EXHAUSTED(8037, "Đã hết lượt gửi sản phẩm cho milestone này", HttpStatus.BAD_REQUEST),
     EDIT_COUNT_EXHAUSTED(8043, "Đã hết lượt chỉnh sửa cho milestone này", HttpStatus.BAD_REQUEST),
@@ -279,8 +303,13 @@ public enum ErrorCode {
     AMOUNT_TOO_LARGE(10003, "Số tiền rút không được lớn hơn 100,000,000đ", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_BALANCE(10004, "Số dư không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
     INVALID_WITHDRAWAL_STATUS(10006, "Trạng thái yêu cầu rút tiền không hợp lệ", HttpStatus.BAD_REQUEST),
-    USER_BANK_NOT_FOUND(10007, "Không tìm thấy thông tin ngân hàng", HttpStatus.NOT_FOUND)
-    ;
+    USER_BANK_NOT_FOUND(10007, "Không tìm thấy thông tin ngân hàng", HttpStatus.NOT_FOUND),
+    // ===== Track Note Errors (19xxx) =====
+    TRACK_NOTE_NOT_FOUND(19001, "Không tìm thấy ghi chú.", HttpStatus.NOT_FOUND),
+    TRACK_NOTE_ACCESS_DENIED(19002, "Bạn không có quyền truy cập ghi chú này.", HttpStatus.FORBIDDEN),
+    TRACK_NOTE_UPDATE_DENIED(19003, "Bạn chỉ có thể sửa ghi chú của mình.", HttpStatus.FORBIDDEN),
+    TRACK_NOTE_DELETE_DENIED(19004, "Bạn không có quyền xóa ghi chú này.", HttpStatus.FORBIDDEN),
+    ROOM_TYPE_REQUIRED(19005, "Vui lòng chỉ định loại phòng (roomType).", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

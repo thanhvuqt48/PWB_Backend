@@ -55,6 +55,12 @@ public class ProjectController {
     private final ProjectExpenseService projectExpenseService;
     private final UserRepository userRepository;
 
+    /**
+     * Tạo project mới.
+     * Chỉ Producer hoặc Admin mới có thể tạo project. Tài khoản phải được verify trước khi tạo project.
+     * Tự động tạo ProjectMember với role OWNER.
+     */
+
     @PostMapping("/projects")
     public ResponseEntity<ApiResponse<ProjectResponse>> createProject(
             @Valid @RequestBody ProjectCreateRequest request,
@@ -68,6 +74,11 @@ public class ProjectController {
         UserRole userRole = user.getRole();
         if (userRole != UserRole.PRODUCER && userRole != UserRole.ADMIN) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+
+        // Kiểm tra tài khoản đã được verify chưa
+        if (user.getIsVerified() == null || !user.getIsVerified()) {
+            throw new AppException(ErrorCode.ACCOUNT_NOT_VERIFIED);
         }
 
         Project createdProject = projectService.createProject(request, creatorEmail);

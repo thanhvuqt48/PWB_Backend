@@ -296,6 +296,7 @@ public class SignNowWebhookEventServiceImpl implements SignNowWebhookEventServic
             addendumDocumentRepository.save(doc);
 
             log.info("[Webhook] Successfully saved signed addendum {} version {}", entityId, version);
+            // Lưu ý: Không cập nhật contract và milestones ở đây vì chỉ khi thanh toán (PAID) mới cập nhật
         }
     }
 

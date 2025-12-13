@@ -1,7 +1,5 @@
 package com.fpt.producerworkbench.dto.response;
 
-import com.fpt.producerworkbench.common.TicketPriority;
-import com.fpt.producerworkbench.common.TicketStatus;
 import lombok.Builder;
 import lombok.Data;
 

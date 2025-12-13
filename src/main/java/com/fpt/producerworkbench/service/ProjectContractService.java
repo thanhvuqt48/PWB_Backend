@@ -2,6 +2,7 @@ package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
+import com.fpt.producerworkbench.dto.response.PartyBInfoResponse;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,5 +18,6 @@ public interface ProjectContractService {
     String getDeclineReason(Authentication auth, Long id);
     ResponseEntity<Void> viewSignedPdf(Long id);
     Map<String, Object> syncContractStatus(Long projectId);
+    PartyBInfoResponse getVerifiedPartyBInfo(Authentication auth);
 }
 

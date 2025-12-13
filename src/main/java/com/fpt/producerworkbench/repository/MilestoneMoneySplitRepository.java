@@ -3,6 +3,8 @@ package com.fpt.producerworkbench.repository;
 import com.fpt.producerworkbench.entity.MilestoneMoneySplit;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -24,6 +26,13 @@ public interface MilestoneMoneySplitRepository extends JpaRepository<MilestoneMo
     List<MilestoneMoneySplit> findByMilestoneIdInAndUserId(List<Long> milestoneIds, Long userId);
 
     boolean existsByMilestoneIdInAndUserIdAndStatus(List<Long> milestoneIds, Long userId, MoneySplitStatus status);
+    
+    // New methods for contract termination
+    @Query("SELECT mms FROM MilestoneMoneySplit mms WHERE mms.milestone.contract.id = :contractId AND mms.status = 'APPROVED'")
+    List<MilestoneMoneySplit> findApprovedByContractId(@Param("contractId") Long contractId);
+    
+    @Query("SELECT mms FROM MilestoneMoneySplit mms WHERE mms.milestone.id IN :milestoneIds AND mms.status = 'APPROVED'")
+    List<MilestoneMoneySplit> findApprovedByMilestoneIds(@Param("milestoneIds") List<Long> milestoneIds);
 }
 
 

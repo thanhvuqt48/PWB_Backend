@@ -34,6 +34,7 @@ import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.TrackCommentRepository;
 import com.fpt.producerworkbench.repository.TrackDownloadPermissionRepository;
 import com.fpt.producerworkbench.repository.TrackMilestoneRepository;
+import com.fpt.producerworkbench.repository.TrackNoteRepository;
 import com.fpt.producerworkbench.repository.TrackStatusTransitionLogRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AudioProcessingService;
@@ -67,6 +68,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final TrackCommentRepository trackCommentRepository;
     private final TrackStatusTransitionLogRepository trackStatusTransitionLogRepository;
     private final TrackDownloadPermissionRepository trackDownloadPermissionRepository;
+    private final TrackNoteRepository trackNoteRepository;
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
     private final AudioProcessingService audioProcessingService;
@@ -174,6 +176,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         log.info("Hoàn tất upload cho track {}", trackId);
 
         User currentUser = loadUser(auth);
+        
+        // Load track để kiểm tra quyền và lấy thông tin
         Track track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
 
@@ -187,15 +191,27 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             throw new AppException(ErrorCode.BAD_REQUEST, "Track không ở trạng thái UPLOADING");
         }
 
-        // Đánh dấu đang xử lý NGAY bây giờ để tránh double finalize
-        track.setProcessingStatus(ProcessingStatus.PROCESSING);
-        track.setErrorMessage(null);
-        trackRepository.save(track);
+        // ✅ Fix chính: Dùng update query atomic thay vì save() để tránh merge/cascade
+        // Update query sẽ không trigger merge, không cascade qua object graph
+        int updated = trackRepository.updateProcessingStatusAtomic(
+                trackId,
+                ProcessingStatus.UPLOADING,
+                ProcessingStatus.PROCESSING
+        );
+
+        if (updated == 0) {
+            // Track đã bị finalize bởi request khác (race condition)
+            throw new AppException(ErrorCode.BAD_REQUEST, 
+                    "Track không ở trạng thái UPLOADING hoặc đã được finalize");
+        }
+
+        log.info("Đã cập nhật track {} từ UPLOADING sang PROCESSING (atomic update)", trackId);
 
         // Trigger xử lý audio bất đồng bộ theo trackId
-        audioProcessingService.processTrackAudio(track.getId());
+        audioProcessingService.processTrackAudio(trackId);
 
         // Gửi email thông báo cho project creator nếu người upload là COLLABORATOR
+        // Load lại project từ track đã có (không cần reload track vì chỉ cần project)
         Project project = track.getMilestone().getContract().getProject();
         sendTrackUploadNotificationEmail(track, project, currentUser);
 
@@ -355,6 +371,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         // Xóa TrackDownloadPermission
         trackDownloadPermissionRepository.deleteByTrackId(trackId);
         log.info("Đã xóa tất cả quyền download cho track {}", trackId);
+
+        // Xóa TrackNote
+        trackNoteRepository.deleteByTrackId(trackId);
+        log.info("Đã xóa tất cả ghi chú cho track {}", trackId);
 
         // Xóa files trên S3
         try {
