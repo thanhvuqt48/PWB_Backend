@@ -34,6 +34,7 @@ import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.TrackCommentRepository;
 import com.fpt.producerworkbench.repository.TrackDownloadPermissionRepository;
 import com.fpt.producerworkbench.repository.TrackMilestoneRepository;
+import com.fpt.producerworkbench.repository.TrackNoteRepository;
 import com.fpt.producerworkbench.repository.TrackStatusTransitionLogRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AudioProcessingService;
@@ -67,6 +68,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final TrackCommentRepository trackCommentRepository;
     private final TrackStatusTransitionLogRepository trackStatusTransitionLogRepository;
     private final TrackDownloadPermissionRepository trackDownloadPermissionRepository;
+    private final TrackNoteRepository trackNoteRepository;
     private final FileKeyGenerator fileKeyGenerator;
     private final FileStorageService fileStorageService;
     private final AudioProcessingService audioProcessingService;
@@ -369,6 +371,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         // Xóa TrackDownloadPermission
         trackDownloadPermissionRepository.deleteByTrackId(trackId);
         log.info("Đã xóa tất cả quyền download cho track {}", trackId);
+
+        // Xóa TrackNote
+        trackNoteRepository.deleteByTrackId(trackId);
+        log.info("Đã xóa tất cả ghi chú cho track {}", trackId);
 
         // Xóa files trên S3
         try {

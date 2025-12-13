@@ -27,4 +27,7 @@ public interface WebSocketService {
 
      //Broadcast user online/offline status change to conversation participants
     void broadcastUserStatusChange(String userEmail, boolean isOnline, String conversationId);
+
+    // Broadcast track note event (create/update/delete) to session participants
+    void broadcastTrackNoteEvent(String sessionId, TrackNoteEvent event);
 }

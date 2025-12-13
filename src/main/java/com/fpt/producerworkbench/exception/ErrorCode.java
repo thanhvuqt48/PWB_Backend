@@ -303,8 +303,13 @@ public enum ErrorCode {
     AMOUNT_TOO_LARGE(10003, "Số tiền rút không được lớn hơn 100,000,000đ", HttpStatus.BAD_REQUEST),
     INSUFFICIENT_BALANCE(10004, "Số dư không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
     INVALID_WITHDRAWAL_STATUS(10006, "Trạng thái yêu cầu rút tiền không hợp lệ", HttpStatus.BAD_REQUEST),
-    USER_BANK_NOT_FOUND(10007, "Không tìm thấy thông tin ngân hàng", HttpStatus.NOT_FOUND)
-    ;
+    USER_BANK_NOT_FOUND(10007, "Không tìm thấy thông tin ngân hàng", HttpStatus.NOT_FOUND),
+    // ===== Track Note Errors (19xxx) =====
+    TRACK_NOTE_NOT_FOUND(19001, "Không tìm thấy ghi chú.", HttpStatus.NOT_FOUND),
+    TRACK_NOTE_ACCESS_DENIED(19002, "Bạn không có quyền truy cập ghi chú này.", HttpStatus.FORBIDDEN),
+    TRACK_NOTE_UPDATE_DENIED(19003, "Bạn chỉ có thể sửa ghi chú của mình.", HttpStatus.FORBIDDEN),
+    TRACK_NOTE_DELETE_DENIED(19004, "Bạn không có quyền xóa ghi chú này.", HttpStatus.FORBIDDEN),
+    ROOM_TYPE_REQUIRED(19005, "Vui lòng chỉ định loại phòng (roomType).", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;
