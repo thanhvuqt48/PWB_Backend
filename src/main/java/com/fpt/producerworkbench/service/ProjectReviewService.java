@@ -11,4 +11,10 @@ public interface ProjectReviewService {
     ProjectReviewResponse createReview(Long projectId, ProjectReviewRequest request, Authentication auth);
 
     List<ProjectReviewResponse> getProducerPublicPortfolio(Long producerId);
+
+    ProjectReviewResponse getProjectReview(Long projectId, Authentication auth);
+
+    ProjectReviewResponse updateReview(Long projectId, ProjectReviewRequest request, Authentication auth);
+
+    void deleteReview(Long projectId, Authentication auth);
 }

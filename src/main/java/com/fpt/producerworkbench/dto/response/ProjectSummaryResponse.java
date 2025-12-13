@@ -23,4 +23,6 @@ public class ProjectSummaryResponse {
     private ProjectRole myRole;
     private String creatorName;
     private Date createdAt;
+    private Long clientId; // ID của client (nếu có)
+    private Boolean hasReview; // Project đã có review chưa
 }

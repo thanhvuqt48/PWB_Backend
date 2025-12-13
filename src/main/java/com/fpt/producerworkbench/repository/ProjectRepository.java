@@ -16,7 +16,9 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @Query("SELECT new com.fpt.producerworkbench.dto.response.ProjectSummaryResponse(" +
             "p.id, p.title, p.description, p.status, p.type, pm.projectRole, " +
             "CONCAT(p.creator.firstName, ' ', p.creator.lastName), " +
-            "p.createdAt) " + 
+            "p.createdAt, " +
+            "p.client.id, " +
+            "CASE WHEN EXISTS (SELECT 1 FROM ProjectReview pr WHERE pr.project.id = p.id) THEN true ELSE false END) " +
             "FROM Project p JOIN ProjectMember pm ON p.id = pm.project.id " +
             "WHERE pm.user.id = :userId " +
             "AND (:search IS NULL OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%'))) " +
@@ -30,7 +32,9 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
             "p.id, p.title, p.description, p.status, p.type, " +
             "com.fpt.producerworkbench.common.ProjectRole.OWNER, " +
             "CONCAT(p.creator.firstName, ' ', p.creator.lastName), " +
-            "p.createdAt) " + 
+            "p.createdAt, " +
+            "p.client.id, " +
+            "CASE WHEN EXISTS (SELECT 1 FROM ProjectReview pr WHERE pr.project.id = p.id) THEN true ELSE false END) " +
             "FROM Project p " +
             "WHERE p.creator.id = :userId " +
             "AND (:search IS NULL OR LOWER(p.title) LIKE LOWER(CONCAT('%', :search, '%'))) " +
