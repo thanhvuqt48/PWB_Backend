@@ -14,7 +14,14 @@ import java.math.BigDecimal;
 public class PaymentStatusResponse {
 
     private String orderCode;
-    private String status; // PENDING | SUCCESSFUL | FAILED
+    /**
+     * Trạng thái thanh toán: PENDING | SUCCESSFUL | FAILED | EXPIRED
+     * - PENDING: Đang chờ thanh toán
+     * - SUCCESSFUL: Đã thanh toán thành công (COMPLETED)
+     * - FAILED: Thanh toán thất bại
+     * - EXPIRED: Hết hạn thanh toán
+     */
+    private String status; // PENDING | SUCCESSFUL | FAILED | EXPIRED
     private BigDecimal amount;
     private Long projectId;
     private Long contractId;

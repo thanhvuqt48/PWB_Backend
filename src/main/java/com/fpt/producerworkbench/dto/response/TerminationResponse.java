@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.TerminationType;
 
@@ -18,6 +19,7 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class TerminationResponse {
     
     private Long terminationId;
@@ -26,10 +28,11 @@ public class TerminationResponse {
     private TerminationType terminationType; // BEFORE_DAY_20 hoặc AFTER_DAY_20
     
     // Số tiền
-    private BigDecimal teamCompensation; // Tổng đền bù Team (gross)
-    private BigDecimal ownerCompensation; // Đền bù Owner (gross)
+    private BigDecimal compensationAmount; // Tổng số tiền đền bù (dùng cho Client)
+    private BigDecimal teamCompensation; // Tổng đền bù Team (gross) - dùng cho Owner
+    private BigDecimal ownerCompensation; // Đền bù Owner (gross) - dùng cho Owner
     private BigDecimal clientRefund; // Hoàn cho Client
-    private BigDecimal taxDeducted; // Tổng thuế đã khấu trừ
+    private BigDecimal taxDeducted; // Tổng thuế đã khấu trừ - dùng cho Owner
     
     // Thanh toán 2 lần (nếu sau ngày 20)
     private Boolean hasSecondPayment;

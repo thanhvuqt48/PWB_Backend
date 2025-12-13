@@ -17,9 +17,11 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.ContractTerminationService;
+import com.fpt.producerworkbench.service.PaymentService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +54,9 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
     private final ContractTerminationRepository contractTerminationRepository;
     private final OwnerCompensationPaymentRepository ownerCompensationPaymentRepository;
     private final TaxPayoutRecordRepository taxPayoutRecordRepository;
-    private final com.fpt.producerworkbench.service.OwnerCompensationPaymentService ownerCompensationPaymentService;
+    @org.springframework.beans.factory.annotation.Autowired
+    @Lazy
+    private PaymentService paymentService;
     
     // Constants
     private static final BigDecimal TAX_RATE = new BigDecimal("0.07"); // 7%
@@ -90,17 +94,10 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
      * Build preview response cho Client chấm dứt
      */
     private ClientTerminationPreviewResponse buildClientPreviewResponse(TerminationCalculation calc) {
-        LocalDate now = LocalDate.now();
-        LocalDate secondPaymentDate = calc.isAfterDay20() ? 
-                now.plusMonths(1).withDayOfMonth(TAX_DECLARATION_DAY) : null;
-        
         return ClientTerminationPreviewResponse.builder()
                 .totalAmount(calc.getTotalAmount())
                 .compensationAmount(calc.getOwnerCompensation()) // Số tiền đền bù
                 .clientWillReceive(calc.getClientRefund())
-                .hasTwoPayments(calc.isAfterDay20())
-                .secondPaymentDate(secondPaymentDate)
-                .secondPaymentAmount(calc.getRefundedTax())
                 .warning(calc.getWarning())
                 .build();
     }
@@ -125,13 +122,6 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
                 .totalAmount(calc.getTotalAmount())
                 .totalTeamCompensation(calc.getTotalTeamGross()) // Tổng đền bù (gross)
                 .clientWillReceive(calc.getClientRefund())
-                .ownerWillReceive(calc.getOwnerActualReceive()) // Số tiền Owner nhận được (trước thuế, gross)
-                .requiredPaymentAmount(calc.getTotalTeamGross()) // Owner phải chuyển gross
-                .currentOwnerBalance(owner.getBalance())
-                .ownerHasSufficientBalance(
-                        owner.getBalance().compareTo(calc.getTotalTeamGross()) >= 0
-                )
-                .hasTwoPayments(calc.isAfterDay20())
                 .teamMembers(teamMembers)
                 .warning(calc.getWarning())
                 .build();
@@ -283,7 +273,7 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
         contractRepository.save(contract);
         
         // === Build response ===
-        return buildTerminationResponse(termination, calc, null);
+        return buildClientTerminationResponse(termination, calc);
     }
     
     /**
@@ -299,22 +289,24 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
         log.info("Handling OWNER termination for contract: {}", contract.getId());
         
         // Tạo yêu cầu Owner chuyển tiền qua PayOS
-        OwnerCompensationPayment payment = ownerCompensationPaymentService.createPaymentOrder(
+        // Truyền returnUrl, cancelUrl và reason từ request (giống các payment khác)
+        OwnerCompensationPayment payment = paymentService.createOwnerCompensationPayment(
                 contract.getId(),
                 contract.getProject().getCreator().getId(),
                 calc.getTotalTeamGross(),
-                "Owner compensation for contract termination"
+                "Owner compensation for contract termination",
+                request.getReturnUrl(),  // Từ FE request
+                request.getCancelUrl(),   // Từ FE request
+                request.getReason()       // Lưu reason từ FE request
         );
         
         // TODO: Gửi notification cho Owner
         
         log.info("Created owner compensation payment. Waiting for payment confirmation.");
         
-        // Return response với payment info
+        // Return response với payment info - chỉ set các field có giá trị
         return TerminationResponse.builder()
-                .terminationId(null) // Chưa hoàn tất
                 .contractId(contract.getId())
-                .newStatus(null) // Đang chờ Owner thanh toán
                 .ownerCompensationPaymentId(payment.getId())
                 .paymentUrl(payment.getPaymentUrl())
                 .paymentOrderCode(payment.getPaymentOrderCode())
@@ -383,9 +375,9 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
         // Calculate với terminatedBy = OWNER
         TerminationCalculation calc = calculateTermination(contract, TerminatedBy.OWNER);
         
-        // Build simple request for reason
+        // Lấy reason từ payment (đã lưu từ request ban đầu), nếu không có thì để null
         TerminationRequest request = TerminationRequest.builder()
-                .reason("Owner termination - payment completed")
+                .reason(payment.getTerminationReason()) // Lấy reason đã lưu, có thể null
                 .build();
         
         // Client nhận 100% hoàn
@@ -786,25 +778,62 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
         return breakdown;
     }
     
-    private TerminationResponse buildTerminationResponse(ContractTermination termination,
-                                                        TerminationCalculation calc,
-                                                        OwnerCompensationPayment payment) {
+    /**
+     * Build response cho CLIENT chấm dứt hợp đồng
+     */
+    private TerminationResponse buildClientTerminationResponse(ContractTermination termination,
+                                                              TerminationCalculation calc) {
         return TerminationResponse.builder()
                 .terminationId(termination.getId())
                 .contractId(termination.getContract().getId())
                 .newStatus(ContractStatus.TERMINATED)
                 .terminationType(calc.getTerminationType())
-                .teamCompensation(calc.getTotalTeamGross())
-                .ownerCompensation(calc.getOwnerActualReceive()) // Owner chỉ nhận phần đền bù trừ đi phần đã chia cho team
+                .compensationAmount(calc.getOwnerCompensation()) // Tổng số tiền đền bù
                 .clientRefund(calc.getClientRefund())
-                .taxDeducted(calc.getTotalTax())
-                .hasSecondPayment(calc.isAfterDay20())
-                .secondPaymentDate(calc.isAfterDay20() ?
-                        LocalDate.now().plusMonths(1).withDayOfMonth(TAX_DECLARATION_DAY) : null)
-                .secondPaymentAmount(calc.getRefundedTax())
-                .ownerCompensationPaymentId(payment != null ? payment.getId() : null)
                 .message("Hợp đồng đã được chấm dứt thành công")
                 .build();
+    }
+    
+    /**
+     * Build response cho OWNER chấm dứt hợp đồng
+     * Chỉ set các field có giá trị, không set null
+     */
+    private TerminationResponse buildOwnerTerminationResponse(ContractTermination termination,
+                                                            TerminationCalculation calc,
+                                                            OwnerCompensationPayment payment) {
+        TerminationResponse.TerminationResponseBuilder builder = TerminationResponse.builder()
+                .terminationId(termination.getId())
+                .contractId(termination.getContract().getId())
+                .newStatus(ContractStatus.TERMINATED)
+                .terminationType(calc.getTerminationType())
+                .teamCompensation(calc.getTotalTeamGross())
+                .clientRefund(calc.getClientRefund())
+                .taxDeducted(calc.getTotalTax())
+                .message("Hợp đồng đã được chấm dứt thành công");
+        
+        // Chỉ set ownerCompensation nếu có giá trị > 0
+        if (calc.getOwnerActualReceive() != null && 
+            calc.getOwnerActualReceive().compareTo(BigDecimal.ZERO) > 0) {
+            builder.ownerCompensation(calc.getOwnerActualReceive());
+        }
+        
+        // Chỉ set các field liên quan đến second payment nếu có
+        if (calc.isAfterDay20()) {
+            builder.hasSecondPayment(true)
+                    .secondPaymentDate(LocalDate.now().plusMonths(1).withDayOfMonth(TAX_DECLARATION_DAY));
+            
+            if (calc.getRefundedTax() != null && 
+                calc.getRefundedTax().compareTo(BigDecimal.ZERO) > 0) {
+                builder.secondPaymentAmount(calc.getRefundedTax());
+            }
+        }
+        
+        // Chỉ set ownerCompensationPaymentId nếu có payment
+        if (payment != null && payment.getId() != null) {
+            builder.ownerCompensationPaymentId(payment.getId());
+        }
+        
+        return builder.build();
     }
     
     private TerminationDetailResponse mapToDetailResponse(ContractTermination termination) {

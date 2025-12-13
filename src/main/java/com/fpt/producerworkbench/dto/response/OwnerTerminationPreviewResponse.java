@@ -24,13 +24,6 @@ public class OwnerTerminationPreviewResponse {
     private BigDecimal totalTeamCompensation; // Tổng đền bù cho Team (gross, chưa trừ thuế)
     private BigDecimal clientWillReceive; // Số tiền Client được hoàn lại (100%)
     
-    private BigDecimal ownerWillReceive; // Số tiền Owner sẽ nhận được (trước thuế, gross)
-    private BigDecimal requiredPaymentAmount; // Số tiền Owner phải chuyển từ túi (gross)
-    private BigDecimal currentOwnerBalance; // Số dư hiện tại của Owner (để reference)
-    private Boolean ownerHasSufficientBalance; // Owner có đủ tiền trong balance không
-    
-    private Boolean hasTwoPayments; // Có thanh toán 2 lần không (sau ngày 20)
-    
     private List<TeamMemberCompensationInfo> teamMembers; // Danh sách thành viên nhận đền bù (chi tiết)
     private String warning; // Cảnh báo (nếu có)
 }

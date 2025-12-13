@@ -64,6 +64,13 @@ public class OwnerCompensationPayment extends AbstractEntity<Long> {
     
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
+    
+    /**
+     * Lý do chấm dứt hợp đồng từ request ban đầu của Owner
+     * Lưu lại để dùng khi hoàn tất chấm dứt hợp đồng sau khi thanh toán
+     */
+    @Column(name = "termination_reason", columnDefinition = "TEXT")
+    private String terminationReason;
 }
 
 
