@@ -293,7 +293,14 @@ public enum ErrorCode {
     GUIDE_INDEXING_FAILED(18005, "Lỗi khi index guide vào vector DB.", HttpStatus.INTERNAL_SERVER_ERROR),
     GUIDE_IMAGE_UPLOAD_FAILED(18006, "Lỗi khi upload ảnh cho guide.", HttpStatus.INTERNAL_SERVER_ERROR),
     POSTGRESQL_CONNECTION_FAILED(18007, "Không thể kết nối PostgreSQL.", HttpStatus.INTERNAL_SERVER_ERROR),
-    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR);
+    AI_CONTEXT_GENERATION_FAILED(18008, "Lỗi khi generate AI contextual response.", HttpStatus.INTERNAL_SERVER_ERROR),
+
+    // ===== Track Note Errors (19xxx) =====
+    TRACK_NOTE_NOT_FOUND(19001, "Không tìm thấy ghi chú.", HttpStatus.NOT_FOUND),
+    TRACK_NOTE_ACCESS_DENIED(19002, "Bạn không có quyền truy cập ghi chú này.", HttpStatus.FORBIDDEN),
+    TRACK_NOTE_UPDATE_DENIED(19003, "Bạn chỉ có thể sửa ghi chú của mình.", HttpStatus.FORBIDDEN),
+    TRACK_NOTE_DELETE_DENIED(19004, "Bạn không có quyền xóa ghi chú này.", HttpStatus.FORBIDDEN),
+    ROOM_TYPE_REQUIRED(19005, "Vui lòng chỉ định loại phòng (roomType).", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;
