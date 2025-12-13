@@ -9,6 +9,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {
-        configurer.setUseSuffixPatternMatch(false);
+        // Suffix pattern matching is deprecated and disabled by default in Spring Boot 2.6+
+        // No configuration needed
     }
 }

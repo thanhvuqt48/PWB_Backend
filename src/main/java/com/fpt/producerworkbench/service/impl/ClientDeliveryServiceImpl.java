@@ -1,7 +1,9 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.*;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.SendTrackToClientRequest;
 import com.fpt.producerworkbench.dto.request.UpdateClientDeliveryStatusRequest;
 import com.fpt.producerworkbench.dto.response.ClientDeliveryResponse;
@@ -13,6 +15,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.ClientDeliveryService;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.TrackStatusTransitionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,12 +47,11 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
     private final TrackStatusTransitionService trackStatusTransitionService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final FileStorageService fileStorageService;
+    private final NotificationService notificationService;
+    private final FrontendProperties frontendProperties;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
-    /**
-     * Load user từ authentication
-     */
     private User loadUser(Authentication auth) {
         if (auth == null || auth.getName() == null) {
             throw new AppException(ErrorCode.UNAUTHORIZED);
@@ -58,17 +60,10 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
     }
 
-    /**
-     * Kiểm tra user có phải Owner của project không
-     */
     private boolean isOwner(Long userId, Project project) {
         return project.getCreator().getId().equals(userId);
     }
 
-    /**
-     * Kiểm tra user có quyền xem Client Room không
-     * Permission: Owner, Admin, Client, Observer (nếu project.isFunded = true)
-     */
     private boolean canAccessClientRoom(User user, Project project) {
         // Admin always has access
         if (user.getRole() == UserRole.ADMIN) {
@@ -81,7 +76,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
         }
 
         // Check if user is project member with CLIENT or OBSERVER role
-        Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(), user.getId());
+        Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(),
+                user.getId());
         if (memberOpt.isPresent()) {
             ProjectRole role = memberOpt.get().getProjectRole();
             // Client và Observer chỉ được xem nếu project đã funded (có contract completed)
@@ -96,7 +92,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ClientDeliveryResponse sendTrackToClient(Authentication auth, Long trackId, SendTrackToClientRequest request) {
+    public ClientDeliveryResponse sendTrackToClient(Authentication auth, Long trackId,
+            SendTrackToClientRequest request) {
         log.info("Starting sendTrackToClient: trackId={}", trackId);
 
         // 1. Load user
@@ -112,16 +109,13 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
             throw new AppException(ErrorCode.MILESTONE_NOT_FOUND);
         }
 
-        // 4. Load project
         Project project = milestone.getContract().getProject();
 
-        // 5. Check permission: Chỉ Owner được gửi
         if (!isOwner(currentUser.getId(), project)) {
             log.warn("User {} is not owner of project {}", currentUser.getId(), project.getId());
             throw new AppException(ErrorCode.FORBIDDEN);
         }
 
-        // 6. Validate track.status = INTERNAL_APPROVED
         if (track.getStatus() != TrackStatus.INTERNAL_APPROVED) {
             log.warn("Track {} is not approved: status={}", trackId, track.getStatus());
             throw new AppException(ErrorCode.CANNOT_SEND_UNAPPROVED_TRACK);
@@ -165,13 +159,47 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 "CLIENT_DELIVERED",
                 currentUser,
                 "Đã gửi cho khách hàng",
-                metadata
-        );
+                metadata);
 
-        // 11. Gửi email notification cho Client và Observer
         sendClientProductReceivedNotification(track, milestone, project, currentUser);
 
-        // 12. Return response (không cần tính quota vì không trừ khi gửi)
+        try {
+            String senderName = currentUser.getFullName() != null
+                    ? currentUser.getFullName()
+                    : currentUser.getEmail();
+
+            List<ProjectMember> clientMembers = projectMemberRepository.findByProjectId(project.getId())
+                    .stream()
+                    .filter(m -> m.getProjectRole() == ProjectRole.CLIENT)
+                    .collect(Collectors.toList());
+
+            String actionUrl = String.format("/client-room?projectId=%d&milestoneId=%d",
+                    project.getId(), milestone.getId());
+
+            for (ProjectMember member : clientMembers) {
+                User client = member.getUser();
+                if (client != null && client.getEmail() != null && !client.getEmail().isBlank()) {
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(client.getId())
+                                    .type(NotificationType.SYSTEM)
+                                    .title("Có track mới được gửi")
+                                    .message(String.format(
+                                            "%s đã gửi track \"%s\" cho bạn trong dự án \"%s\". Vui lòng kiểm tra Client Room.",
+                                            senderName,
+                                            track.getName(),
+                                            project.getTitle()))
+                                    .relatedEntityType(RelatedEntityType.MILESTONE)
+                                    .relatedEntityId(milestone.getId())
+                                    .actionUrl(actionUrl)
+                                    .build());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho client khi gửi track: {}", e.getMessage());
+        }
+
+        // 13. Return response (không cần tính quota vì không trừ khi gửi)
         return mapToClientDeliveryResponse(clientDelivery, track, currentUser, null);
     }
 
@@ -195,7 +223,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
             throw new AppException(ErrorCode.FORBIDDEN);
         }
 
-        // 5. Query tất cả client deliveries (DELIVERED, REJECTED, REQUEST_EDIT, ACCEPTED)
+        // 5. Query tất cả client deliveries (DELIVERED, REJECTED, REQUEST_EDIT,
+        // ACCEPTED)
         // Sắp xếp theo sentAt mới nhất
         List<ClientDelivery> deliveries = clientDeliveryRepository.findByMilestoneIdOrderBySentAtDesc(milestoneId);
 
@@ -232,7 +261,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
         // 5. Validate track status
         if (delivery.getTrack().getStatus() != TrackStatus.INTERNAL_APPROVED) {
-            log.warn("Track {} is not approved: status={}", delivery.getTrack().getId(), delivery.getTrack().getStatus());
+            log.warn("Track {} is not approved: status={}", delivery.getTrack().getId(),
+                    delivery.getTrack().getStatus());
             throw new AppException(ErrorCode.BAD_REQUEST, "Track không ở trạng thái INTERNAL_APPROVED");
         }
 
@@ -242,8 +272,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
     @Override
     @Transactional
-    public ClientDeliveryResponse updateDeliveryStatus(Authentication auth, Long deliveryId, 
-                                                       UpdateClientDeliveryStatusRequest request) {
+    public ClientDeliveryResponse updateDeliveryStatus(Authentication auth, Long deliveryId,
+            UpdateClientDeliveryStatusRequest request) {
         log.info("Updating delivery status: deliveryId={}, newStatus={}", deliveryId, request.getStatus());
 
         // 1. Load user
@@ -270,16 +300,16 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
         // 6. Validate new status
         ClientDeliveryStatus newStatus = request.getStatus();
-        if (newStatus != ClientDeliveryStatus.REJECTED && 
-            newStatus != ClientDeliveryStatus.REQUEST_EDIT &&
-            newStatus != ClientDeliveryStatus.ACCEPTED) {
+        if (newStatus != ClientDeliveryStatus.REJECTED &&
+                newStatus != ClientDeliveryStatus.REQUEST_EDIT &&
+                newStatus != ClientDeliveryStatus.ACCEPTED) {
             log.warn("Invalid new status: {}", newStatus);
             throw new AppException(ErrorCode.INVALID_DELIVERY_STATUS_TRANSITION);
         }
 
         // 7. Validate reason if REQUEST_EDIT
-        if (newStatus == ClientDeliveryStatus.REQUEST_EDIT && 
-            (request.getReason() == null || request.getReason().trim().isEmpty())) {
+        if (newStatus == ClientDeliveryStatus.REQUEST_EDIT &&
+                (request.getReason() == null || request.getReason().trim().isEmpty())) {
             throw new AppException(ErrorCode.REASON_REQUIRED_FOR_EDIT_REQUEST);
         }
 
@@ -305,14 +335,15 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
         delivery.setNote(request.getReason());
         clientDeliveryRepository.save(delivery);
 
-        // 10. Tạo hoặc cập nhật MilestoneDelivery để trừ quota (chỉ cho REJECTED và REQUEST_EDIT)
+        // 10. Tạo hoặc cập nhật MilestoneDelivery để trừ quota (chỉ cho REJECTED và
+        // REQUEST_EDIT)
         LocalDateTime now = LocalDateTime.now();
-        
+
         if (newStatus == ClientDeliveryStatus.REJECTED) {
             // REJECTED: trừ 1 productCount
             Optional<MilestoneDelivery> existingOpt = milestoneDeliveryRepository
                     .findByClientDeliveryId(deliveryId);
-            
+
             MilestoneDelivery milestoneDelivery;
             if (existingOpt.isPresent()) {
                 // Update existing
@@ -342,7 +373,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
             // REQUEST_EDIT: trừ 1 editCount
             Optional<MilestoneDelivery> existingOpt = milestoneDeliveryRepository
                     .findByClientDeliveryId(deliveryId);
-            
+
             MilestoneDelivery milestoneDelivery;
             if (existingOpt.isPresent()) {
                 // Update existing
@@ -392,8 +423,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 transitionTo,
                 currentUser,
                 request.getReason() != null ? request.getReason() : "Client đã chấp nhận sản phẩm",
-                metadata
-        );
+                metadata);
 
         // 12. Gửi email cho Owner
         if (newStatus == ClientDeliveryStatus.REJECTED) {
@@ -415,7 +445,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
         int used = milestoneDeliveryRepository.sumProductCountUsedByMilestoneIdAndStatus(
                 milestoneId, DeliveryStatus.ACTIVE);
-        
+
         Integer productCount = milestone.getProductCount();
         if (productCount == null) {
             productCount = 0;
@@ -431,7 +461,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
         int used = milestoneDeliveryRepository.sumEditCountUsedByMilestoneIdAndStatus(
                 milestoneId, DeliveryStatus.ACTIVE);
-        
+
         Integer editCount = milestone.getEditCount();
         if (editCount == null) {
             editCount = 0;
@@ -461,7 +491,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
         // 4. Update MilestoneDelivery status to CANCELLED
         Optional<MilestoneDelivery> milestoneDeliveryOpt = milestoneDeliveryRepository
                 .findByClientDeliveryId(deliveryId);
-        
+
         if (milestoneDeliveryOpt.isPresent()) {
             MilestoneDelivery milestoneDelivery = milestoneDeliveryOpt.get();
             milestoneDelivery.setStatus(DeliveryStatus.CANCELLED);
@@ -477,8 +507,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
     /**
      * Map ClientDelivery to response
      */
-    private ClientDeliveryResponse mapToClientDeliveryResponse(ClientDelivery delivery, Track track, 
-                                                               User sentBy, Integer remaining) {
+    private ClientDeliveryResponse mapToClientDeliveryResponse(ClientDelivery delivery, Track track,
+            User sentBy, Integer remaining) {
         return ClientDeliveryResponse.builder()
                 .id(delivery.getId())
                 .trackId(track.getId())
@@ -538,8 +568,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 .build();
 
         ClientDeliveryResponse deliveryResponse = mapToClientDeliveryResponse(
-                delivery, track, sentBy, remaining
-        );
+                delivery, track, sentBy, remaining);
 
         return ClientTrackResponse.builder()
                 .track(trackResponse)
@@ -551,8 +580,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
     /**
      * Gửi email thông báo có sản phẩm mới trong Client Room
      */
-    private void sendClientProductReceivedNotification(Track track, Milestone milestone, 
-                                                       Project project, User sender) {
+    private void sendClientProductReceivedNotification(Track track, Milestone milestone,
+            Project project, User sender) {
         try {
             // Lấy danh sách Client và Observer
             List<ProjectMember> members = projectMemberRepository.findByProjectId(project.getId());
@@ -567,12 +596,13 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d/client-room", 
-                    project.getId(), milestone.getId());
+            String projectUrl = String.format("%s/projects/%d/milestones/%d/client-room",
+                    frontendProperties.getUrl(), project.getId(), milestone.getId());
 
             for (User recipient : recipients) {
                 Map<String, Object> params = new HashMap<>();
-                params.put("recipientName", recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
+                params.put("recipientName",
+                        recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
                 params.put("trackName", track.getName());
                 params.put("milestoneTitle", milestone.getTitle());
                 params.put("projectName", project.getTitle());
@@ -608,8 +638,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String trackUrl = String.format("http://localhost:5173/projects/%d/tracks/%d", 
-                    project.getId(), track.getId());
+            String trackUrl = String.format("%s/projects/%d/tracks/%d",
+                    frontendProperties.getUrl(), project.getId(), track.getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
@@ -627,6 +657,30 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
             log.info("Sent client product rejected notification to owner {}", owner.getEmail());
+
+            // Gửi notification realtime cho owner
+            try {
+                String actionUrl = String.format("/project-workspace?projectId=%d&trackId=%d",
+                        project.getId(), track.getId());
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Khách hàng đã từ chối sản phẩm")
+                                .message(String.format("%s đã từ chối track \"%s\" trong dự án \"%s\".%s",
+                                        rejectedBy.getFullName() != null ? rejectedBy.getFullName()
+                                                : rejectedBy.getEmail(),
+                                        track.getName(),
+                                        project.getTitle(),
+                                        delivery.getNote() != null ? " Lý do: " + delivery.getNote() : ""))
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(delivery.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho owner khi client reject: {}", e.getMessage());
+            }
         } catch (Exception e) {
             log.error("Error sending client product rejected notification", e);
         }
@@ -646,8 +700,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String trackUrl = String.format("http://localhost:5173/projects/%d/tracks/%d", 
-                    project.getId(), track.getId());
+            String trackUrl = String.format("%s/projects/%d/tracks/%d",
+                    frontendProperties.getUrl(), project.getId(), track.getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
@@ -665,6 +719,31 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
             log.info("Sent client product edit request notification to owner {}", owner.getEmail());
+
+            // Gửi notification realtime cho owner
+            try {
+                String actionUrl = String.format("/project-workspace?projectId=%d&trackId=%d",
+                        project.getId(), track.getId());
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Khách hàng yêu cầu chỉnh sửa sản phẩm")
+                                .message(String.format("%s đã yêu cầu chỉnh sửa track \"%s\" trong dự án \"%s\".%s",
+                                        requestedBy.getFullName() != null ? requestedBy.getFullName()
+                                                : requestedBy.getEmail(),
+                                        track.getName(),
+                                        project.getTitle(),
+                                        delivery.getNote() != null ? " Yêu cầu: " + delivery.getNote() : ""))
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(delivery.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho owner khi client request edit: {}",
+                        e.getMessage());
+            }
         } catch (Exception e) {
             log.error("Error sending client product edit request notification", e);
         }
@@ -684,8 +763,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String trackUrl = String.format("http://localhost:5173/projects/%d/tracks/%d", 
-                    project.getId(), track.getId());
+            String trackUrl = String.format("%s/projects/%d/tracks/%d",
+                    frontendProperties.getUrl(), project.getId(), track.getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
@@ -703,9 +782,31 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
             log.info("Sent client product accepted notification to owner {}", owner.getEmail());
+
+            // Gửi notification realtime cho owner
+            try {
+                String actionUrl = String.format("/project-workspace?projectId=%d&trackId=%d",
+                        project.getId(), track.getId());
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Khách hàng đã chấp nhận sản phẩm")
+                                .message(String.format("%s đã chấp nhận track \"%s\" trong dự án \"%s\".",
+                                        acceptedBy.getFullName() != null ? acceptedBy.getFullName()
+                                                : acceptedBy.getEmail(),
+                                        track.getName(),
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(delivery.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho owner khi client accept: {}", e.getMessage());
+            }
         } catch (Exception e) {
             log.error("Error sending client product accepted notification", e);
         }
     }
 }
-

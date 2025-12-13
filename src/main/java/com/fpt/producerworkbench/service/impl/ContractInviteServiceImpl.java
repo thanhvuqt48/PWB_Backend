@@ -314,31 +314,34 @@ public class ContractInviteServiceImpl implements ContractInviteService {
         // Gửi mail async để không block request (gọi qua self để Spring proxy hoạt động)
         self.sendInviteEmailsAsync(c, filtered);
 
-        // Gửi notification realtime cho các signers
+        // Gửi notification realtime chỉ cho khách hàng (không gửi cho người dùng hiện tại)
         try {
             User currentUser = userRepository.findByEmail(auth.getName())
                     .orElse(null);
             String inviterName = currentUser != null 
                     ? (currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail())
                     : "Hệ thống";
-//            String actionUrl = String.format("/projects/%d/contracts/%d/sign",
-//                    c.getProject().getId(), c.getId());
             
-            for (var signer : filtered) {
-                if (signer.getEmail() == null || signer.getEmail().isBlank()) continue;
-                
-                userRepository.findByEmail(signer.getEmail()).ifPresent(user -> {
+            // Lấy email của khách hàng từ project
+            String clientEmail = c.getProject().getClient() != null 
+                    ? c.getProject().getClient().getEmail() 
+                    : null;
+            
+            if (clientEmail != null && !clientEmail.isBlank()) {
+                userRepository.findByEmail(clientEmail).ifPresent(user -> {
+                    String actionUrl = String.format("/contractId=%d", c.getProject().getId());
+                    
                     notificationService.sendNotification(
                             SendNotificationRequest.builder()
                                     .userId(user.getId())
                                     .type(NotificationType.CONTRACT_SIGNING)
                                     .title("Yêu cầu ký hợp đồng")
-                                    .message(String.format("%s đã gửi yêu cầu ký hợp đồng cho dự án \"%s\". Vui lòng ký hợp đồng để tiếp tục.",
+                                    .message(String.format("%s đã gửi yêu cầu ký hợp đồng cho dự án ở email \"%s\". Vui lòng ký hợp đồng để tiếp tục.",
                                             inviterName,
                                             c.getProject().getTitle()))
                                     .relatedEntityType(RelatedEntityType.CONTRACT)
                                     .relatedEntityId(c.getId())
-//                                    .actionUrl(actionUrl)
+                                    .actionUrl(actionUrl)
                                     .build()
                     );
                 });

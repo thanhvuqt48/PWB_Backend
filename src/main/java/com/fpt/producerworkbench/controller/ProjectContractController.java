@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.controller;
 import com.fpt.producerworkbench.dto.request.ContractInviteRequest;
 import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.dto.response.ApiResponse;
+import com.fpt.producerworkbench.dto.response.PartyBInfoResponse;
 import com.fpt.producerworkbench.dto.response.StartSigningResponse;
 import com.fpt.producerworkbench.service.ProjectContractService;
 import lombok.RequiredArgsConstructor;
@@ -110,5 +111,19 @@ public class ProjectContractController {
         return ResponseEntity.ok()
                 .header("Content-Disposition", "inline; filename=contract.pdf")
                 .body(pdf);
+    }
+
+    /**
+     * Lấy thông tin Bên B (Nhà Sản xuất) từ tài khoản đã xác thực CCCD.
+     * Dùng để tự động fill vào form khi user bấm nút "Lấy từ xác thực".
+     */
+    @GetMapping("/contracts/party-b/verified-info")
+    public ApiResponse<PartyBInfoResponse> getVerifiedPartyBInfo(Authentication auth) {
+        PartyBInfoResponse result = projectContractService.getVerifiedPartyBInfo(auth);
+        return ApiResponse.<PartyBInfoResponse>builder()
+                .code(200)
+                .message("Lấy thông tin Bên B từ xác thực thành công")
+                .result(result)
+                .build();
     }
 }

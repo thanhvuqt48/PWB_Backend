@@ -1,9 +1,12 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.ProjectStatus;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.ProjectCreateRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.ProjectMember;
 import com.fpt.producerworkbench.entity.User;
@@ -12,6 +15,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.ProjectMemberRepository;
 import com.fpt.producerworkbench.repository.ProjectRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.ProjectService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +34,7 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -78,6 +83,26 @@ public class ProjectServiceImpl implements ProjectService {
 
         } catch (Exception e) {
             log.error("Gặp lỗi khi gửi message thông báo tạo dự án tới Kafka!", e);
+        }
+
+        try {
+            if (currentUser != null && currentUser.getId() != null) {
+                String actionUrl = String.format("/projectDetail?id=%d", savedProject.getId());
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(currentUser.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Dự án đã được tạo thành công")
+                                .message(String.format("Bạn đã tạo dự án \"%s\" thành công.",
+                                        savedProject.getTitle()))
+                                .relatedEntityType(RelatedEntityType.PROJECT)
+                                .relatedEntityId(savedProject.getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho người tạo dự án: {}", e.getMessage());
         }
 
         return savedProject;

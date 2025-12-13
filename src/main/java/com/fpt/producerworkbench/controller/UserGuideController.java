@@ -10,7 +10,6 @@ import com.fpt.producerworkbench.dto.response.IndexingResultResponse;
 import com.fpt.producerworkbench.dto.response.UserGuideResponse;
 import com.fpt.producerworkbench.dto.response.UserGuideSearchResponse;
 import com.fpt.producerworkbench.dto.response.UserGuideStatsResponse;
-import com.fpt.producerworkbench.entity.userguide.GuideCategory;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.service.UserGuideIndexingService;
@@ -18,7 +17,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
