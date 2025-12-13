@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.common.WithdrawalStatus;
 import com.fpt.producerworkbench.configuration.VietQrProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
@@ -37,7 +38,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -131,6 +134,9 @@ public class WithdrawalServiceImpl implements WithdrawalService {
 
         // Gửi email và notification realtime cho người dùng
         sendWithdrawalCreatedNotification(saved, user, newBalance);
+
+        // Gửi email và notification realtime cho tất cả admin
+        sendWithdrawalCreatedNotificationToAdmins(saved, user);
 
         return withdrawalMapper.toWithdrawalResponse(saved, newBalance);
     }
@@ -305,7 +311,6 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         }
 
         try {
-            // Gửi email
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
             params.put("withdrawalCode", withdrawal.getWithdrawalCode());
@@ -326,7 +331,6 @@ public class WithdrawalServiceImpl implements WithdrawalService {
             log.info("Đã gửi email thông báo tạo yêu cầu rút tiền qua Kafka: userId={}, withdrawalId={}",
                     user.getId(), withdrawal.getId());
 
-            // Gửi notification realtime
             String actionUrl = String.format("/withdrawals");
 
             notificationService.sendNotification(
@@ -354,7 +358,6 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         }
 
         try {
-            // Gửi email
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
             params.put("withdrawalCode", withdrawal.getWithdrawalCode());
@@ -374,7 +377,6 @@ public class WithdrawalServiceImpl implements WithdrawalService {
             log.info("Đã gửi email thông báo chấp nhận yêu cầu rút tiền qua Kafka: userId={}, withdrawalId={}",
                     user.getId(), withdrawal.getId());
 
-            // Gửi notification realtime
             String actionUrl = String.format("/withdrawals");
 
             notificationService.sendNotification(
@@ -402,7 +404,6 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         }
 
         try {
-            // Gửi email
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
             params.put("withdrawalCode", withdrawal.getWithdrawalCode());
@@ -421,7 +422,6 @@ public class WithdrawalServiceImpl implements WithdrawalService {
             log.info("Đã gửi email thông báo từ chối yêu cầu rút tiền qua Kafka: userId={}, withdrawalId={}",
                     user.getId(), withdrawal.getId());
 
-            // Gửi notification realtime
             String actionUrl = String.format("/withdrawals");
 
             notificationService.sendNotification(
@@ -440,6 +440,70 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         } catch (Exception e) {
             log.error("Lỗi khi gửi thông báo từ chối yêu cầu rút tiền: userId={}, withdrawalId={}",
                     user.getId(), withdrawal.getId(), e);
+        }
+    }
+
+    private void sendWithdrawalCreatedNotificationToAdmins(Withdrawal withdrawal, User user) {
+        try {
+            List<User> admins = userRepository.findAll().stream()
+                    .filter(u -> u.getRole() == UserRole.ADMIN)
+                    .filter(u -> u.getEmail() != null && !u.getEmail().isBlank())
+                    .collect(Collectors.toList());
+
+            if (admins.isEmpty()) {
+                log.warn("Không tìm thấy admin nào để gửi thông báo về yêu cầu rút tiền mới");
+                return;
+            }
+
+            String userName = user.getFullName() != null ? user.getFullName() : user.getEmail();
+
+            for (User admin : admins) {
+                try {
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("recipientName", admin.getFullName() != null ? admin.getFullName() : admin.getEmail());
+                    params.put("userName", userName);
+                    params.put("userEmail", user.getEmail());
+                    params.put("withdrawalCode", withdrawal.getWithdrawalCode());
+                    params.put("amount", withdrawal.getAmount().toString());
+                    params.put("accountNumber", withdrawal.getAccountNumber());
+                    params.put("accountHolderName", withdrawal.getAccountHolderName());
+                    params.put("bankName", withdrawal.getBank().getName());
+                    params.put("withdrawalId", String.valueOf(withdrawal.getId()));
+
+                    NotificationEvent event = NotificationEvent.builder()
+                            .recipient(admin.getEmail())
+                            .subject("Yêu cầu rút tiền mới cần xử lý - " + withdrawal.getWithdrawalCode())
+                            .templateCode("withdrawal-created-admin-notification")
+                            .param(params)
+                            .build();
+
+                    kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+
+                    String actionUrl = String.format("/withdrawalsMoney");
+
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(admin.getId())
+                                    .type(NotificationType.SYSTEM)
+                                    .title("Yêu cầu rút tiền mới cần xử lý")
+                                    .message(String.format("%s đã tạo yêu cầu rút tiền với mã %s. Số tiền: %s VND. Vui lòng xem xét và xử lý.",
+                                            userName,
+                                            withdrawal.getWithdrawalCode(),
+                                            withdrawal.getAmount().toString()))
+                                    .relatedEntityType(null)
+                                    .relatedEntityId(null)
+                                    .actionUrl(actionUrl)
+                                    .build());
+
+                    log.info("Đã gửi thông báo yêu cầu rút tiền mới cho admin {}: adminId={}, withdrawalId={}",
+                            admin.getEmail(), admin.getId(), withdrawal.getId());
+                } catch (Exception e) {
+                    log.error("Lỗi khi gửi thông báo yêu cầu rút tiền mới cho admin {}: {}",
+                            admin.getId(), e.getMessage(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo yêu cầu rút tiền mới cho admin: {}", e.getMessage(), e);
         }
     }
 
