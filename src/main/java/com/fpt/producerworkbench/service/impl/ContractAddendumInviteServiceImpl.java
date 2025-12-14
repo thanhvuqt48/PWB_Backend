@@ -99,7 +99,7 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 if (s.getEmail() == null || s.getEmail().isBlank())
                     continue;
                 NotificationEvent event = NotificationEvent.builder()
-                        .subject("Yêu cầu ký phụ lục - Project #" + contract.getProject().getId())
+                        .subject("Yêu cầu ký phụ lục - Dự án #" + contract.getProject().getId())
                         .recipient(s.getEmail().trim())
                         .templateCode("contract-addendum-invite-sent.html")
                         .param(new HashMap<>())

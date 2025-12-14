@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Sứ mệnh Hoàn thành: Hợp đồng Đã được Ký</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Space Grotesk', Arial, sans-serif; 
+            line-height: 1.5; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #0D0B14; 
+        }
+        .container { 
+            max-width: 480px; 
+            margin: 16px auto; 
+            background: radial-gradient(circle, #242446, #151526 70%); 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 0 16px rgba(192,88,245,0.18); 
+            border: 1px solid #322a50; 
+            color: #E3E1FA; 
+        }
+        
+        .header { padding: 20px 20px 12px; }
+        .brand-table { width: 100%; border-collapse: collapse; }
+        .brand-td { vertical-align: middle; }
+        .brand-logo { 
+            width: 45px; 
+            height: 45px; 
+            border-radius: 6px; 
+            display: block; 
+        }
+        .brand-name { text-align: center; font-size: 13px; color: #FFFFFF; letter-spacing: 1.2px; font-weight: bold; }
+        .tagline { text-align: center; font-size: 10px; color: #B891FF; margin-top: 2px; }
+
+        .content { padding: 12px 20px 20px; }
+        
+        .success-title {
+            color: #4ADE80;
+            font-size: 18px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 16px;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+
+        .greeting { margin: 0 0 8px; font-size: 15px; }
+        .greeting strong { color: #FFFFFF; }
+        .content p { margin: 0 0 12px; font-size: 14px; color: #D5D2F3; }
+        .highlight {
+            color: #4ADE80;
+            font-weight: bold;
+        }
+
+        .project-name {
+            background: rgba(0,0,0,0.25);
+            border-radius: 8px;
+            padding: 12px 16px;
+            border: 1px solid #3a2c5f;
+            margin: 12px 0 16px;
+            font-size: 14px;
+            color: #FFFFFF;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .success-box {
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid #4ADE80;
+            border-left-width: 4px;
+            border-radius: 4px;
+            padding: 12px;
+            margin: 12px 0 16px;
+            color: #A7F3D0;
+            font-size: 13px;
+        }
+
+        .action-box {
+            background: rgba(0,0,0,0.25);
+            padding: 12px;
+            border-radius: 5px;
+            border-left: 4px solid #B891FF;
+            text-align: center;
+        }
+        .action-box p {
+            margin: 0 0 8px;
+            font-size: 13px;
+        }
+        .action-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #B891FF 0%, #7C3AED 100%);
+            color: #FFFFFF;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(192, 88, 245, 0.3);
+        }
+        
+        .divider { border: 0; height: 1px; margin: 16px 0; background-image: linear-gradient(to right, rgba(192,88,245,0), rgba(192,88,245,0.45), rgba(192,88,245,0)); }
+
+        .footer { padding: 0 16px 20px; color: #9B95AF; font-size: 11px; text-align: center; }
+        .footer p { margin: 0 0 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <table class="brand-table">
+            <tr>
+                <td class="brand-td" style="width:36px;"></td>
+                <td class="brand-td" style="text-align:center;">
+                    <div class="brand-name">PRODUCER WORKBENCH</div>
+                    <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+                </td>
+                <td class="brand-td" style="width:45px; text-align:right;">
+                    <img 
+                        src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG" 
+                        alt="PWB Logo" 
+                        class="brand-logo" 
+                    />
+                </td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="content">
+        <h1 class="success-title">✅ SỨ MỆNH HOÀN THÀNH</h1>
+        
+        <p class="greeting">Phi hành gia <strong th:text="${recipientName}">Owner</strong>,</p>
+        
+        <p>Trạm Chỉ Huy PWB vui mừng thông báo rằng hiệp ước hợp đồng cho sứ mệnh của bạn đã được <span class="highlight">ký hoàn tất</span> bởi tất cả các bên tham gia.</p>
+        
+        <div class="project-name" th:text="${projectTitle}">Project Title</div>
+
+        <div class="success-box">
+            <p style="margin: 0; font-weight: 500;">🎉 Chúc mừng! Hợp đồng đã được xác nhận và có hiệu lực. Bạn có thể tiếp tục với các bước tiếp theo của dự án.</p>
+        </div>
+
+        <div class="action-box">
+            <p><strong>📋 Xem chi tiết hợp đồng:</strong></p>
+            <a th:href="${actionUrl}" class="action-button">Xem Hợp Đồng</a>
+        </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="footer">
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB</strong></p>
+    </div>
+</div>
+</body>
+</html>

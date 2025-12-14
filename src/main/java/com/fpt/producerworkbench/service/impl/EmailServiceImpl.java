@@ -132,7 +132,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(memberEmail);
-                helper.setSubject("🎵 You're Invited: " + session.getTitle());
+                helper.setSubject("🎵 Bạn được mời: " + session.getTitle());
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -209,7 +209,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(participantEmail);
-                helper.setSubject("⏰ REMINDER: " + session.getTitle() + " starts in 5 minutes!");
+                helper.setSubject("⏰ NHẮC NHỞ: " + session.getTitle() + " bắt đầu sau 5 phút!");
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -269,7 +269,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(participantEmail);
-                helper.setSubject("❌ Session Cancelled: " + session.getTitle());
+                helper.setSubject("❌ Phiên làm việc đã bị hủy: " + session.getTitle());
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -335,7 +335,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(participantEmail);
-                helper.setSubject("🔄 Session Time Changed: " + session.getTitle());
+                helper.setSubject("🔄 Thời gian phiên làm việc đã thay đổi: " + session.getTitle());
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);

@@ -228,7 +228,7 @@ public class ContractAddendumServiceImpl implements ContractAddendumService {
         if (ownerEmail != null) {
             try {
                 NotificationEvent evt = NotificationEvent.builder()
-                        .subject("Phụ lục hợp đồng bị từ chối - Contract #" + contractId)
+                        .subject("Phụ lục hợp đồng bị từ chối - Hợp đồng #" + contractId)
                         .recipient(ownerEmail)
                         .templateCode("contract-addendum-declined")
                         .param(new HashMap<>())
@@ -246,7 +246,7 @@ public class ContractAddendumServiceImpl implements ContractAddendumService {
             } catch (Exception ex) {
                 log.error("Lỗi khi gửi email qua Kafka, thử gửi trực tiếp: {}", ex.getMessage());
                 try {
-                    String subject = "Phụ lục hợp đồng bị từ chối - Contract #" + contractId;
+                    String subject = "Phụ lục hợp đồng bị từ chối - Hợp đồng #" + contractId;
                     String content = "<p>Phụ lục hợp đồng đã bị từ chối với lý do:</p><p>" + (reason == null ? "(không cung cấp)" : reason) + "</p>"
                             + "<p>Vui lòng chỉnh sửa và gửi lại để khách hàng duyệt tiếp.</p>";
                     emailService.sendEmail(subject, content, List.of(ownerEmail));
