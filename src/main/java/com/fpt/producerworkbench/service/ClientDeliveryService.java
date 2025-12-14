@@ -25,6 +25,5 @@ public interface ClientDeliveryService {
 
     Integer getEditCountRemaining(Long milestoneId);
 
-    void cancelDelivery(Authentication auth, Long deliveryId);
 }
 
