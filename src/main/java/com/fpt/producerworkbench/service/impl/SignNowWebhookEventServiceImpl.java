@@ -3,12 +3,19 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.AddendumDocumentType;
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.common.RelatedEntityType;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.configuration.SignNowClient;
 import com.fpt.producerworkbench.configuration.SignNowProperties;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.entity.AddendumDocument;
 import com.fpt.producerworkbench.entity.Contract;
 import com.fpt.producerworkbench.entity.ContractAddendum;
 import com.fpt.producerworkbench.entity.ContractDocument;
+import com.fpt.producerworkbench.entity.Project;
+import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.AddendumDocumentRepository;
@@ -17,13 +24,16 @@ import com.fpt.producerworkbench.repository.ContractDocumentRepository;
 import com.fpt.producerworkbench.repository.ContractRepository;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.SignNowWebhookEventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -39,6 +49,11 @@ public class SignNowWebhookEventServiceImpl implements SignNowWebhookEventServic
     private final FileStorageService fileStorageService;
     private final FileKeyGenerator fileKeyGenerator;
     private final SignNowProperties props;
+    private final NotificationService notificationService;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final FrontendProperties frontendProperties;
+    
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
     @Override
     @Transactional
@@ -73,6 +88,9 @@ public class SignNowWebhookEventServiceImpl implements SignNowWebhookEventServic
                     }
                     boolean withHistory = props.getWebhook().isWithHistory();
                     processSignedPdf(contract.getId(), documentId, 1, true, withHistory);
+                    
+                    // Gửi thông báo và email cho owner khi tất cả đã ký (client đã ký)
+                    sendNotificationToOwnerWhenAllSigned(contract);
                 } else if (totalSigners > 0 && signedCount < totalSigners) {
                     log.warn("[Webhook] Contract {} document.complete but API shows {}/{} signed (race condition), still setting SIGNED", 
                             contract.getId(), signedCount, totalSigners);
@@ -85,6 +103,8 @@ public class SignNowWebhookEventServiceImpl implements SignNowWebhookEventServic
                     try {
                         boolean withHistory = props.getWebhook().isWithHistory();
                         processSignedPdf(contract.getId(), documentId, 1, true, withHistory);
+                        // Gửi thông báo và email cho owner khi tất cả đã ký (client đã ký)
+                        sendNotificationToOwnerWhenAllSigned(contract);
                     } catch (Exception e) {
                         log.warn("[Webhook] Contract {} PDF download failed (will retry later): {}", contract.getId(), e.getMessage());
                     }
@@ -439,6 +459,72 @@ public class SignNowWebhookEventServiceImpl implements SignNowWebhookEventServic
                         addendum.getId());
             }
             throw ex;
+        }
+    }
+
+    /**
+     * Gửi thông báo và email cho owner khi tất cả đã ký (client đã ký)
+     */
+    private void sendNotificationToOwnerWhenAllSigned(Contract contract) {
+        try {
+            Project project = contract.getProject();
+            if (project == null) {
+                log.warn("[Webhook] Contract {} has no project, cannot send notification to owner", contract.getId());
+                return;
+            }
+            
+            User owner = project.getCreator();
+            if (owner == null) {
+                log.warn("[Webhook] Contract {} has no owner, cannot send notification", contract.getId());
+                return;
+            }
+            
+            String ownerEmail = owner.getEmail();
+            if (ownerEmail == null || ownerEmail.isBlank()) {
+                log.warn("[Webhook] Owner has no email for contract {}", contract.getId());
+                return;
+            }
+            
+            String projectTitle = project.getTitle() != null ? project.getTitle() : "Dự án";
+            String actionUrl = String.format("/contractSpace?id=%d", project.getId());
+            String ownerName = owner.getFullName() != null ? owner.getFullName() : "Owner";
+            
+            // Gửi thông báo
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(owner.getId())
+                            .type(NotificationType.CONTRACT_SIGNING)
+                            .title("Hợp đồng đã được ký hoàn tất")
+                            .message(String.format("Hợp đồng của dự án \"%s\" đã được ký hoàn tất bởi tất cả các bên.", projectTitle))
+                            .relatedEntityType(RelatedEntityType.CONTRACT)
+                            .relatedEntityId(contract.getId())
+                            .actionUrl(actionUrl)
+                            .build()
+            );
+            
+            // Gửi email qua Kafka
+            try {
+                NotificationEvent event = NotificationEvent.builder()
+                        .subject("Hợp đồng đã được ký hoàn tất - " + projectTitle)
+                        .recipient(ownerEmail)
+                        .templateCode("contract-all-signed")
+                        .param(new HashMap<>())
+                        .build();
+                
+                event.getParam().put("recipient", ownerEmail);
+                event.getParam().put("recipientName", ownerName);
+                event.getParam().put("projectId", String.valueOf(project.getId()));
+                event.getParam().put("projectTitle", projectTitle);
+                event.getParam().put("contractId", String.valueOf(contract.getId()));
+                event.getParam().put("actionUrl", frontendProperties + actionUrl);
+                
+                kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+                log.info("[Webhook] Đã gửi email và thông báo cho owner khi tất cả đã ký - Contract {}", contract.getId());
+            } catch (Exception ex) {
+                log.error("[Webhook] Lỗi khi gửi email qua Kafka cho owner: {}", ex.getMessage());
+            }
+        } catch (Exception ex) {
+            log.error("[Webhook] Lỗi khi gửi thông báo cho owner khi tất cả đã ký: {}", ex.getMessage());
         }
     }
 
