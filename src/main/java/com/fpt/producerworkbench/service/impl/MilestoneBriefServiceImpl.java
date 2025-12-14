@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.common.MilestoneBriefBlockType;
 import com.fpt.producerworkbench.common.MilestoneBriefScope;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.UserRole;
+import com.fpt.producerworkbench.dto.request.ForwardBriefGroupRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneBriefBlockRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneBriefGroupRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneBriefUpsertRequest;
@@ -144,7 +145,20 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         // 1. Get existing groups
         List<MilestoneBriefGroup> currentGroups = briefGroupRepository.findByMilestoneIdAndScopeOrderByPositionAsc(milestoneId, MilestoneBriefScope.EXTERNAL);
         
-        // 2. Delete ALL existing blocks and groups first (clean slate approach)
+        // 2. QUAN TRỌNG: Xóa forwardId của các group INTERNAL trước khi xóa group EXTERNAL
+        // Đảm bảo 2 phòng độc lập - group INTERNAL vẫn tồn tại sau khi xóa EXTERNAL
+        for (MilestoneBriefGroup group : currentGroups) {
+            Optional<MilestoneBriefGroup> internalGroupOpt = briefGroupRepository.findByForwardIdAndScope(group.getId(), MilestoneBriefScope.INTERNAL);
+            if (internalGroupOpt.isPresent()) {
+                MilestoneBriefGroup internalGroup = internalGroupOpt.get();
+                internalGroup.setForwardId(null); // Xóa liên kết, giữ lại group INTERNAL
+                briefGroupRepository.save(internalGroup);
+                log.info("Đã xóa forwardId của group INTERNAL {} để đảm bảo độc lập với group EXTERNAL {}", 
+                        internalGroup.getId(), group.getId());
+            }
+        }
+        
+        // 3. Delete ALL existing blocks and groups first (clean slate approach)
         for (MilestoneBriefGroup group : currentGroups) {
             briefBlockRepository.deleteAllByGroupId(group.getId());
         }
@@ -182,11 +196,24 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         validateExternalWritePermission(auth, projectId);
         MilestoneBriefGroup group = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
         
+        // QUAN TRỌNG: Đảm bảo 2 phòng độc lập
+        // Tìm group INTERNAL có forwardId trỏ đến group này và xóa forwardId để cắt liên kết
+        // Nhưng KHÔNG xóa group INTERNAL - giữ nguyên dữ liệu ở phòng nội bộ
+        Optional<MilestoneBriefGroup> internalGroupOpt = briefGroupRepository.findByForwardIdAndScope(groupId, MilestoneBriefScope.INTERNAL);
+        if (internalGroupOpt.isPresent()) {
+            MilestoneBriefGroup internalGroup = internalGroupOpt.get();
+            internalGroup.setForwardId(null); // Xóa liên kết, nhưng giữ lại group INTERNAL
+            briefGroupRepository.save(internalGroup);
+            log.info("Đã xóa forwardId của group INTERNAL {} (ID: {}) để đảm bảo độc lập với group EXTERNAL {}", 
+                    internalGroup.getId(), internalGroup.getId(), groupId);
+        }
+        
         // Delete blocks first (no cascade)
         if (group.getBlocks() != null && !group.getBlocks().isEmpty()) {
             briefBlockRepository.deleteAll(group.getBlocks());
         }
         briefGroupRepository.delete(group);
+        log.info("Đã xóa group EXTERNAL {} - không ảnh hưởng đến group INTERNAL", groupId);
     }
 
 
@@ -293,6 +320,81 @@ public class MilestoneBriefServiceImpl implements MilestoneBriefService {
         // Clone Blocks - save manually
         List<MilestoneBriefBlock> clonedBlocks = new ArrayList<>();
         if (sourceGroup.getBlocks() != null && !sourceGroup.getBlocks().isEmpty()) {
+            for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
+                MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
+                        .group(targetGroup)
+                        .type(sourceBlock.getType())
+                        .label(sourceBlock.getLabel())
+                        .contentText(sourceBlock.getContentText())
+                        .fileKey(sourceBlock.getFileKey())
+                        .position(sourceBlock.getPosition())
+                        .build();
+                clonedBlocks.add(targetBlock);
+            }
+            briefBlockRepository.saveAll(clonedBlocks);
+        }
+        
+        targetGroup.setBlocks(clonedBlocks); // Set for response mapping
+        return mapToGroupResponse(targetGroup);
+    }
+
+    @Override
+    @Transactional
+    public MilestoneBriefGroupResponse forwardExternalGroupToInternalWithEdit(
+            Long projectId, Long milestoneId, Long groupId, ForwardBriefGroupRequest request, Authentication auth) {
+        log.info("Forwarding Group ID {} from EXTERNAL to INTERNAL with edit: projectId={}, milestoneId={}", 
+                groupId, projectId, milestoneId);
+        Milestone milestone = loadMilestoneAndCheckAuth(projectId, milestoneId, auth);
+        validateOwnerOnly(auth, projectId);
+
+        MilestoneBriefGroup sourceGroup = findGroupAndValidateBelonging(groupId, milestoneId, MilestoneBriefScope.EXTERNAL);
+
+        // Tìm bản sao cũ trong Internal
+        Optional<MilestoneBriefGroup> existingGroupOpt = briefGroupRepository.findByForwardIdAndScope(groupId, MilestoneBriefScope.INTERNAL);
+        MilestoneBriefGroup targetGroup;
+
+        // Xác định title và position: dùng từ request nếu có, không thì dùng từ source
+        String targetTitle = (request != null && request.getGroup() != null && request.getGroup().getTitle() != null)
+                ? request.getGroup().getTitle()
+                : sourceGroup.getTitle();
+        
+        Integer targetPosition = (request != null && request.getGroup() != null && request.getGroup().getPosition() != null)
+                ? request.getGroup().getPosition()
+                : sourceGroup.getPosition();
+
+        if (existingGroupOpt.isPresent()) {
+            // CÓ RỒI -> UPDATE
+            targetGroup = existingGroupOpt.get();
+            targetGroup.setTitle(targetTitle);
+            targetGroup.setPosition(targetPosition);
+            
+            // Delete old blocks manually
+            if (targetGroup.getBlocks() != null && !targetGroup.getBlocks().isEmpty()) {
+                briefBlockRepository.deleteAll(targetGroup.getBlocks());
+            }
+            briefGroupRepository.save(targetGroup);
+        } else {
+            // CHƯA CÓ -> TẠO MỚI
+            targetGroup = MilestoneBriefGroup.builder()
+                    .milestone(milestone)
+                    .scope(MilestoneBriefScope.INTERNAL)
+                    .forwardId(groupId)
+                    .title(targetTitle)
+                    .position(targetPosition)
+                    .build();
+            targetGroup = briefGroupRepository.save(targetGroup);
+        }
+
+        // Clone Blocks: dùng từ request nếu có, không thì clone từ source
+        List<MilestoneBriefBlock> clonedBlocks = new ArrayList<>();
+        
+        if (request != null && request.getGroup() != null && request.getGroup().getBlocks() != null 
+                && !request.getGroup().getBlocks().isEmpty()) {
+            // Dùng blocks từ request (đã chỉnh sửa)
+            clonedBlocks = mapBlocksRequestToEntity(request.getGroup().getBlocks(), targetGroup);
+            briefBlockRepository.saveAll(clonedBlocks);
+        } else if (sourceGroup.getBlocks() != null && !sourceGroup.getBlocks().isEmpty()) {
+            // Clone từ source (nguyên bản)
             for (MilestoneBriefBlock sourceBlock : sourceGroup.getBlocks()) {
                 MilestoneBriefBlock targetBlock = MilestoneBriefBlock.builder()
                         .group(targetGroup)

@@ -30,4 +30,22 @@ public interface MilestoneBriefService {
     void deleteInternalBriefGroup(Long projectId, Long milestoneId, Long groupId, Authentication auth);
 
     MilestoneBriefGroupResponse forwardExternalGroupToInternal(Long projectId, Long milestoneId, Long groupId, Authentication auth);
+
+    /**
+     * Chuyển tiếp group từ EXTERNAL sang INTERNAL với tùy chọn chỉnh sửa
+     * Chỉ Owner mới có quyền thực hiện
+     *
+     * @param projectId ID của project
+     * @param milestoneId ID của milestone
+     * @param groupId ID của group cần chuyển tiếp
+     * @param request Nội dung group đã chỉnh sửa (optional, nếu null sẽ forward nguyên bản)
+     * @param auth Authentication
+     * @return MilestoneBriefGroupResponse group mới ở INTERNAL
+     */
+    MilestoneBriefGroupResponse forwardExternalGroupToInternalWithEdit(
+            Long projectId, 
+            Long milestoneId, 
+            Long groupId, 
+            com.fpt.producerworkbench.dto.request.ForwardBriefGroupRequest request,
+            Authentication auth);
 }
