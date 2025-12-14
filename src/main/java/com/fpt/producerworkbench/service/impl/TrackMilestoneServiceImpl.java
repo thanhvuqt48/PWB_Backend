@@ -4,10 +4,13 @@ import com.fpt.producerworkbench.common.ClientDeliveryStatus;
 import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProcessingStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
 import com.fpt.producerworkbench.dto.request.TrackDownloadPermissionRequest;
 import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
@@ -40,6 +43,7 @@ import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AudioProcessingService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.TrackMilestoneService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +78,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final AudioProcessingService audioProcessingService;
     private final FrontendProperties frontendProperties;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -966,7 +971,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("%s/projects/%d/milestones/%d",
+            String projectUrl = String.format("%s/internal-studio?projectId=%d&milestoneId=%d",
                     frontendProperties.getUrl(), project.getId(), track.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
@@ -996,6 +1001,29 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             log.info("Đã gửi email thông báo upload track cho project creator: trackId={}, projectCreatorId={}",
                     track.getId(), projectCreator.getId());
 
+            // Gửi notification realtime cho owner
+            try {
+                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),track.getMilestone().getId());
+
+                String uploaderName = uploader.getFullName() != null ? uploader.getFullName() : uploader.getEmail();
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(projectCreator.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Sản phẩm mới đã được tải lên")
+                                .message(String.format("%s đã tải lên sản phẩm \"%s\" trong dự án \"%s\".",
+                                        uploaderName,
+                                        track.getName(),
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(track.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho owner khi upload track: {}", e.getMessage());
+            }
+
         } catch (Exception e) {
             log.error("Lỗi khi gửi email thông báo upload track: trackId={}",
                     track.getId(), e);
@@ -1015,7 +1043,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("%s/projects/%d/milestones/%d",
+            String projectUrl = String.format("%s/internal-studio?projectId=%d&milestoneId=%d",
                     frontendProperties.getUrl(), project.getId(), track.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
@@ -1040,10 +1068,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             String templateCode;
 
             if (newStatus == TrackStatus.INTERNAL_APPROVED) {
-                subject = String.format("Track '%s' đã được phê duyệt", track.getName());
+                subject = String.format("Sản phẩm '%s' đã được phê duyệt", track.getName());
                 templateCode = "track-status-approved-template";
             } else if (newStatus == TrackStatus.INTERNAL_REJECTED) {
-                subject = String.format("Track '%s' đã bị từ chối", track.getName());
+                subject = String.format("Sản phẩm '%s' đã bị từ chối", track.getName());
                 templateCode = "track-status-rejected-template";
             } else {
                 log.warn("Trạng thái không hợp lệ để gửi email: {}", newStatus);
@@ -1060,6 +1088,40 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
             log.info("Đã gửi email thông báo trạng thái track qua Kafka: trackId={}, userId={}, newStatus={}",
                     track.getId(), trackOwner.getId(), newStatus);
+
+            // Gửi notification realtime cho người upload track
+            try {
+                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),track.getMilestone().getId());
+
+                String title;
+                String message;
+                if (newStatus == TrackStatus.INTERNAL_APPROVED) {
+                    title = "Sản phẩm đã được phê duyệt";
+                    message = String.format("Sản phẩm \"%s\" của bạn trong dự án \"%s\" đã được phê duyệt.%s",
+                            track.getName(),
+                            project.getTitle(),
+                            reason != null && !reason.trim().isEmpty() ? " Lý do: " + reason : "");
+                } else {
+                    title = "Sản phẩm đã bị từ chối";
+                    message = String.format("Sản phẩm \"%s\" của bạn trong dự án \"%s\" đã bị từ chối.%s",
+                            track.getName(),
+                            project.getTitle(),
+                            reason != null && !reason.trim().isEmpty() ? " Lý do: " + reason : "");
+                }
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(trackOwner.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title(title)
+                                .message(message)
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(track.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho người upload track: {}", e.getMessage());
+            }
 
         } catch (Exception e) {
             log.error("Lỗi khi gửi email thông báo trạng thái track qua Kafka: trackId={}",
