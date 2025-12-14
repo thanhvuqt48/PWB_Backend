@@ -15,7 +15,6 @@ import java.util.Date;
 @Getter
 @Setter
 @MappedSuperclass
-@EntityListeners(AuditingEntityListener.class)
 public abstract class AbstractEntity<T extends Serializable> implements Serializable {
 
     @Id

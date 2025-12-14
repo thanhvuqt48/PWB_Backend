@@ -1,11 +1,13 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.InvitationStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
-import com.fpt.producerworkbench.dto.projection.ProjectBasicInfo;
 import com.fpt.producerworkbench.dto.response.PageResponse;
 import com.fpt.producerworkbench.dto.request.InvitationRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.FollowResponse;
 import com.fpt.producerworkbench.dto.response.InvitationResponse;
 import com.fpt.producerworkbench.dto.response.InvitationSuggestionResponse;
@@ -16,6 +18,7 @@ import com.fpt.producerworkbench.mapper.InvitationMapper;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.FollowService;
 import com.fpt.producerworkbench.service.InvitationService;
+import com.fpt.producerworkbench.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -41,7 +44,7 @@ public class InvitationServiceImpl implements InvitationService {
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final InvitationMapper invitationMapper;
     private final UserRepository userRepository;
-    private final AsyncNotificationService asyncNotificationService;
+    private final NotificationService notificationService;
     private final FollowService followService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
@@ -51,15 +54,14 @@ public class InvitationServiceImpl implements InvitationService {
     public String createInvitation(Long projectId, InvitationRequest request, User inviter) {
         log.info("Bắt đầu tạo lời mời cho dự án {} bởi {}", projectId, inviter.getEmail());
 
-        // Dùng Projection để lấy thông tin cơ bản, tránh load liveSessions
-        ProjectBasicInfo projectInfo = projectRepository.findBasicInfoById(projectId)
+        Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
-        if (!projectInfo.getCreatorId().equals(inviter.getId())) {
+        if (!project.getCreator().getId().equals(inviter.getId())) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        if (request.getRole() == ProjectRole.CLIENT && projectInfo.getClientId() != null) {
+        if (request.getRole() == ProjectRole.CLIENT && project.getClient() != null) {
             throw new AppException(ErrorCode.CLIENT_ALREADY_EXISTS);
         }
 
@@ -69,22 +71,14 @@ public class InvitationServiceImpl implements InvitationService {
 
         boolean alreadyMember = projectMemberRepository.findByProjectIdAndUserEmail(projectId, request.getEmail())
                 .isPresent()
-                || projectInfo.getCreatorEmail().equalsIgnoreCase(request.getEmail());
-        
-        // Kiểm tra client nếu có
-        if (projectInfo.getClientId() != null) {
-            userRepository.findById(projectInfo.getClientId()).ifPresent(client -> {
-                if (client.getEmail().equalsIgnoreCase(request.getEmail())) {
-                    throw new AppException(ErrorCode.USER_ALREADY_MEMBER);
-                }
-            });
-        }
-        
+                || (project.getClient() != null && project.getClient().getEmail().equalsIgnoreCase(request.getEmail()))
+                || project.getCreator().getEmail().equalsIgnoreCase(request.getEmail());
         if (alreadyMember) {
             throw new AppException(ErrorCode.USER_ALREADY_MEMBER);
         }
 
-        // Vô hiệu hóa tất cả lời mời PENDING cũ
+        // Vô hiệu hóa tất cả lời mời PENDING cũ của email này trong project (đánh
+        // EXPIRED)
         try {
             invitationRepository.expirePendingInvitationsForEmail(projectId, request.getEmail());
         } catch (Exception ex) {
@@ -95,11 +89,8 @@ public class InvitationServiceImpl implements InvitationService {
         boolean collaboratorAnonymous = Boolean.TRUE.equals(request.getAnonymous())
                 && request.getRole() == ProjectRole.COLLABORATOR;
 
-        // Dùng getReferenceById() - JPA standard
-        Project projectRef = projectRepository.getReferenceById(projectId);
-
         ProjectInvitation invitation = ProjectInvitation.builder()
-                .project(projectRef)
+                .project(project)
                 .email(request.getEmail())
                 .invitedRole(request.getRole())
                 .token(token)
@@ -112,18 +103,15 @@ public class InvitationServiceImpl implements InvitationService {
         log.info("Đã lưu lời mời vào DB thành công. ID: {}", savedInvitation.getId());
 
         String invitationLink = "/accept-invitation?token=" + savedInvitation.getToken();
-        String projectTitle = projectInfo.getTitle();
-        String inviterFullName = inviter.getFullName();
-        String inviterEmail = inviter.getEmail();
 
         try {
             NotificationEvent event = NotificationEvent.builder()
                     .recipient(savedInvitation.getEmail())
-                    .subject("Lời mời tham gia dự án: " + projectTitle)
+                    .subject("Lời mời tham gia dự án: " + project.getTitle())
                     .templateCode("invitation-email-template")
                     .param(Map.of(
-                            "inviterName", inviterFullName,
-                            "projectName", projectTitle,
+                            "inviterName", inviter.getFullName(),
+                            "projectName", project.getTitle(),
                             "role", savedInvitation.getInvitedRole().name(),
                             "invitationLink", invitationLink))
                     .build();
@@ -133,18 +121,28 @@ public class InvitationServiceImpl implements InvitationService {
             log.error("Gặp lỗi khi gửi message mời tới Kafka!", e);
         }
 
-        // Gửi notification bất đồng bộ nếu user đã tồn tại trong hệ thống
-        userRepository.findByEmail(savedInvitation.getEmail()).ifPresent(user -> {
-            String roleName = savedInvitation.getInvitedRole() == ProjectRole.COLLABORATOR ? "Cộng tác viên"
-                    : savedInvitation.getInvitedRole() == ProjectRole.OBSERVER ? "Người quan sát"
-                            : "Khách hàng";
-            asyncNotificationService.sendNewInvitationNotification(
-                    user.getId(),
-                    projectId,
-                    projectTitle,
-                    inviterFullName != null ? inviterFullName : inviterEmail,
-                    roleName);
-        });
+        try {
+            userRepository.findByEmail(savedInvitation.getEmail()).ifPresent(user -> {
+                String roleName = savedInvitation.getInvitedRole() == ProjectRole.COLLABORATOR ? "Cộng tác viên"
+                        : savedInvitation.getInvitedRole() == ProjectRole.OBSERVER ? "Người quan sát"
+                        : "Khách hàng";
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(user.getId())
+                                .type(NotificationType.PROJECT_INVITATION)
+                                .title("Lời mời tham gia dự án")
+                                .message(String.format("%s đã mời bạn tham gia dự án \"%s\" với vai trò %s",
+                                        inviter.getFullName() != null ? inviter.getFullName() : inviter.getEmail(),
+                                        project.getTitle(),
+                                        roleName))
+                                .relatedEntityType(RelatedEntityType.PROJECT)
+                                .relatedEntityId(projectId)
+                                .actionUrl("/myInvitations")
+                                .build());
+            });
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime: {}", e.getMessage());
+        }
 
         return invitationLink;
     }
@@ -158,92 +156,82 @@ public class InvitationServiceImpl implements InvitationService {
         // Reuse existing validation logic
         validateInvitation(invitation, acceptingUser);
 
-        // Lấy projectId từ invitation trước
-        Long projectId = invitation.getProject().getId();
+        Project project = invitation.getProject();
+        User projectOwner = project.getCreator();
 
-        // Dùng Projection để lấy thông tin, tránh load liveSessions
-        ProjectBasicInfo projectInfo = projectRepository.findBasicInfoById(projectId)
-                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
-
-        // Lưu lại thông tin cần thiết
-        String projectTitle = projectInfo.getTitle();
-        Long ownerId = projectInfo.getCreatorId();
-        String ownerEmail = projectInfo.getCreatorEmail();
-        String ownerFullName = projectInfo.getCreatorFullName();
-        ProjectRole invitedRole = invitation.getInvitedRole();
-        boolean collaboratorAnonymous = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous());
-
-        // Kiểm tra CLIENT đã tồn tại chưa bằng query thay vì load entity
-        if (invitedRole == ProjectRole.CLIENT) {
-            if (projectRepository.hasClient(projectId)) {
-                throw new AppException(ErrorCode.CLIENT_EXISTED);
-            }
+        if (invitation.getInvitedRole() == ProjectRole.CLIENT) {
+            projectRepository.findById(project.getId()).ifPresent(p -> {
+                if (p.getClient() != null) {
+                    throw new AppException(ErrorCode.CLIENT_EXISTED);
+                }
+            });
         }
 
-        boolean anonymousFlag = collaboratorAnonymous && invitedRole == ProjectRole.COLLABORATOR;
-
-        // Sử dụng getReferenceById() - JPA standard method
-        Project projectRef = projectRepository.getReferenceById(projectId);
-        User userRef = userRepository.getReferenceById(acceptingUser.getId());
+        boolean anonymousFlag = Boolean.TRUE.equals(invitation.getCollaboratorAnonymous())
+                && invitation.getInvitedRole() == ProjectRole.COLLABORATOR;
 
         ProjectMember newMember = ProjectMember.builder()
-                .project(projectRef)
-                .user(userRef)
-                .projectRole(invitedRole)
+                .project(project)
+                .user(acceptingUser)
+                .projectRole(invitation.getInvitedRole())
                 .anonymous(anonymousFlag)
                 .build();
         projectMemberRepository.save(newMember);
 
-        if (invitedRole == ProjectRole.CLIENT) {
-            // Sử dụng native query để update client, tránh cascade đến liveSessions
-            projectRepository.updateClientById(projectId, acceptingUser.getId());
+        if (invitation.getInvitedRole() == ProjectRole.CLIENT) {
+            project.setClient(acceptingUser);
+            projectRepository.save(project);
         }
 
         invitation.setStatus(InvitationStatus.ACCEPTED);
         invitationRepository.save(invitation);
 
-        // Gửi email thông báo - wrap trong try-catch để không rollback transaction nếu Kafka lỗi
+        NotificationEvent confirmationEvent = NotificationEvent.builder()
+                .recipient(acceptingUser.getEmail())
+                .subject("Chào mừng bạn đến với dự án: " + project.getTitle())
+                .templateCode("invitation-accepted-confirmation-template")
+                .param(Map.of(
+                        "userName", acceptingUser.getFullName(),
+                        "projectName", project.getTitle(),
+                        "role", invitation.getInvitedRole().name()))
+                .build();
+        kafkaTemplate.send(NOTIFICATION_TOPIC, confirmationEvent);
+
+        NotificationEvent ownerNotificationEvent = NotificationEvent.builder()
+                .recipient(projectOwner.getEmail())
+                .subject("Thành viên mới đã tham gia dự án của bạn")
+                .templateCode("owner-notification-new-member-template")
+                .param(Map.of(
+                        "ownerName", projectOwner.getFullName(),
+                        "newMemberName", acceptingUser.getFullName(),
+                        "newMemberEmail", acceptingUser.getEmail(),
+                        "projectName", project.getTitle(),
+                        "role", invitation.getInvitedRole().name()))
+                .build();
+        kafkaTemplate.send(NOTIFICATION_TOPIC, ownerNotificationEvent);
+
         try {
-            NotificationEvent confirmationEvent = NotificationEvent.builder()
-                    .recipient(acceptingUser.getEmail())
-                    .subject("Chào mừng bạn đến với dự án: " + projectTitle)
-                    .templateCode("invitation-accepted-confirmation-template")
-                    .param(Map.of(
-                            "userName", acceptingUser.getFullName(),
-                            "projectName", projectTitle,
-                            "role", invitedRole.name()))
-                    .build();
-            kafkaTemplate.send(NOTIFICATION_TOPIC, confirmationEvent);
+            String roleName = invitation.getInvitedRole() == ProjectRole.COLLABORATOR ? "Cộng tác viên"
+                    : invitation.getInvitedRole() == ProjectRole.OBSERVER ? "Người quan sát"
+                    : "Khách hàng";
+            String actionUrl = String.format("/teamInvitation?id=%d", project.getId());
 
-            NotificationEvent ownerNotificationEvent = NotificationEvent.builder()
-                    .recipient(ownerEmail)
-                    .subject("Thành viên mới đã tham gia dự án của bạn")
-                    .templateCode("owner-notification-new-member-template")
-                    .param(Map.of(
-                            "ownerName", ownerFullName,
-                            "newMemberName", acceptingUser.getFullName(),
-                            "newMemberEmail", acceptingUser.getEmail(),
-                            "projectName", projectTitle,
-                            "role", invitedRole.name()))
-                    .build();
-            kafkaTemplate.send(NOTIFICATION_TOPIC, ownerNotificationEvent);
-            log.info("Đã gửi email thông báo accept invitation thành công");
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(projectOwner.getId())
+                            .type(NotificationType.PROJECT_INVITATION)
+                            .title("Thành viên mới đã tham gia dự án")
+                            .message(String.format("%s đã chấp nhận lời mời và tham gia dự án \"%s\" với vai trò %s.",
+                                    acceptingUser.getFullName() != null ? acceptingUser.getFullName() : acceptingUser.getEmail(),
+                                    project.getTitle(),
+                                    roleName))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(actionUrl)
+                            .build());
         } catch (Exception e) {
-            log.error("Lỗi khi gửi email thông báo accept invitation, nhưng invitation vẫn được accept", e);
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi accept invitation: {}", e.getMessage());
         }
-
-        // Gửi notification bất đồng bộ - chỉ truyền primitive data
-        String roleName = invitedRole == ProjectRole.COLLABORATOR ? "Cộng tác viên"
-                : invitedRole == ProjectRole.OBSERVER ? "Người quan sát"
-                        : "Khách hàng";
-
-        asyncNotificationService.sendInvitationAcceptedNotification(
-                ownerId,
-                projectId,
-                projectTitle,
-                acceptingUser.getFullName(),
-                acceptingUser.getEmail(),
-                roleName);
     }
 
     @Override
@@ -269,14 +257,8 @@ public class InvitationServiceImpl implements InvitationService {
         ProjectInvitation invitation = invitationRepository.findById(invitationId)
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
 
-        // Lấy projectId trước
-        Long projectId = invitation.getProject().getId();
-        
-        // Dùng Projection để lấy thông tin, tránh load liveSessions
-        ProjectBasicInfo projectInfo = projectRepository.findBasicInfoById(projectId)
-                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
-
-        if (!projectInfo.getCreatorId().equals(currentUser.getId())) {
+        Project project = invitation.getProject();
+        if (!project.getCreator().getId().equals(currentUser.getId())) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
@@ -284,34 +266,36 @@ public class InvitationServiceImpl implements InvitationService {
             throw new AppException(ErrorCode.INVITATION_NOT_CANCELABLE);
         }
 
-        // Lưu primitive data
-        String projectTitle = projectInfo.getTitle();
-        String inviteeEmail = invitation.getEmail();
-
         invitation.setStatus(InvitationStatus.CANCELLED);
         invitationRepository.save(invitation);
 
-        // Gửi email thông báo - wrap trong try-catch để không rollback transaction nếu Kafka lỗi
-        try {
-            NotificationEvent event = NotificationEvent.builder()
-                    .recipient(inviteeEmail)
-                    .subject("Lời mời tham gia dự án \"" + projectTitle + "\" đã được hủy")
-                    .templateCode("invitation-cancelled-template")
-                    .param(Map.of("projectName", projectTitle))
-                    .build();
-            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-            log.info("Đã gửi email thông báo cancel invitation thành công");
-        } catch (Exception e) {
-            log.error("Lỗi khi gửi email thông báo cancel invitation, nhưng invitation vẫn được cancel", e);
-        }
+        NotificationEvent event = NotificationEvent.builder()
+                .recipient(invitation.getEmail())
+                .subject("Lời mời tham gia dự án \"" + project.getTitle() + "\" đã được hủy")
+                .templateCode("invitation-cancelled-template")
+                .param(Map.of("projectName", project.getTitle()))
+                .build();
+        kafkaTemplate.send(NOTIFICATION_TOPIC, event);
 
-        // Gửi notification bất đồng bộ nếu user đã tồn tại trong hệ thống
-        userRepository.findByEmail(inviteeEmail).ifPresent(user -> {
-            asyncNotificationService.sendInvitationCancelledNotification(
-                    user.getId(),
-                    projectId,
-                    projectTitle);
-        });
+        try {
+            userRepository.findByEmail(invitation.getEmail()).ifPresent(user -> {
+                String actionUrl = "/myInvitations";
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(user.getId())
+                                .type(NotificationType.PROJECT_INVITATION)
+                                .title("Lời mời đã được hủy")
+                                .message(String.format("Lời mời tham gia dự án \"%s\" đã được hủy bởi chủ dự án.",
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.PROJECT)
+                                .relatedEntityId(project.getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            });
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime khi cancel invitation: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -336,49 +320,45 @@ public class InvitationServiceImpl implements InvitationService {
             throw new AppException(ErrorCode.INVITATION_NOT_REJECTABLE);
         }
 
-        // Lấy projectId từ invitation
-        Long projectId = invitation.getProject().getId();
-        
-        // Dùng Projection để lấy thông tin, tránh load liveSessions
-        ProjectBasicInfo projectInfo = projectRepository.findBasicInfoById(projectId)
-                .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
-        
-        String projectTitle = projectInfo.getTitle();
-        Long ownerId = projectInfo.getCreatorId();
-        String ownerEmail = projectInfo.getCreatorEmail();
-
         invitation.setStatus(InvitationStatus.DECLINED);
         invitationRepository.save(invitation);
 
-        // Gửi email thông báo - wrap trong try-catch để không rollback transaction nếu Kafka lỗi
-        try {
-            NotificationEvent event = NotificationEvent.builder()
-                    .recipient(ownerEmail)
-                    .subject("Thông báo: Lời mời tham gia dự án đã bị từ chối")
-                    .templateCode("invitation-declined-template")
-                    .param(Map.of(
-                            "projectName", projectTitle,
-                            "inviteeEmail", currentUser.getEmail(),
-                            "inviteeName", currentUser.getFullName()))
-                    .build();
-            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-            log.info("Đã gửi email thông báo decline invitation thành công");
-        } catch (Exception e) {
-            log.error("Lỗi khi gửi email thông báo decline invitation, nhưng invitation vẫn được decline", e);
-        }
+        Project project = invitation.getProject();
+        User owner = project.getCreator();
+        NotificationEvent event = NotificationEvent.builder()
+                .recipient(owner.getEmail())
+                .subject("Thông báo: Lời mời tham gia dự án đã bị từ chối")
+                .templateCode("invitation-declined-template")
+                .param(Map.of(
+                        "projectName", project.getTitle(),
+                        "inviteeEmail", currentUser.getEmail(),
+                        "inviteeName", currentUser.getFullName()))
+                .build();
+        kafkaTemplate.send(NOTIFICATION_TOPIC, event);
 
-        // Gửi notification bất đồng bộ
-        asyncNotificationService.sendInvitationDeclinedNotification(
-                ownerId,
-                projectId,
-                projectTitle,
-                currentUser.getFullName(),
-                currentUser.getEmail());
+        try {
+            String actionUrl = String.format("/projectDetail?id=%d", project.getId());
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(owner.getId())
+                            .type(NotificationType.PROJECT_INVITATION)
+                            .title("Lời mời đã bị từ chối")
+                            .message(String.format("%s đã từ chối lời mời tham gia dự án \"%s\".",
+                                    currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail(),
+                                    project.getTitle()))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi decline invitation: {}", e.getMessage());
+        }
     }
 
     @Override
     public PageResponse<InvitationResponse> getAllOwnedInvitations(User currentUser, InvitationStatus status,
-            Pageable pageable) {
+                                                                   Pageable pageable) {
         // Only owner (PRODUCER/ADMIN) should call controller; here we just fetch by
         // creator email
         Page<ProjectInvitation> page = (status == null)
@@ -408,25 +388,25 @@ public class InvitationServiceImpl implements InvitationService {
         // 1. Kiểm tra quyền - chỉ owner mới có thể xem suggestions
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
-        
+
         if (!project.getCreator().getId().equals(currentUser.getId())) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
-        
+
         // 2. Lấy danh sách người đã follow
         Page<FollowResponse> followingPage = followService.getFollowing(currentUser.getId(), pageable);
-        
+
         if (followingPage.isEmpty()) {
             return PageResponse.fromPage(Page.empty(pageable));
         }
-        
+
         // 3. Lấy danh sách userIds đã là thành viên của project
         List<ProjectMember> existingMembers = projectMemberRepository.findByProjectId(projectId);
         Set<Long> existingUserIds = existingMembers.stream()
                 .map(member -> member.getUser().getId())
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        
+
         // Thêm creator và client vào danh sách đã có
         if (project.getCreator() != null && project.getCreator().getId() != null) {
             existingUserIds.add(project.getCreator().getId());
@@ -434,7 +414,7 @@ public class InvitationServiceImpl implements InvitationService {
         if (project.getClient() != null && project.getClient().getId() != null) {
             existingUserIds.add(project.getClient().getId());
         }
-        
+
         // 4. Lọc và map sang InvitationSuggestionResponse
         List<InvitationSuggestionResponse> suggestions = followingPage.getContent().stream()
                 .filter(followResponse -> !existingUserIds.contains(followResponse.getId()))
@@ -442,11 +422,11 @@ public class InvitationServiceImpl implements InvitationService {
                     // Lấy thông tin đầy đủ từ User để có email
                     User user = userRepository.findById(followResponse.getId())
                             .orElse(null);
-                    
+
                     if (user == null || user.getEmail() == null) {
                         return null; // Bỏ qua nếu không tìm thấy user hoặc không có email
                     }
-                    
+
                     return InvitationSuggestionResponse.builder()
                             .id(user.getId())
                             .firstName(user.getFirstName())
@@ -458,14 +438,14 @@ public class InvitationServiceImpl implements InvitationService {
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        
+
         // 5. Tạo Page mới với dữ liệu đã lọc
         Page<InvitationSuggestionResponse> filteredPage = new PageImpl<>(
                 suggestions,
                 pageable,
                 followingPage.getTotalElements() // Giữ nguyên total để phân trang đúng
         );
-        
+
         return PageResponse.fromPage(filteredPage);
     }
 
