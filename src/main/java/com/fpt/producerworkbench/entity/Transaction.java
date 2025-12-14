@@ -24,7 +24,7 @@ public class Transaction extends AbstractEntity<Long>{
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private TransactionType type;
 
     @Enumerated(EnumType.STRING)

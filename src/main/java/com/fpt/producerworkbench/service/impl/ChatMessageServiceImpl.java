@@ -13,7 +13,9 @@ import com.fpt.producerworkbench.mapper.ChatMessageMapper;
 import com.fpt.producerworkbench.repository.ChatMessageRepository;
 import com.fpt.producerworkbench.repository.ConversationRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.service.ChatMessageService;
+import com.fpt.producerworkbench.service.PushNotificationService;
 import com.fpt.producerworkbench.utils.PaginationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +40,6 @@ import java.util.stream.Collectors;
 public class ChatMessageServiceImpl implements ChatMessageService {
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
-    private static final String FRONTEND_URL = "http://localhost:5173"; // Có thể config từ application.yml
 
     private final ChatMessageRepository chatMessageRepository;
     private final ConversationRepository conversationRepository;
@@ -46,6 +47,8 @@ public class ChatMessageServiceImpl implements ChatMessageService {
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketSessionRedisService socketSessionRedisService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final FrontendProperties frontendProperties;
+    private final PushNotificationService pushNotificationService;
 
     @Transactional
     public ChatResponse createMessage(ChatRequest request) {
@@ -86,6 +89,10 @@ public class ChatMessageServiceImpl implements ChatMessageService {
         if (!offlineUserIds.isEmpty()) {
             sendEmailNotificationToOfflineUsers(offlineUserIds, currentUser, chatMessage, conversation);
         }
+
+        // Send push notifications to all recipients (except sender)
+        // Push notifications work even when user is online but tab is not focused
+        sendPushNotificationToRecipients(participantInfos, currentUser, chatMessage, conversation);
 
         return ChatMessageMapper.toSenderResponse(chatMessage, request.getTempId());
     }
@@ -222,7 +229,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
                     DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
                     String formattedTime = chatMessage.getSentAt().format(formatter);
 
-                    String conversationLink = FRONTEND_URL + "/chat/" + conversation.getId();
+                    String conversationLink = frontendProperties.getUrl() + "/chat/" + conversation.getId();
 
                     String senderAvatar = sender.getAvatarUrl() != null
                             ? sender.getAvatarUrl()
@@ -283,6 +290,75 @@ public class ChatMessageServiceImpl implements ChatMessageService {
         }
 
         return content != null ? content : "Đã gửi một tin nhắn";
+    }
+
+    /**
+     * Send push notifications to all conversation participants (except sender)
+     * Push notifications work even when browser tab is not focused
+     */
+    private void sendPushNotificationToRecipients(List<ParticipantInfo> participants,
+                                                   User sender,
+                                                   ChatMessage chatMessage,
+                                                   Conversation conversation) {
+        try {
+            String senderName = sender.getFullName() != null ? sender.getFullName() : sender.getEmail();
+            String senderAvatar = sender.getAvatarUrl();
+            String messageContent = prepareMessageContentForPush(chatMessage);
+
+            for (ParticipantInfo participant : participants) {
+                User recipientUser = participant.getUser();
+                
+                // Skip sending to self
+                if (recipientUser.getId().equals(sender.getId())) {
+                    continue;
+                }
+
+                try {
+                    pushNotificationService.sendChatNotification(
+                            recipientUser.getId(),
+                            senderName,
+                            senderAvatar,
+                            messageContent,
+                            conversation.getId()
+                    );
+                    log.debug("Sent push notification to user: {}", recipientUser.getEmail());
+                } catch (Exception e) {
+                    log.warn("Failed to send push notification to user {}: {}", 
+                            recipientUser.getEmail(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error sending push notifications: {}", e.getMessage());
+        }
+    }
+
+    private String prepareMessageContentForPush(ChatMessage chatMessage) {
+        String content = chatMessage.getContent();
+
+        if (chatMessage.getMessageType() == MessageType.TEXT) {
+            if (content != null && content.length() > 100) {
+                return content.substring(0, 100) + "...";
+            }
+            return content != null ? content : "";
+        }
+
+        if (chatMessage.getMessageType() == MessageType.IMAGE) {
+            return "📷 Đã gửi một hình ảnh";
+        }
+
+        if (chatMessage.getMessageType() == MessageType.VIDEO) {
+            return "🎥 Đã gửi một video";
+        }
+
+        if (chatMessage.getMessageType() == MessageType.AUDIO) {
+            return "🎵 Đã gửi một file âm thanh";
+        }
+
+        if (chatMessage.getMessageType() == MessageType.FILE) {
+            return "📎 Đã gửi một file";
+        }
+
+        return "Đã gửi một tin nhắn";
     }
 
 }

@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.entity.LiveSession;
 import com.fpt.producerworkbench.service.EmailService;
@@ -38,6 +39,7 @@ public class EmailServiceImpl implements EmailService {
 
     JavaMailSender mailSender;
     SpringTemplateEngine templateEngine;
+    FrontendProperties frontendProperties;
 
     @Async
     public void sendEmail(String subject, String content, List<String> toList)
@@ -114,8 +116,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Session link (adjust based on your frontend URL structure)
-        String sessionLink = String.format("http://localhost:5173/projects/%d/sessions/%s", 
-                session.getProject().getId(), session.getId());
+        String sessionLink = String.format("%s/projects/%d/sessions/%s", 
+                frontendProperties.getUrl(), session.getProject().getId(), session.getId());
         context.setVariable("sessionLink", sessionLink);
 
         // Send email to each member
@@ -191,8 +193,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Session link
-        String sessionLink = String.format("http://localhost:5173/projects/%d/sessions/%s", 
-                session.getProject().getId(), session.getId());
+        String sessionLink = String.format("%s/projects/%d/sessions/%s", 
+                frontendProperties.getUrl(), session.getProject().getId(), session.getId());
         context.setVariable("sessionLink", sessionLink);
 
         // Send email to each participant
@@ -250,7 +252,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Project link
-        String projectLink = String.format("http://localhost:5173/projects/%d", 
+        String projectLink = String.format("%s/projects/%d",
+                frontendProperties.getUrl(), 
                 session.getProject().getId());
         context.setVariable("projectLink", projectLink);
 
@@ -315,7 +318,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Project link
-        String projectLink = String.format("http://localhost:5173/projects/%d", 
+        String projectLink = String.format("%s/projects/%d",
+                frontendProperties.getUrl(), 
                 session.getProject().getId());
         context.setVariable("projectLink", projectLink);
 

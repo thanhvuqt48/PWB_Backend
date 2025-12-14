@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.RelatedEntityType;
@@ -45,6 +46,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
     private final ProjectPermissionService projectPermissionService;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
     private final NotificationService notificationService;
+    private final FrontendProperties frontendProperties;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
@@ -86,6 +88,11 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
 
         validateTotalAmountForExpense(milestone, amount, null);
 
+        // Kiểm tra milestone đã completed thì không được tạo phân chia tiền nữa
+        if (milestone.getStatus() == com.fpt.producerworkbench.common.MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã hoàn thành, không thể tạo phân chia tiền");
+        }
+
         MilestoneMoneySplit moneySplit = MilestoneMoneySplit.builder()
                 .milestone(milestone)
                 .user(user)
@@ -101,7 +108,6 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
 
         sendMoneySplitNotificationEmail(user, project, milestone, amount, request.getNote(), "created");
 
-        // Gửi notification realtime
         try {
             User currentUser = userRepository.findByEmail(auth.getName())
                     .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
@@ -119,7 +125,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                                     request.getNote() != null && !request.getNote().isBlank() ? " - " + request.getNote() : ""))
                             .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
                             .relatedEntityId(saved.getId())
-                            .actionUrl(String.format("/project-workspace?projectId=%d&milestoneId=%d", projectId, milestoneId))
+                            .actionUrl(String.format("/project-workspace?milestoneId=%d", projectId, milestoneId))
                             .build()
             );
         } catch (Exception e) {
@@ -156,6 +162,11 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
             throw new AppException(ErrorCode.MONEY_SPLIT_CANNOT_UPDATE_REJECTED);
         }
 
+        // Kiểm tra milestone đã completed thì không được cập nhật phân chia tiền nữa
+        if (milestone.getStatus() == com.fpt.producerworkbench.common.MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã hoàn thành, không thể cập nhật phân chia tiền");
+        }
+
         BigDecimal newAmount = new BigDecimal(request.getAmount());
         if (newAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
@@ -174,6 +185,31 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
 
         Project project = milestone.getContract().getProject();
         sendMoneySplitNotificationEmail(saved.getUser(), project, milestone, newAmount, request.getNote(), "updated");
+
+        try {
+            User currentUser = userRepository.findByEmail(auth.getName())
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+            String amountStr = newAmount != null ? newAmount.stripTrailingZeros().toPlainString() : "0";
+            
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(saved.getUser().getId())
+                            .type(NotificationType.MONEY_SPLIT_REQUEST)
+                            .title("Phân chia tiền đã được cập nhật")
+                            .message(String.format("%s đã cập nhật phân chia tiền thành %s cho bạn trong milestone \"%s\" của dự án \"%s\"%s",
+                                    currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail(),
+                                    amountStr,
+                                    milestone.getTitle(),
+                                    project.getTitle(),
+                                    request.getNote() != null && !request.getNote().isBlank() ? " - " + request.getNote() : ""))
+                            .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
+                            .relatedEntityId(saved.getId())
+                            .actionUrl(String.format("/project-workspace?milestoneId=%d", projectId, milestoneId))
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho money split update: {}", e.getMessage());
+        }
 
         return mapToMoneySplitResponse(saved);
     }
@@ -235,6 +271,11 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
             throw new AppException(ErrorCode.MONEY_SPLIT_ALREADY_REJECTED);
         }
 
+        // Kiểm tra milestone đã completed thì không được chấp nhận phân chia tiền nữa
+        if (milestone.getStatus() == com.fpt.producerworkbench.common.MilestoneStatus.COMPLETED) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã hoàn thành, không thể chấp nhận phân chia tiền");
+        }
+
         moneySplit.setStatus(MoneySplitStatus.APPROVED);
         moneySplit.setRejectionReason(null);
 
@@ -246,6 +287,33 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         User owner = project.getCreator();
         if (owner != null && owner.getEmail() != null) {
             sendMoneySplitApprovalNotificationEmail(owner, project, milestone, saved.getUser(), saved.getAmount(), "approved");
+        }
+
+        try {
+            if (owner != null) {
+                String amountStr = saved.getAmount() != null ? saved.getAmount().stripTrailingZeros().toPlainString() : "0";
+                String memberName = saved.getUser().getFullName() != null 
+                        ? saved.getUser().getFullName() 
+                        : saved.getUser().getEmail();
+                
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.MONEY_SPLIT_REQUEST)
+                                .title("Phân chia tiền đã được chấp nhận")
+                                .message(String.format("%s đã chấp nhận phân chia tiền %s trong milestone \"%s\" của dự án \"%s\".",
+                                        memberName,
+                                        amountStr,
+                                        milestone.getTitle(),
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
+                                .relatedEntityId(saved.getId())
+                                .actionUrl(String.format("/project-workspace?milestoneId=%d", milestoneId))
+                                .build()
+                );
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi approve money split: {}", e.getMessage());
         }
 
         return mapToMoneySplitResponse(saved);
@@ -292,6 +360,37 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
             sendMoneySplitApprovalNotificationEmail(owner, project, milestone, saved.getUser(), saved.getAmount(), "rejected");
         }
 
+        try {
+            if (owner != null) {
+                String amountStr = saved.getAmount() != null ? saved.getAmount().stripTrailingZeros().toPlainString() : "0";
+                String memberName = saved.getUser().getFullName() != null 
+                        ? saved.getUser().getFullName() 
+                        : saved.getUser().getEmail();
+                String reason = request.getRejectionReason() != null && !request.getRejectionReason().isBlank()
+                        ? " Lý do: " + request.getRejectionReason()
+                        : "";
+                
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(owner.getId())
+                                .type(NotificationType.MONEY_SPLIT_REQUEST)
+                                .title("Phân chia tiền đã bị từ chối")
+                                .message(String.format("%s đã từ chối phân chia tiền %s trong milestone \"%s\" của dự án \"%s\".%s",
+                                        memberName,
+                                        amountStr,
+                                        milestone.getTitle(),
+                                        project.getTitle(),
+                                        reason))
+                                .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
+                                .relatedEntityId(saved.getId())
+                                .actionUrl(String.format("/project-workspace?milestoneId=%d", milestoneId))
+                                .build()
+                );
+            }
+        } catch (Exception e) {
+            log.error("Gặp lỗi khi gửi notification realtime cho owner khi reject money split: {}", e.getMessage());
+        }
+
         return mapToMoneySplitResponse(saved);
     }
 
@@ -330,8 +429,6 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         List<MilestoneMoneySplit> allMoneySplits = moneySplitRepository.findByMilestoneId(milestoneId);
         List<MilestoneExpense> allExpenses = expenseRepository.findByMilestoneId(milestoneId);
 
-        // Nếu là owner: xem tất cả
-        // Nếu là milestone member: chỉ xem money splits của chính họ
         List<MilestoneMoneySplit> visibleMoneySplits;
         List<MilestoneExpense> visibleExpenses;
         BigDecimal totalSplitAmount;
@@ -353,17 +450,16 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             
             totalAllocated = totalSplitAmount.add(totalExpenseAmount);
-            remainingAmount = milestone.getAmount().subtract(totalAllocated);
+            // Tính remaining dựa trên số tiền có thể chia (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
+            BigDecimal availableAmount = getAvailableAmountForSplit(milestone);
+            remainingAmount = availableAmount.subtract(totalAllocated);
         } else {
-            // Milestone member chỉ xem money splits của chính họ
             visibleMoneySplits = allMoneySplits.stream()
                     .filter(ms -> ms.getUser() != null && ms.getUser().getId().equals(currentUserId))
                     .collect(Collectors.toList());
             
-            // Không xem expenses
             visibleExpenses = List.of();
             
-            // Chỉ tính tổng số tiền phân chia của chính họ
             totalSplitAmount = visibleMoneySplits.stream()
                     .map(MilestoneMoneySplit::getAmount)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -371,7 +467,6 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
             totalExpenseAmount = BigDecimal.ZERO;
             totalAllocated = totalSplitAmount;
             
-            // Không hiển thị remaining amount vì không biết tổng expenses
             remainingAmount = null;
         }
 
@@ -510,6 +605,18 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
         return milestone;
     }
 
+    /**
+     * Tính số tiền có thể phân chia cho các thành viên.
+     * Số tiền có thể chia = amount (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
+     * 
+     * @param milestone Milestone cần tính
+     * @return Số tiền có thể chia (amount)
+     */
+    private BigDecimal getAvailableAmountForSplit(Milestone milestone) {
+        BigDecimal amount = milestone.getAmount() != null ? milestone.getAmount() : BigDecimal.ZERO;
+        return amount;
+    }
+
     private void validateTotalAmount(Milestone milestone, BigDecimal newAmount, Long excludeMoneySplitId) {
         List<MilestoneMoneySplit> moneySplits = moneySplitRepository.findByMilestoneId(milestone.getId());
         List<MilestoneExpense> expenses = expenseRepository.findByMilestoneId(milestone.getId());
@@ -524,9 +631,10 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalAllocated = totalSplitAmount.add(totalExpenseAmount).add(newAmount);
-        BigDecimal milestoneAmount = milestone.getAmount();
+        // Sử dụng số tiền có thể chia (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
+        BigDecimal availableAmount = getAvailableAmountForSplit(milestone);
 
-        if (totalAllocated.compareTo(milestoneAmount) > 0) {
+        if (totalAllocated.compareTo(availableAmount) > 0) {
             throw new AppException(ErrorCode.MONEY_SPLIT_TOTAL_EXCEEDS_MILESTONE);
         }
     }
@@ -545,9 +653,10 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalAllocated = totalSplitAmount.add(totalExpenseAmount).add(newAmount);
-        BigDecimal milestoneAmount = milestone.getAmount();
+        // Sử dụng số tiền có thể chia (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
+        BigDecimal availableAmount = getAvailableAmountForSplit(milestone);
 
-        if (totalAllocated.compareTo(milestoneAmount) > 0) {
+        if (totalAllocated.compareTo(availableAmount) > 0) {
             throw new AppException(ErrorCode.MONEY_SPLIT_TOTAL_EXCEEDS_MILESTONE);
         }
     }
@@ -627,7 +736,8 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
+            String projectUrl = String.format("%s/project-workspace?projectId=%d&milestoneId=%d",
+                    frontendProperties.getUrl(), 
                     project.getId(), milestone.getId());
 
             Map<String, Object> params = new HashMap<>();
@@ -674,7 +784,8 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 return;
             }
 
-            String projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
+            String projectUrl = String.format("%s/project-workspace?projectId=%d&milestoneId=%d",
+                    frontendProperties.getUrl(), 
                     project.getId(), milestone.getId());
 
             Map<String, Object> params = new HashMap<>();

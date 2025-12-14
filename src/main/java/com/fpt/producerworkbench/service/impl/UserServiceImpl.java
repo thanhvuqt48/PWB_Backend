@@ -112,20 +112,44 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
         String otp = generateOtp();
-        LocalDateTime expiryDate = LocalDateTime.now().plusMinutes(30);
+        otpService.saveOtp(user.getEmail(), otp);
 
-        user.setOtp(otp);
-        user.setOtpExpiryDate(expiryDate);
+        NotificationEvent event = NotificationEvent.builder()
+                .channel("EMAIL")
+                .recipient(user.getEmail())
+                .templateCode("otp-register-vi")
+                .subject("Mã OTP xác thực đặt lại mật khẩu")
+                .param(new java.util.HashMap<>())
+                .build();
+        event.getParam().put("recipient", user.getEmail());
+        event.getParam().put("otp", otp);
+        event.getParam().put("validMinutes", "5");
+        kafkaTemplate.send("notification-delivery", event);
+    }
 
-        String subject = "Your OTP Code";
-        String content = String.format(
-                "<p>Xin chào,</p>"
-                        + "<p>Chúng tôi nhận thấy bạn đã yêu cầu mã OTP để đặt lại mật khẩu.</p>"
-                        + "<h2>%s</h2>"
-                        + "<p>Nếu bạn không yêu cầu mã OTP, vui lòng bỏ qua email này.</p>"
-                        + "<p>Trân trọng,<br/>PWB</p>",
-                otp);
-        emailService.sendEmail(subject, content, List.of(user.getEmail()));
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public void sendOtpChangePassword() throws MessagingException, UnsupportedEncodingException {
+        String email = SecurityUtils.getCurrentUserLogin()
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        String otp = generateOtp();
+        otpService.saveOtp(email, otp);
+
+        NotificationEvent event = NotificationEvent.builder()
+                .channel("EMAIL")
+                .recipient(user.getEmail())
+                .templateCode("otp-register-vi")
+                .subject("Mã OTP xác thực đổi mật khẩu")
+                .param(new java.util.HashMap<>())
+                .build();
+        event.getParam().put("recipient", user.getEmail());
+        event.getParam().put("otp", otp);
+        event.getParam().put("validMinutes", "5");
+        kafkaTemplate.send("notification-delivery", event);
     }
 
     public void sendOtpRegister(EmailRequest request)
@@ -159,11 +183,9 @@ public class UserServiceImpl implements UserService {
                 .findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        if (user.getOtp() == null || !user.getOtp().equals(request.getOtp())) {
-            return VerifyOtpResponse.builder().valid(false).build();
-        }
+        String storedOtp = otpService.getOtp(user.getEmail());
 
-        if (user.getOtpExpiryDate() == null || user.getOtpExpiryDate().isBefore(LocalDateTime.now())) {
+        if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
             return VerifyOtpResponse.builder().valid(false).build();
         }
 
@@ -176,17 +198,14 @@ public class UserServiceImpl implements UserService {
                 .findByEmail(request.getEmail())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        if (user.getOtp() == null || !user.getOtp().equals(request.getOtp())) {
-            throw new AppException(ErrorCode.TOKEN_INVALID);
-        }
+        String storedOtp = otpService.getOtp(user.getEmail());
 
-        if (user.getOtpExpiryDate() == null || user.getOtpExpiryDate().isBefore(LocalDateTime.now())) {
+        if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setOtp(null);
-        user.setOtpExpiryDate(null);
+        otpService.deleteOtp(user.getEmail());
         userRepository.save(user);
     }
 
@@ -202,6 +221,11 @@ public class UserServiceImpl implements UserService {
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword()))
             throw new AppException(ErrorCode.INVALID_OLD_PASSWORD);
 
+        String storedOtp = otpService.getOtp(email);
+        if (storedOtp == null || !storedOtp.equals(request.getOtp())) {
+            throw new AppException(ErrorCode.OTP_INVALID);
+        }
+
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
             throw new AppException(ErrorCode.PASSWORD_EXISTED);
         }
@@ -210,6 +234,7 @@ public class UserServiceImpl implements UserService {
             throw new AppException(ErrorCode.CONFIRM_PASSWORD_INVALID);
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        otpService.deleteOtp(email);
 
         return ChangePasswordResponse
                 .builder()

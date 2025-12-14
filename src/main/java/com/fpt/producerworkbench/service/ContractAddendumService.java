@@ -46,5 +46,13 @@ public interface ContractAddendumService {
      * Kiểm tra quyền xem phụ lục hợp đồng.
      */
     void ensureCanViewAddendum(Authentication auth, Long contractId);
+    
+    /**
+     * Cập nhật contract và milestones khi phụ lục được thanh toán (PAID).
+     * Áp dụng logic cập nhật theo PaymentType (FULL hoặc MILESTONE).
+     * 
+     * @param addendumId ID của phụ lục đã được thanh toán
+     */
+    void updateContractAndMilestonesOnAddendumPaid(Long addendumId);
 }
 

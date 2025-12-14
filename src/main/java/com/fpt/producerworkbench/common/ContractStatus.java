@@ -9,5 +9,6 @@ public enum ContractStatus {
     COMPLETED,           
     DECLINED,
     VOIDED,
-    EXPIRED
+    EXPIRED,
+    TERMINATED
 }

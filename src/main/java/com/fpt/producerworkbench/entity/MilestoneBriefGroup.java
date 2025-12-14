@@ -32,7 +32,20 @@ public class MilestoneBriefGroup extends AbstractEntity<Long> {
     @Column(name = "position")
     private Integer position;
 
-    @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<MilestoneBriefBlock> blocks = new ArrayList<>();
+    @Column(name = "forward_id")
+    private Long forwardId;
+
+    /**
+     * KHÔNG khởi tạo = new ArrayList<>() tại field level.
+     * Để Hibernate quản lý collection, tránh lỗi "Found shared references to a collection".
+     */
+    @OneToMany(mappedBy = "group", orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<MilestoneBriefBlock> blocks;
+
+    public List<MilestoneBriefBlock> getBlocks() {
+        if (blocks == null) {
+            blocks = new ArrayList<>();
+        }
+        return blocks;
+    }
 }

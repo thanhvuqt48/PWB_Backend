@@ -22,4 +22,7 @@ public class ChangePasswordRequest {
     @NotBlank(message = "Confirm password is required")
     String confirmPassword;
 
+    @NotBlank(message = "OTP is required")
+    String otp;
+
 }

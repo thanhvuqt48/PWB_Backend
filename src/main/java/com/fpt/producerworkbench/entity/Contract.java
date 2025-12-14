@@ -22,9 +22,7 @@ import java.util.List;
 )
 @Getter
 @Setter
-@Builder
 @NoArgsConstructor
-@AllArgsConstructor
 public class Contract extends AbstractEntity<Long> {
 
     // Gốc của bạn: giữ nguyên
@@ -95,9 +93,102 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "decline_reason")
     private String declineReason;
 
-    @Builder.Default
+    /**
+     * KHÔNG khởi tạo = new ArrayList<>() tại field level.
+     * Để Hibernate quản lý collection, tránh lỗi "Found shared references to a collection".
+     */
+    @Setter(AccessLevel.NONE)
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("version ASC")
-    private List<ContractDocument> documents = new ArrayList<>();
+    private List<ContractDocument> documents;
 
+    /**
+     * Getter với lazy initialization - tránh NullPointerException
+     */
+    public List<ContractDocument> getDocuments() {
+        if (documents == null) {
+            documents = new ArrayList<>();
+        }
+        return documents;
+    }
+
+    /**
+     * Constructor tùy chỉnh cho Builder - KHÔNG có documents parameter.
+     * Đảm bảo builder không thể set documents trực tiếp, tránh shared reference.
+     */
+    @Builder
+    public Contract(Project project,
+                    String contractDetails,
+                    BigDecimal totalAmount,
+                    PaymentType paymentType,
+                    Integer fpEditAmount,
+                    Integer productCount,
+                    BigDecimal compensationPercentage,
+                    String signnowTemplateId,
+                    String signnowDocumentId,
+                    ContractStatus signnowStatus,
+                    SigningMode signingMode,
+                    SigningOrderType signingOrderType,
+                    Date expiresAt,
+                    BigDecimal pitTax,
+                    BigDecimal vatTax,
+                    String lastError,
+                    String declineReason) {
+        this.project = project;
+        this.contractDetails = contractDetails;
+        this.totalAmount = totalAmount;
+        this.paymentType = paymentType;
+        this.fpEditAmount = fpEditAmount;
+        this.productCount = productCount;
+        this.compensationPercentage = compensationPercentage;
+        this.signnowTemplateId = signnowTemplateId;
+        this.signnowDocumentId = signnowDocumentId;
+        this.signnowStatus = signnowStatus != null ? signnowStatus : ContractStatus.DRAFT;
+        this.signingMode = signingMode != null ? signingMode : SigningMode.EMAIL;
+        this.signingOrderType = signingOrderType != null ? signingOrderType : SigningOrderType.SEQUENTIAL;
+        this.expiresAt = expiresAt;
+        this.pitTax = pitTax;
+        this.vatTax = vatTax;
+        this.lastError = lastError;
+        this.declineReason = declineReason;
+        // Không khởi tạo documents ở đây - getter sẽ handle lazy init
+    }
+
+    /**
+     * Set documents bằng cách clear và add từng document (mutate in place).
+     * KHÔNG replace list để tránh lỗi "Found shared references to a collection" của Hibernate.
+     */
+    public void setDocuments(List<ContractDocument> documents) {
+        if (this.documents == null) {
+            this.documents = new ArrayList<>();
+        }
+        this.documents.clear();
+
+        if (documents != null) {
+            for (ContractDocument d : documents) {
+                this.addDocument(d); // addDocument sẽ setContract(this)
+            }
+        }
+    }
+
+    /**
+     * Helper method để thêm document vào collection một cách an toàn
+     */
+    public void addDocument(ContractDocument document) {
+        if (this.documents == null) {
+            this.documents = new ArrayList<>();
+        }
+        this.documents.add(document);
+        document.setContract(this);
+    }
+
+    /**
+     * Helper method để xóa document khỏi collection một cách an toàn
+     */
+    public void removeDocument(ContractDocument document) {
+        if (this.documents != null) {
+            this.documents.remove(document);
+            document.setContract(null);
+        }
+    }
 }

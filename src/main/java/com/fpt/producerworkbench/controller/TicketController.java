@@ -51,6 +51,7 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getAllTickets(pageable, principal.getName()));
     }
 
+
     @PostMapping(value = "/{id}/replies", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<TicketReplyResponse> createReply(
             @PathVariable("id") Long ticketId,
@@ -60,6 +61,7 @@ public class TicketController {
     ) {
         return ResponseEntity.ok(ticketService.createReply(ticketId, request, files, principal.getName()));
     }
+
 
     @GetMapping("/{id}/replies")
     public ResponseEntity<List<TicketReplyResponse>> getTicketReplies(

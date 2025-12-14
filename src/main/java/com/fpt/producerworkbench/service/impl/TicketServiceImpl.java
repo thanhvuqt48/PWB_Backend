@@ -1,6 +1,10 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.TicketStatus;
+import com.fpt.producerworkbench.common.UserRole;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.TicketReplyRequest;
 import com.fpt.producerworkbench.dto.response.TicketReplyResponse;
 import com.fpt.producerworkbench.dto.request.TicketRequest;
@@ -10,19 +14,23 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -36,8 +44,11 @@ public class TicketServiceImpl implements TicketService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final FileStorageService storage;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final long MAX_SIZE = 10L * 1024 * 1024;
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
     private static final Set<String> IMAGE_MIMES = Set.of(
             MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif"
     );
@@ -76,6 +87,9 @@ public class TicketServiceImpl implements TicketService {
                 .content(request.getContent())
                 .build();
         ticketReplyRepository.save(firstReply);
+
+        // Gửi email và notification realtime cho tất cả admin
+        sendTicketCreatedNotification(savedTicket, user);
 
         return mapToResponse(savedTicket);
     }
@@ -127,6 +141,15 @@ public class TicketServiceImpl implements TicketService {
             ticketRepository.save(ticket);
         }
 
+        // Gửi email và notification realtime
+        if (isAdmin) {
+            // Admin trả lời -> thông báo cho chủ ticket
+            sendTicketReplyNotification(ticket, savedReply, currentUser, ticket.getUser());
+        } else {
+            // Chủ ticket trả lời -> thông báo cho tất cả admin
+            sendTicketReplyNotification(ticket, savedReply, currentUser, null);
+        }
+
         return mapToReplyResponse(savedReply, currentUser.getRole().name());
     }
 
@@ -159,8 +182,12 @@ public class TicketServiceImpl implements TicketService {
             throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ Admin mới có quyền cập nhật trạng thái");
         }
 
+        TicketStatus oldStatus = ticket.getStatus();
         ticket.setStatus(newStatus);
         Ticket savedTicket = ticketRepository.save(ticket);
+
+        // Gửi email và notification realtime cho chủ ticket
+        sendTicketStatusUpdatedNotification(savedTicket, ticket.getUser(), oldStatus, newStatus);
 
         return mapToResponse(savedTicket);
     }
@@ -190,6 +217,188 @@ public class TicketServiceImpl implements TicketService {
         return response;
     }
 
+
+    private void sendTicketCreatedNotification(Ticket ticket, User creator) {
+        try {
+            List<User> admins = userRepository.findAll().stream()
+                    .filter(u -> u.getRole() == UserRole.ADMIN)
+                    .filter(u -> u.getEmail() != null && !u.getEmail().isBlank())
+                    .collect(Collectors.toList());
+
+            if (admins.isEmpty()) {
+                log.warn("Không tìm thấy admin nào để gửi thông báo về ticket mới");
+                return;
+            }
+
+            String creatorName = creator.getFullName() != null ? creator.getFullName() : creator.getEmail();
+            String projectName = ticket.getProject() != null ? ticket.getProject().getTitle() : "Không có dự án";
+
+            for (User admin : admins) {
+                try {
+                    // Gửi email
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("recipientName", admin.getFullName() != null ? admin.getFullName() : admin.getEmail());
+                    params.put("ticketTitle", ticket.getTitle());
+                    params.put("creatorName", creatorName);
+                    params.put("projectName", projectName);
+                    params.put("ticketId", String.valueOf(ticket.getId()));
+
+                    NotificationEvent event = NotificationEvent.builder()
+                            .recipient(admin.getEmail())
+                            .subject("Ticket mới đã được tạo - " + ticket.getTitle())
+                            .templateCode("ticket-created-notification")
+                            .param(params)
+                            .build();
+
+                    kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+
+                    String actionUrl = String.format("/supportAdmin");
+
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(admin.getId())
+                                    .type(NotificationType.SYSTEM)
+                                    .title("Ticket mới đã được tạo")
+                                    .message(String.format("%s đã tạo ticket mới: \"%s\"%s",
+                                            creatorName,
+                                            ticket.getTitle(),
+                                            ticket.getProject() != null ? " (Dự án: " + projectName + ")" : ""))
+                                    .relatedEntityType(null)
+                                    .relatedEntityId(null)
+                                    .actionUrl(actionUrl)
+                                    .build());
+                } catch (Exception e) {
+                    log.error("Lỗi khi gửi thông báo ticket mới cho admin {}: {}", admin.getId(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo ticket mới: {}", e.getMessage());
+        }
+    }
+
+    private void sendTicketReplyNotification(Ticket ticket, TicketReply reply, User replySender, User targetUser) {
+        try {
+            List<User> recipients;
+
+            if (targetUser != null) {
+                // Admin trả lời -> thông báo cho chủ ticket
+                recipients = List.of(targetUser);
+            } else {
+                // Chủ ticket trả lời -> thông báo cho tất cả admin
+                recipients = userRepository.findAll().stream()
+                        .filter(u -> u.getRole() == UserRole.ADMIN)
+                        .filter(u -> u.getEmail() != null && !u.getEmail().isBlank())
+                        .collect(Collectors.toList());
+            }
+
+            if (recipients.isEmpty()) {
+                log.warn("Không tìm thấy người nhận để gửi thông báo về reply ticket");
+                return;
+            }
+
+            String senderName = replySender.getFullName() != null ? replySender.getFullName() : replySender.getEmail();
+            String ticketTitle = ticket.getTitle();
+
+            for (User recipient : recipients) {
+                try {
+                    if (recipient.getEmail() == null || recipient.getEmail().isBlank()) {
+                        continue;
+                    }
+
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("recipientName", recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
+                    params.put("ticketTitle", ticketTitle);
+                    params.put("senderName", senderName);
+                    params.put("replyContent", reply.getContent());
+                    params.put("ticketId", String.valueOf(ticket.getId()));
+
+                    NotificationEvent event = NotificationEvent.builder()
+                            .recipient(recipient.getEmail())
+                            .subject("Có phản hồi mới cho ticket - " + ticketTitle)
+                            .templateCode("ticket-reply-notification")
+                            .param(params)
+                            .build();
+
+                    kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+
+                    String actionUrl = String.format("/supportAdmin");
+
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(recipient.getId())
+                                    .type(NotificationType.SYSTEM)
+                                    .title("Có phản hồi mới cho ticket")
+                                    .message(String.format("%s đã phản hồi ticket \"%s\".",
+                                            senderName,
+                                            ticketTitle))
+                                    .relatedEntityType(null)
+                                    .relatedEntityId(null)
+                                    .actionUrl(actionUrl)
+                                    .build());
+                } catch (Exception e) {
+                    log.error("Lỗi khi gửi thông báo reply ticket cho user {}: {}", recipient.getId(), e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo reply ticket: {}", e.getMessage());
+        }
+    }
+
+    private void sendTicketStatusUpdatedNotification(Ticket ticket, User ticketOwner, TicketStatus oldStatus, TicketStatus newStatus) {
+        if (ticketOwner.getEmail() == null || ticketOwner.getEmail().isBlank()) {
+            log.warn("Không thể gửi thông báo cập nhật trạng thái ticket vì chủ ticket {} không có email", ticketOwner.getId());
+            return;
+        }
+
+        try {
+            // Gửi email
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", ticketOwner.getFullName() != null ? ticketOwner.getFullName() : ticketOwner.getEmail());
+            params.put("ticketTitle", ticket.getTitle());
+            params.put("oldStatus", oldStatus != null ? oldStatus.name() : "");
+            params.put("newStatus", newStatus.name());
+            params.put("ticketId", String.valueOf(ticket.getId()));
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(ticketOwner.getEmail())
+                    .subject("Trạng thái ticket đã được cập nhật - " + ticket.getTitle())
+                    .templateCode("ticket-status-updated-notification")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo cập nhật trạng thái ticket qua Kafka: userId={}, ticketId={}",
+                    ticketOwner.getId(), ticket.getId());
+
+            String actionUrl = String.format("/supportAdmin");
+            String statusText = getStatusText(newStatus);
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(ticketOwner.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Trạng thái ticket đã được cập nhật")
+                            .message(String.format("Trạng thái ticket \"%s\" đã được cập nhật thành: %s",
+                                    ticket.getTitle(),
+                                    statusText))
+                            .relatedEntityType(null)
+                            .relatedEntityId(null)
+                            .actionUrl(actionUrl)
+                            .build());
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo cập nhật trạng thái ticket: userId={}, ticketId={}",
+                    ticketOwner.getId(), ticket.getId(), e);
+        }
+    }
+
+    private String getStatusText(TicketStatus status) {
+        return switch (status) {
+            case OPEN -> "Mở";
+            case IN_PROGRESS -> "Đang xử lý";
+            case RESOLVED -> "Đã giải quyết";
+            case CLOSED -> "Đã đóng";
+        };
+    }
 
     private User getUserOrThrow(String email) {
         if (email == null || email.isBlank()) {
