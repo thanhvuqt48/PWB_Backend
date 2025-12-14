@@ -93,10 +93,24 @@ public class Contract extends AbstractEntity<Long> {
     @Column(name = "decline_reason")
     private String declineReason;
 
+    /**
+     * KHÔNG khởi tạo = new ArrayList<>() tại field level.
+     * Để Hibernate quản lý collection, tránh lỗi "Found shared references to a collection".
+     */
     @Setter(AccessLevel.NONE)
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("version ASC")
-    private List<ContractDocument> documents = new ArrayList<>();
+    private List<ContractDocument> documents;
+
+    /**
+     * Getter với lazy initialization - tránh NullPointerException
+     */
+    public List<ContractDocument> getDocuments() {
+        if (documents == null) {
+            documents = new ArrayList<>();
+        }
+        return documents;
+    }
 
     /**
      * Constructor tùy chỉnh cho Builder - KHÔNG có documents parameter.
@@ -137,8 +151,7 @@ public class Contract extends AbstractEntity<Long> {
         this.vatTax = vatTax;
         this.lastError = lastError;
         this.declineReason = declineReason;
-        // ✅ Luôn tạo list riêng cho mỗi instance
-        this.documents = new ArrayList<>();
+        // Không khởi tạo documents ở đây - getter sẽ handle lazy init
     }
 
     /**

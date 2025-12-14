@@ -182,9 +182,13 @@ public class ContractPdfServiceImpl implements ContractPdfService {
         }
 
         if (projectId == null) throw new AppException(ErrorCode.BAD_REQUEST);
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
-        Contract contract = contractRepository.findByProjectId(project.getId()).orElse(null);
+        
+        // Kiểm tra project tồn tại trước
+        if (!projectRepository.existsById(projectId)) {
+            throw new AppException(ErrorCode.BAD_REQUEST);
+        }
+        
+        Contract contract = contractRepository.findByProjectId(projectId).orElse(null);
         if (contract != null) {
             ContractStatus status = contract.getSignnowStatus();
             if (status == ContractStatus.PAID || status == ContractStatus.COMPLETED) {
@@ -192,7 +196,9 @@ public class ContractPdfServiceImpl implements ContractPdfService {
             }
         } else {
             contract = new Contract();
-            contract.setProject(project);
+            // Dùng getReferenceById() thay vì findById() để tránh load full entity (đặc biệt liveSessions collection)
+            // Điều này tránh lỗi "Found shared references to a collection: Project.liveSessions"
+            contract.setProject(projectRepository.getReferenceById(projectId));
         }
 
         contract.setContractDetails("Sinh hợp đồng từ PDF fill: " + Optional.ofNullable(req.getContractNo()).orElse(""));

@@ -49,6 +49,34 @@ public class Project  extends AbstractEntity<Long>{
     @Column(name = "project_type", nullable = false)
     private ProjectType type;
 
+    /**
+     * KHÔNG khởi tạo = new ArrayList<>() tại field level.
+     * Để Hibernate quản lý collection, tránh lỗi "Found shared references to a collection".
+     * Sử dụng getter để khởi tạo lazy nếu cần.
+     */
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
-    private List<LiveSession> liveSessions = new ArrayList<>();
+    private List<LiveSession> liveSessions;
+
+    /**
+     * Getter với lazy initialization - tránh NullPointerException
+     */
+    public List<LiveSession> getLiveSessions() {
+        if (liveSessions == null) {
+            liveSessions = new ArrayList<>();
+        }
+        return liveSessions;
+    }
+
+    /**
+     * Setter mutate in-place để tránh shared reference
+     */
+    public void setLiveSessions(List<LiveSession> liveSessions) {
+        if (this.liveSessions == null) {
+            this.liveSessions = new ArrayList<>();
+        }
+        this.liveSessions.clear();
+        if (liveSessions != null) {
+            this.liveSessions.addAll(liveSessions);
+        }
+    }
 }

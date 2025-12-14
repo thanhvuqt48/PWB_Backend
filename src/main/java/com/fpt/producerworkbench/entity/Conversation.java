@@ -43,13 +43,29 @@ public class Conversation {
     @Column(name = "milestone_chat_type")
     private MilestoneChatType milestoneChatType; // INTERNAL hoặc CLIENT - chỉ áp dụng cho group chat của milestone
 
+    /**
+     * KHÔNG khởi tạo = new ArrayList<>() tại field level.
+     * Để Hibernate quản lý collection, tránh lỗi "Found shared references to a collection".
+     */
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<ParticipantInfo> participants = new ArrayList<>();
+    private List<ParticipantInfo> participants;
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<ChatMessage> chatMessages = new ArrayList<>();
+    private List<ChatMessage> chatMessages;
+
+    public List<ParticipantInfo> getParticipants() {
+        if (participants == null) {
+            participants = new ArrayList<>();
+        }
+        return participants;
+    }
+
+    public List<ChatMessage> getChatMessages() {
+        if (chatMessages == null) {
+            chatMessages = new ArrayList<>();
+        }
+        return chatMessages;
+    }
 
     @Column(name = "last_message_at")
     private LocalDateTime lastMessageAt;
