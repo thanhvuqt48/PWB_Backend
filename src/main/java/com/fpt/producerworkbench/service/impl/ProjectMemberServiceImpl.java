@@ -68,7 +68,8 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
     }
 
     @Override
-    public ProjectMembersViewResponse getProjectMembersForViewer(Long projectId, String viewerEmail, Pageable pageable) {
+    public ProjectMembersViewResponse getProjectMembersForViewer(Long projectId, String viewerEmail,
+            Pageable pageable) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
@@ -77,14 +78,16 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
 
         List<ProjectMember> allMembers = projectMemberRepository.findByProjectId(projectId);
 
+        boolean isAdmin = viewer.getRole() == com.fpt.producerworkbench.common.UserRole.ADMIN;
         boolean isOwner = project.getCreator().getId().equals(viewer.getId());
 
-        boolean isMember = isOwner || allMembers.stream().anyMatch(m -> m.getUser().getId().equals(viewer.getId()));
+        boolean isMember = isAdmin || isOwner
+                || allMembers.stream().anyMatch(m -> m.getUser().getId().equals(viewer.getId()));
         if (!isMember) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
-        if (isOwner) {
+        if (isAdmin || isOwner) {
             Page<ProjectMember> pageData = projectMemberRepository.findByProjectId(projectId, pageable);
             Page<ProjectMemberResponse> mappedPage = pageData.map(projectMemberMapper::toResponse);
             int anonCount = (int) allMembers.stream()
@@ -97,8 +100,9 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
                     .build();
         }
 
-        boolean viewerIsAnonymousCollaborator = allMembers.stream().anyMatch(m ->
-                m.getUser().getId().equals(viewer.getId()) && m.getProjectRole() == ProjectRole.COLLABORATOR && m.isAnonymous());
+        boolean viewerIsAnonymousCollaborator = allMembers.stream()
+                .anyMatch(m -> m.getUser().getId().equals(viewer.getId())
+                        && m.getProjectRole() == ProjectRole.COLLABORATOR && m.isAnonymous());
 
         Page<ProjectMember> pageData;
         if (viewerIsAnonymousCollaborator) {
@@ -147,7 +151,8 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
 
         if (isClientMember) {
             var contractOpt = contractRepository.findByProjectId(projectId);
-            if (contractOpt.isPresent() && (ContractStatus.PAID.equals(contractOpt.get().getSignnowStatus()) || ContractStatus.COMPLETED.equals(contractOpt.get().getSignnowStatus()))) {
+            if (contractOpt.isPresent() && (ContractStatus.PAID.equals(contractOpt.get().getSignnowStatus())
+                    || ContractStatus.COMPLETED.equals(contractOpt.get().getSignnowStatus()))) {
                 throw new AppException(ErrorCode.PROJECT_CLIENT_CONTRACT_COMPLETED);
             }
             project.setClient(null);
@@ -203,7 +208,8 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
 
     @Override
     @Transactional
-    public ProjectMemberResponse updateProjectMemberRole(Long projectId, Long userId, UpdateProjectMemberRoleRequest request, Authentication auth) {
+    public ProjectMemberResponse updateProjectMemberRole(Long projectId, Long userId,
+            UpdateProjectMemberRoleRequest request, Authentication auth) {
         if (userId == null || userId <= 0) {
             throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
         }
@@ -262,12 +268,14 @@ public class ProjectMemberServiceImpl implements ProjectMemberService {
 
         try {
             if (removedUser.getEmail() == null || removedUser.getEmail().isBlank()) {
-                log.warn("Không thể gửi email thông báo xóa thành viên dự án vì user {} không có email", removedUser.getId());
+                log.warn("Không thể gửi email thông báo xóa thành viên dự án vì user {} không có email",
+                        removedUser.getId());
                 return;
             }
 
             Map<String, Object> params = new HashMap<>();
-            params.put("recipientName", removedUser.getFullName() != null ? removedUser.getFullName() : removedUser.getEmail());
+            params.put("recipientName",
+                    removedUser.getFullName() != null ? removedUser.getFullName() : removedUser.getEmail());
             params.put("projectName", project.getTitle());
 
             NotificationEvent event = NotificationEvent.builder()

@@ -115,6 +115,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         Project project = contract.getProject();
         Long ownerId = project.getCreator() != null ? project.getCreator().getId() : null;
         Long clientId = project.getClient() != null ? project.getClient().getId() : null;
+        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
 
         String projectTitle = project.getTitle();
         Integer contractProductCount = contract.getProductCount();
@@ -126,7 +127,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         boolean isOwner = ownerId != null && currentUser.getId().equals(ownerId);
         boolean isClient = clientId != null && currentUser.getId().equals(clientId);
 
-        if (isOwner || isClient) {
+        if (isAdmin || isOwner || isClient) {
             return milestones.stream()
                     .map(m -> mapToListResponse(m, projectTitle, contractProductCount, contractFpEditCount,
                             contractTotalAmount))
@@ -180,7 +181,8 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
         }
 
-        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus())
+                && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 
@@ -239,7 +241,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public MilestoneResponse updateMilestone(Long projectId, Long milestoneId, MilestoneRequest request,
-                                             Authentication auth) {
+            Authentication auth) {
         log.info("Cập nhật cột mốc: projectId={}, milestoneId={}", projectId, milestoneId);
 
         var permission = projectPermissionService.checkMilestonePermissions(auth, projectId);
@@ -264,7 +266,8 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
         }
 
-        if (!ContractStatus.PAID.equals(contract.getSignnowStatus()) && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
+        if (!ContractStatus.PAID.equals(contract.getSignnowStatus())
+                && !ContractStatus.COMPLETED.equals(contract.getSignnowStatus())) {
             throw new AppException(ErrorCode.CONTRACT_NOT_COMPLETED_FOR_MILESTONE);
         }
 
@@ -309,18 +312,19 @@ public class MilestoneServiceImpl implements MilestoneService {
         User currentUser = userRepository.findByEmail(auth.getName())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
         boolean isOwner = ownerId != null && currentUser.getId().equals(ownerId);
         boolean isClient = clientId != null && currentUser.getId().equals(clientId);
         boolean isMilestoneMember = milestoneMemberRepository.existsByMilestoneIdAndUserId(milestoneId,
                 currentUser.getId());
 
-        if (!isOwner && !isClient && !isMilestoneMember) {
+        if (!isAdmin && !isOwner && !isClient && !isMilestoneMember) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 
         Optional<ProjectMember> currentUserProjectMember = projectMemberRepository
                 .findByProjectIdAndUserId(projectId, currentUser.getId());
-        boolean isCurrentUserAnonymous = currentUserProjectMember.isPresent()
+        boolean isCurrentUserAnonymous = !isAdmin && currentUserProjectMember.isPresent()
                 && currentUserProjectMember.get().getProjectRole() == ProjectRole.COLLABORATOR
                 && currentUserProjectMember.get().isAnonymous();
 
@@ -343,7 +347,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                         return false;
                     Long userId = mm.getUser().getId();
 
-                    if (isOwner) {
+                    if (isAdmin || isOwner) {
                         return true;
                     }
 
@@ -402,7 +406,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .findByContractIdAndTitleIgnoreCase(contract.getId(), request.getTitle());
         if (existingMilestoneWithSameTitle.isPresent()
                 && (excludeMilestoneId == null
-                || !existingMilestoneWithSameTitle.get().getId().equals(excludeMilestoneId))) {
+                        || !existingMilestoneWithSameTitle.get().getId().equals(excludeMilestoneId))) {
             throw new AppException(ErrorCode.MILESTONE_TITLE_DUPLICATE);
         }
 
@@ -519,7 +523,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private MilestoneListResponse mapToListResponse(Milestone milestone, String projectTitle,
-                                                    Integer contractProductCount, Integer contractFpEditCount, BigDecimal contractTotalAmount) {
+            Integer contractProductCount, Integer contractFpEditCount, BigDecimal contractTotalAmount) {
         return MilestoneListResponse.builder()
                 .id(milestone.getId())
                 .title(milestone.getTitle())
@@ -557,7 +561,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional(readOnly = true)
     public List<AvailableProjectMemberResponse> getAvailableProjectMembers(Long projectId, Long milestoneId,
-                                                                           Authentication auth) {
+            Authentication auth) {
         log.info("Lấy danh sách thành viên dự án có thể thêm vào cột mốc: projectId={}, milestoneId={}", projectId,
                 milestoneId);
 
@@ -616,7 +620,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public MilestoneDetailResponse addMembersToMilestone(Long projectId, Long milestoneId,
-                                                         AddMilestoneMemberRequest request, Authentication auth) {
+            AddMilestoneMemberRequest request, Authentication auth) {
         log.info("Thêm thành viên vào cột mốc: projectId={}, milestoneId={}, members={}", projectId, milestoneId,
                 request.getMembers());
 
@@ -700,13 +704,15 @@ public class MilestoneServiceImpl implements MilestoneService {
                                 .type(NotificationType.MILESTONE_INVITATION)
                                 .title("Lời mời tham gia milestone")
                                 .message(String.format("%s đã mời bạn tham gia milestone \"%s\" trong dự án \"%s\"%s",
-                                        currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail(),
+                                        currentUser.getFullName() != null ? currentUser.getFullName()
+                                                : currentUser.getEmail(),
                                         milestone.getTitle(),
                                         project.getTitle(),
                                         description != null && !description.isBlank() ? " - " + description : ""))
                                 .relatedEntityType(RelatedEntityType.MILESTONE)
                                 .relatedEntityId(milestoneId)
-                                .actionUrl(String.format("/project-workspace?projectId=%d&milestoneId=%d", projectId, milestoneId))
+                                .actionUrl(String.format("/project-workspace?projectId=%d&milestoneId=%d", projectId,
+                                        milestoneId))
                                 .build());
             } catch (Exception e) {
                 log.error("Gặp lỗi khi gửi notification realtime cho milestone invitation: {}", e.getMessage());
@@ -719,7 +725,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public MilestoneDetailResponse removeMemberFromMilestone(Long projectId, Long milestoneId, Long userId,
-                                                             Authentication auth) {
+            Authentication auth) {
         log.info("Xóa thành viên khỏi cột mốc: projectId={}, milestoneId={}, userId={}", projectId, milestoneId,
                 userId);
 
@@ -819,7 +825,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private String determineMemberRole(Long userId, Long ownerId, Long clientId,
-                                       Map<Long, ProjectRole> projectMemberRoleMap) {
+            Map<Long, ProjectRole> projectMemberRoleMap) {
         if (userId == null) {
             return null;
         }
@@ -841,7 +847,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private void sendMilestoneMemberNotificationEmail(User user, Project project, Milestone milestone,
-                                                      String description, ProjectRole projectRole) {
+            String description, ProjectRole projectRole) {
         try {
             if (user.getEmail() == null || user.getEmail().isBlank()) {
                 log.warn("Không thể gửi email thông báo: user {} không có email", user.getId());
@@ -885,7 +891,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional
     public ConversationCreationResponse createGroupChatForMilestone(Long projectId, Long milestoneId,
-                                                                    CreateMilestoneGroupChatRequest request, MultipartFile avatar, Authentication auth) {
+            CreateMilestoneGroupChatRequest request, MultipartFile avatar, Authentication auth) {
         log.info("Tạo group chat cho milestone: projectId={}, milestoneId={}", projectId, milestoneId);
 
         if (auth == null || auth.getName() == null || auth.getName().isBlank()) {
@@ -980,7 +986,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional(readOnly = true)
     public List<ConversationCreationResponse> getGroupChatsForMilestone(Long projectId, Long milestoneId,
-                                                                        MilestoneChatType type, Authentication auth) {
+            MilestoneChatType type, Authentication auth) {
         log.info("Lấy danh sách group chat cho milestone: projectId={}, milestoneId={}, type={}", projectId,
                 milestoneId, type);
 
@@ -1029,7 +1035,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     @Override
     @Transactional(readOnly = true)
     public List<AvailableProjectMemberResponse> searchUsersForMilestoneChat(Long projectId, Long milestoneId,
-                                                                            String keyword, Authentication auth) {
+            String keyword, Authentication auth) {
         log.info("Search users cho milestone chat: projectId={}, milestoneId={}, keyword={}", projectId, milestoneId,
                 keyword);
 
@@ -1120,7 +1126,7 @@ public class MilestoneServiceImpl implements MilestoneService {
     }
 
     private String determineUserProjectRole(Long userId, Long ownerId, Long clientId,
-                                            List<ProjectMember> projectMembers, List<MilestoneMember> milestoneMembers) {
+            List<ProjectMember> projectMembers, List<MilestoneMember> milestoneMembers) {
         if (ownerId != null && userId.equals(ownerId)) {
             return ProjectRole.OWNER.name();
         }
@@ -1231,12 +1237,14 @@ public class MilestoneServiceImpl implements MilestoneService {
             throw new AppException(ErrorCode.CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS);
         }
 
-        // Kiểm tra milestone chưa được hoàn thành và đang ở trạng thái hợp lệ để complete
+        // Kiểm tra milestone chưa được hoàn thành và đang ở trạng thái hợp lệ để
+        // complete
         if (milestone.getStatus() == MilestoneStatus.COMPLETED) {
             throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã được hoàn thành");
         }
         if (milestone.getStatus() != MilestoneStatus.PENDING && milestone.getStatus() != MilestoneStatus.IN_PROGRESS) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc phải ở trạng thái PENDING hoặc IN_PROGRESS mới có thể hoàn thành");
+            throw new AppException(ErrorCode.BAD_REQUEST,
+                    "Cột mốc phải ở trạng thái PENDING hoặc IN_PROGRESS mới có thể hoàn thành");
         }
 
         // Cập nhật status thành COMPLETED
@@ -1320,15 +1328,17 @@ public class MilestoneServiceImpl implements MilestoneService {
     /**
      * Xử lý thanh toán tự động cho milestone khi khách hàng chấp nhận hoàn thành
      * - Chỉ áp dụng cho contract có paymentType = MILESTONE
-     * - Phân chia tiền cho các thành viên đã chấp nhận phân chia (status = APPROVED)
+     * - Phân chia tiền cho các thành viên đã chấp nhận phân chia (status =
+     * APPROVED)
      * - Chủ dự án nhận số tiền còn lại
      */
     @Transactional
     private void processMilestonePayment(Milestone milestone, Project project) {
-        log.info("Bắt đầu xử lý thanh toán cho milestone: milestoneId={}, projectId={}", 
+        log.info("Bắt đầu xử lý thanh toán cho milestone: milestoneId={}, projectId={}",
                 milestone.getId(), project.getId());
 
-        // Kiểm tra milestone đã được completed (không được phân chia tiền nếu đã completed trước đó)
+        // Kiểm tra milestone đã được completed (không được phân chia tiền nếu đã
+        // completed trước đó)
         if (milestone.getStatus() != MilestoneStatus.COMPLETED) {
             log.warn("Milestone chưa được completed, không thể xử lý thanh toán: milestoneId={}", milestone.getId());
             return;
@@ -1337,7 +1347,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         // Lấy thông tin contract và kiểm tra paymentType
         Contract contract = milestone.getContract();
         if (contract == null || contract.getPaymentType() != PaymentType.MILESTONE) {
-            log.warn("Contract không có paymentType = MILESTONE, bỏ qua xử lý thanh toán: milestoneId={}", 
+            log.warn("Contract không có paymentType = MILESTONE, bỏ qua xử lý thanh toán: milestoneId={}",
                     milestone.getId());
             return;
         }
@@ -1345,7 +1355,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         // milestone.amount là tiền gốc (chưa trừ thuế)
         BigDecimal originalAmount = milestone.getAmount();
         if (originalAmount == null || originalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            log.warn("Milestone không có số tiền hợp lệ, bỏ qua xử lý thanh toán: milestoneId={}, amount={}", 
+            log.warn("Milestone không có số tiền hợp lệ, bỏ qua xử lý thanh toán: milestoneId={}, amount={}",
                     milestone.getId(), originalAmount);
             return;
         }
@@ -1361,7 +1371,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .filter(split -> split.getStatus() == MoneySplitStatus.APPROVED)
                 .collect(Collectors.toList());
 
-        log.info("Tìm thấy {} money splits đã được APPROVED cho milestone: milestoneId={}", 
+        log.info("Tìm thấy {} money splits đã được APPROVED cho milestone: milestoneId={}",
                 approvedSplits.size(), milestone.getId());
 
         // Tính tổng số tiền đã phân chia cho các thành viên
@@ -1369,7 +1379,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .map(MilestoneMoneySplit::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        log.info("Tiền gốc (amount): {}, PIT Tax: {}, VAT Tax: {}, Tổng số tiền đã phân chia cho thành viên: {}", 
+        log.info("Tiền gốc (amount): {}, PIT Tax: {}, VAT Tax: {}, Tổng số tiền đã phân chia cho thành viên: {}",
                 originalAmount, pitTax, vatTax, totalDistributedAmount);
 
         // Phân chia tiền cho các thành viên đã chấp nhận
@@ -1378,7 +1388,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             BigDecimal amount = split.getAmount();
 
             if (member == null || amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-                log.warn("Bỏ qua money split không hợp lệ: splitId={}, userId={}, amount={}", 
+                log.warn("Bỏ qua money split không hợp lệ: splitId={}, userId={}, amount={}",
                         split.getId(), split.getUser() != null ? split.getUser().getId() : null, amount);
                 continue;
             }
@@ -1389,27 +1399,28 @@ public class MilestoneServiceImpl implements MilestoneService {
             member.setBalance(newBalance);
             userRepository.save(member);
 
-            log.info("Đã cộng {} vào balance của thành viên: userId={}, oldBalance={}, newBalance={}", 
+            log.info("Đã cộng {} vào balance của thành viên: userId={}, oldBalance={}, newBalance={}",
                     amount, member.getId(), currentBalance, newBalance);
 
             // Gửi email thông báo nhận tiền cho thành viên
             sendPaymentReceivedNotificationEmail(member, project, milestone, amount, newBalance);
         }
 
-        // Tính số tiền cho chủ dự án = tiền gốc (amount) - 2 loại thuế - tổng tiền chia cho thành viên
+        // Tính số tiền cho chủ dự án = tiền gốc (amount) - 2 loại thuế - tổng tiền chia
+        // cho thành viên
         BigDecimal ownerAmount = originalAmount.subtract(pitTax).subtract(vatTax).subtract(totalDistributedAmount);
-        
+
         if (ownerAmount.compareTo(BigDecimal.ZERO) > 0) {
             User projectOwner = project.getCreator();
             if (projectOwner != null) {
-                BigDecimal currentOwnerBalance = projectOwner.getBalance() != null 
-                        ? projectOwner.getBalance() 
+                BigDecimal currentOwnerBalance = projectOwner.getBalance() != null
+                        ? projectOwner.getBalance()
                         : BigDecimal.ZERO;
                 BigDecimal newOwnerBalance = currentOwnerBalance.add(ownerAmount);
                 projectOwner.setBalance(newOwnerBalance);
                 userRepository.save(projectOwner);
 
-                log.info("Đã cộng {} vào balance của chủ dự án: userId={}, oldBalance={}, newBalance={}", 
+                log.info("Đã cộng {} vào balance của chủ dự án: userId={}, oldBalance={}, newBalance={}",
                         ownerAmount, projectOwner.getId(), currentOwnerBalance, newOwnerBalance);
 
                 // Gửi email thông báo nhận tiền cho chủ dự án
@@ -1419,12 +1430,12 @@ public class MilestoneServiceImpl implements MilestoneService {
             }
         } else if (ownerAmount.compareTo(BigDecimal.ZERO) < 0) {
             log.error("Lỗi tính toán: số tiền phân chia vượt quá số tiền milestone! milestoneId={}, " +
-                    "originalAmount={}, totalDistributed={}, ownerAmount={}", 
+                    "originalAmount={}, totalDistributed={}, ownerAmount={}",
                     milestone.getId(), originalAmount, totalDistributedAmount, ownerAmount);
         }
 
         log.info("Hoàn thành xử lý thanh toán cho milestone: milestoneId={}, " +
-                "totalDistributed={}, ownerAmount={}", 
+                "totalDistributed={}, ownerAmount={}",
                 milestone.getId(), totalDistributedAmount, ownerAmount);
     }
 
@@ -1433,7 +1444,7 @@ public class MilestoneServiceImpl implements MilestoneService {
      */
     private boolean areAllMilestonesCompleted(Long contractId) {
         List<Milestone> allMilestones = milestoneRepository.findByContractIdOrderBySequenceAsc(contractId);
-        
+
         if (allMilestones.isEmpty()) {
             log.warn("Contract không có milestones nào: contractId={}", contractId);
             return false;
@@ -1442,7 +1453,7 @@ public class MilestoneServiceImpl implements MilestoneService {
         boolean allCompleted = allMilestones.stream()
                 .allMatch(m -> m.getStatus() == MilestoneStatus.COMPLETED);
 
-        log.info("Kiểm tra tất cả milestones completed: contractId={}, totalMilestones={}, allCompleted={}", 
+        log.info("Kiểm tra tất cả milestones completed: contractId={}, totalMilestones={}, allCompleted={}",
                 contractId, allMilestones.size(), allCompleted);
 
         return allCompleted;
@@ -1453,40 +1464,41 @@ public class MilestoneServiceImpl implements MilestoneService {
      * - Chỉ áp dụng cho contract có paymentType = FULL
      * - Project phải có status = COMPLETED
      * - Tính tổng số tiền của tất cả milestones
-     * - Phân chia tiền cho các thành viên đã chấp nhận phân chia (status = APPROVED) từ tất cả milestones
+     * - Phân chia tiền cho các thành viên đã chấp nhận phân chia (status =
+     * APPROVED) từ tất cả milestones
      * - Chủ dự án nhận số tiền còn lại
      */
     @Transactional
     private void processFullPayment(Contract contract, Project project) {
-        log.info("Bắt đầu xử lý thanh toán FULL cho contract: contractId={}, projectId={}", 
+        log.info("Bắt đầu xử lý thanh toán FULL cho contract: contractId={}, projectId={}",
                 contract.getId(), project.getId());
 
         // Kiểm tra paymentType
         if (contract.getPaymentType() != PaymentType.FULL) {
-            log.warn("Contract không có paymentType = FULL, bỏ qua xử lý thanh toán: contractId={}", 
+            log.warn("Contract không có paymentType = FULL, bỏ qua xử lý thanh toán: contractId={}",
                     contract.getId());
             return;
         }
 
         // Kiểm tra Project status = COMPLETED
         if (project.getStatus() != ProjectStatus.COMPLETED) {
-            log.warn("Project chưa có status = COMPLETED, không thể xử lý thanh toán FULL: projectId={}, status={}", 
+            log.warn("Project chưa có status = COMPLETED, không thể xử lý thanh toán FULL: projectId={}, status={}",
                     project.getId(), project.getStatus());
             return;
         }
 
         // Kiểm tra tất cả milestones đã completed
         if (!areAllMilestonesCompleted(contract.getId())) {
-            log.warn("Chưa tất cả milestones completed, không thể xử lý thanh toán FULL: contractId={}", 
+            log.warn("Chưa tất cả milestones completed, không thể xử lý thanh toán FULL: contractId={}",
                     contract.getId());
             return;
         }
 
         // Lấy tất cả milestones của contract
         List<Milestone> allMilestones = milestoneRepository.findByContractIdOrderBySequenceAsc(contract.getId());
-        
+
         if (allMilestones.isEmpty()) {
-            log.warn("Contract không có milestones nào, bỏ qua xử lý thanh toán: contractId={}", 
+            log.warn("Contract không có milestones nào, bỏ qua xử lý thanh toán: contractId={}",
                     contract.getId());
             return;
         }
@@ -1509,12 +1521,12 @@ public class MilestoneServiceImpl implements MilestoneService {
         }
 
         if (totalOriginalAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            log.warn("Tổng số tiền milestones không hợp lệ, bỏ qua xử lý thanh toán: contractId={}, totalAmount={}", 
+            log.warn("Tổng số tiền milestones không hợp lệ, bỏ qua xử lý thanh toán: contractId={}, totalAmount={}",
                     contract.getId(), totalOriginalAmount);
             return;
         }
 
-        log.info("Tổng tiền gốc (amount): {}, Tổng PIT Tax: {}, Tổng VAT Tax: {}", 
+        log.info("Tổng tiền gốc (amount): {}, Tổng PIT Tax: {}, Tổng VAT Tax: {}",
                 totalOriginalAmount, totalPitTax, totalVatTax);
 
         // Lấy tất cả money splits đã được APPROVED từ tất cả milestones
@@ -1528,7 +1540,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             allApprovedSplits.addAll(approvedSplits);
         }
 
-        log.info("Tìm thấy {} money splits đã được APPROVED từ tất cả milestones: contractId={}", 
+        log.info("Tìm thấy {} money splits đã được APPROVED từ tất cả milestones: contractId={}",
                 allApprovedSplits.size(), contract.getId());
 
         // Tính tổng số tiền đã phân chia cho các thành viên
@@ -1536,7 +1548,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .map(MilestoneMoneySplit::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        log.info("Tổng số tiền đã phân chia cho thành viên: {}, Tổng tiền gốc (amount): {}", 
+        log.info("Tổng số tiền đã phân chia cho thành viên: {}, Tổng tiền gốc (amount): {}",
                 totalDistributedAmount, totalOriginalAmount);
 
         // Phân chia tiền cho các thành viên đã chấp nhận
@@ -1547,7 +1559,7 @@ public class MilestoneServiceImpl implements MilestoneService {
             BigDecimal amount = split.getAmount();
 
             if (member == null || amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-                log.warn("Bỏ qua money split không hợp lệ: splitId={}, userId={}, amount={}", 
+                log.warn("Bỏ qua money split không hợp lệ: splitId={}, userId={}, amount={}",
                         split.getId(), split.getUser() != null ? split.getUser().getId() : null, amount);
                 continue;
             }
@@ -1574,27 +1586,29 @@ public class MilestoneServiceImpl implements MilestoneService {
             member.setBalance(newBalance);
             userRepository.save(member);
 
-            log.info("Đã cộng {} vào balance của thành viên: userId={}, oldBalance={}, newBalance={}", 
+            log.info("Đã cộng {} vào balance của thành viên: userId={}, oldBalance={}, newBalance={}",
                     totalAmount, userId, currentBalance, newBalance);
 
             // Gửi email thông báo nhận tiền cho thành viên (FULL payment)
             sendPaymentReceivedNotificationEmail(member, project, null, totalAmount, newBalance);
         }
 
-        // Tính số tiền cho chủ dự án = tiền gốc (amount) - 2 loại thuế - tổng tiền chia cho thành viên
-        BigDecimal ownerAmount = totalOriginalAmount.subtract(totalPitTax).subtract(totalVatTax).subtract(totalDistributedAmount);
-        
+        // Tính số tiền cho chủ dự án = tiền gốc (amount) - 2 loại thuế - tổng tiền chia
+        // cho thành viên
+        BigDecimal ownerAmount = totalOriginalAmount.subtract(totalPitTax).subtract(totalVatTax)
+                .subtract(totalDistributedAmount);
+
         if (ownerAmount.compareTo(BigDecimal.ZERO) > 0) {
             User projectOwner = project.getCreator();
             if (projectOwner != null) {
-                BigDecimal currentOwnerBalance = projectOwner.getBalance() != null 
-                        ? projectOwner.getBalance() 
+                BigDecimal currentOwnerBalance = projectOwner.getBalance() != null
+                        ? projectOwner.getBalance()
                         : BigDecimal.ZERO;
                 BigDecimal newOwnerBalance = currentOwnerBalance.add(ownerAmount);
                 projectOwner.setBalance(newOwnerBalance);
                 userRepository.save(projectOwner);
 
-                log.info("Đã cộng {} vào balance của chủ dự án: userId={}, oldBalance={}, newBalance={}", 
+                log.info("Đã cộng {} vào balance của chủ dự án: userId={}, oldBalance={}, newBalance={}",
                         ownerAmount, projectOwner.getId(), currentOwnerBalance, newOwnerBalance);
 
                 // Gửi email thông báo nhận tiền cho chủ dự án (FULL payment)
@@ -1604,22 +1618,22 @@ public class MilestoneServiceImpl implements MilestoneService {
             }
         } else if (ownerAmount.compareTo(BigDecimal.ZERO) < 0) {
             log.error("Lỗi tính toán: số tiền phân chia vượt quá tổng số tiền milestones! contractId={}, " +
-                    "totalOriginalAmount={}, totalDistributed={}, ownerAmount={}", 
+                    "totalOriginalAmount={}, totalDistributed={}, ownerAmount={}",
                     contract.getId(), totalOriginalAmount, totalDistributedAmount, ownerAmount);
         }
 
         log.info("Hoàn thành xử lý thanh toán FULL cho contract: contractId={}, " +
-                "totalDistributed={}, ownerAmount={}", 
+                "totalDistributed={}, ownerAmount={}",
                 contract.getId(), totalDistributedAmount, ownerAmount);
     }
 
     /**
      * Gửi email thông báo nhận tiền cho user khi tiền được cộng vào balance
      */
-    private void sendPaymentReceivedNotificationEmail(User recipient, Project project, Milestone milestone, 
-                                                     BigDecimal amount, BigDecimal newBalance) {
+    private void sendPaymentReceivedNotificationEmail(User recipient, Project project, Milestone milestone,
+            BigDecimal amount, BigDecimal newBalance) {
         if (recipient == null || recipient.getEmail() == null || recipient.getEmail().isBlank()) {
-            log.warn("Không thể gửi email thông báo nhận tiền: user {} không có email", 
+            log.warn("Không thể gửi email thông báo nhận tiền: user {} không có email",
                     recipient != null ? recipient.getId() : null);
             return;
         }
@@ -1627,12 +1641,13 @@ public class MilestoneServiceImpl implements MilestoneService {
         try {
             String projectUrl = String.format("http://localhost:5173/projects/%d", project.getId());
             if (milestone != null) {
-                projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d", 
+                projectUrl = String.format("http://localhost:5173/projects/%d/milestones/%d",
                         project.getId(), milestone.getId());
             }
 
             Map<String, Object> params = new HashMap<>();
-            params.put("recipientName", recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
+            params.put("recipientName",
+                    recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
             params.put("projectName", project.getTitle());
             if (milestone != null) {
                 params.put("milestoneTitle", milestone.getTitle());
@@ -1649,11 +1664,11 @@ public class MilestoneServiceImpl implements MilestoneService {
                     .build();
 
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-            log.info("Đã gửi email thông báo nhận tiền qua Kafka: userId={}, amount={}, projectId={}", 
+            log.info("Đã gửi email thông báo nhận tiền qua Kafka: userId={}, amount={}, projectId={}",
                     recipient.getId(), amount, project.getId());
 
         } catch (Exception e) {
-            log.error("Lỗi khi gửi email thông báo nhận tiền qua Kafka: userId={}, projectId={}", 
+            log.error("Lỗi khi gửi email thông báo nhận tiền qua Kafka: userId={}, projectId={}",
                     recipient.getId(), project.getId(), e);
         }
     }
@@ -1712,7 +1727,8 @@ public class MilestoneServiceImpl implements MilestoneService {
         List<ClientDelivery> deliveries = clientDeliveryRepository.findByMilestoneIdOrderBySentAtDesc(milestoneId);
         if (deliveries.isEmpty()) {
             log.warn("Không có tracks nào đã được gửi cho client trong milestone {}", milestoneId);
-            throw new AppException(ErrorCode.BAD_REQUEST, "Không có tracks nào đã được gửi cho client trong milestone này");
+            throw new AppException(ErrorCode.BAD_REQUEST,
+                    "Không có tracks nào đã được gửi cho client trong milestone này");
         }
 
         // 2.2. Lọc theo trackIds nếu có
@@ -1725,11 +1741,13 @@ public class MilestoneServiceImpl implements MilestoneService {
 
             if (filteredDeliveries.isEmpty()) {
                 log.warn("Không tìm thấy tracks với IDs {} trong milestone {}", request.getTrackIds(), milestoneId);
-                throw new AppException(ErrorCode.BAD_REQUEST, "Không tìm thấy tracks với IDs đã chọn trong milestone này");
+                throw new AppException(ErrorCode.BAD_REQUEST,
+                        "Không tìm thấy tracks với IDs đã chọn trong milestone này");
             }
         }
 
-        // 2.3. Lọc tracks hợp lệ: status = INTERNAL_APPROVED, processingStatus = READY, có s3OriginalKey
+        // 2.3. Lọc tracks hợp lệ: status = INTERNAL_APPROVED, processingStatus = READY,
+        // có s3OriginalKey
         List<ClientDelivery> validDeliveries = new ArrayList<>();
         List<Long> failedTrackIds = new ArrayList<>();
 
@@ -1752,7 +1770,8 @@ public class MilestoneServiceImpl implements MilestoneService {
         // 2.4. Kiểm tra có tracks hợp lệ không
         if (validDeliveries.isEmpty()) {
             log.warn("Không có tracks hợp lệ nào để tải về trong milestone {}", milestoneId);
-            throw new AppException(ErrorCode.BAD_REQUEST, "Không có tracks hợp lệ nào để tải về. Tracks phải có status=INTERNAL_APPROVED, processingStatus=READY và có file gốc");
+            throw new AppException(ErrorCode.BAD_REQUEST,
+                    "Không có tracks hợp lệ nào để tải về. Tracks phải có status=INTERNAL_APPROVED, processingStatus=READY và có file gốc");
         }
 
         // BƯỚC 3: TẠO FILE ZIP
@@ -1826,17 +1845,18 @@ public class MilestoneServiceImpl implements MilestoneService {
             String downloadUrl = fileStorageService.generatePresignedUrl(zipS3Key, true, "tracks-original.zip");
 
             // BƯỚC 5: TRẢ VỀ KẾT QUẢ
-            // Gộp tất cả failed track IDs (bao gồm cả tracks không hợp lệ và tracks download lỗi)
+            // Gộp tất cả failed track IDs (bao gồm cả tracks không hợp lệ và tracks
+            // download lỗi)
             List<Long> allFailedTrackIds = new ArrayList<>(failedTrackIds);
             allFailedTrackIds.addAll(downloadFailedTrackIds);
 
-            DownloadOriginalTracksZipResponse.ZipStatistics statistics =
-                    DownloadOriginalTracksZipResponse.ZipStatistics.builder()
-                            .totalTracks(filteredDeliveries.size()) // Tổng số tracks được chọn (bao gồm cả không hợp lệ)
-                            .successfulTracks(successfulCount)
-                            .failedTracks(allFailedTrackIds.size())
-                            .failedTrackIds(allFailedTrackIds)
-                            .build();
+            DownloadOriginalTracksZipResponse.ZipStatistics statistics = DownloadOriginalTracksZipResponse.ZipStatistics
+                    .builder()
+                    .totalTracks(filteredDeliveries.size()) // Tổng số tracks được chọn (bao gồm cả không hợp lệ)
+                    .successfulTracks(successfulCount)
+                    .failedTracks(allFailedTrackIds.size())
+                    .failedTrackIds(allFailedTrackIds)
+                    .build();
 
             return DownloadOriginalTracksZipResponse.builder()
                     .downloadUrl(downloadUrl)
@@ -1872,7 +1892,8 @@ public class MilestoneServiceImpl implements MilestoneService {
         }
 
         // Check if user is project member with CLIENT or OBSERVER role
-        Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(), user.getId());
+        Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(),
+                user.getId());
         if (memberOpt.isPresent()) {
             ProjectRole role = memberOpt.get().getProjectRole();
             // Client và Observer chỉ được xem nếu project đã funded (có contract completed)
