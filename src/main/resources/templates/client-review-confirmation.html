@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>✅ Đánh giá của bạn đã được gửi thành công!</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+      body {
+        font-family: "Space Grotesk", Arial, sans-serif;
+        line-height: 1.55;
+        margin: 0;
+        padding: 0;
+        background-color: #0d0b14;
+        color: #e3e1fa;
+      }
+      .container {
+        max-width: 600px;
+        margin: 16px auto;
+        background: radial-gradient(circle, #242446, #151526 70%);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 0 16px rgba(192, 88, 245, 0.18);
+        border: 1px solid #322a50;
+        color: #e3e1fa;
+      }
+
+      /* --- Header đồng bộ --- */
+      .header {
+        padding: 24px 24px 16px;
+      }
+      .brand-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .brand-td {
+        vertical-align: middle;
+      }
+      .brand-logo {
+        width: 55px;
+        height: 55px;
+        border-radius: 6px;
+        display: block;
+      }
+      .brand-name {
+        text-align: center;
+        font-size: 14px;
+        color: #ffffff;
+        letter-spacing: 1.2px;
+        font-weight: bold;
+      }
+      .tagline {
+        text-align: center;
+        font-size: 11px;
+        color: #b891ff;
+        margin-top: 2px;
+      }
+
+      /* --- Nội dung chính --- */
+      .content {
+        padding: 8px 30px 30px;
+      }
+      .greeting {
+        margin: 16px 0 10px;
+        font-size: 18px;
+        font-weight: 500;
+        color: #ffffff;
+        text-align: center;
+      }
+      .greeting strong {
+        color: #b891ff;
+      }
+      .content p {
+        margin: 0 0 16px;
+        font-size: 15px;
+        color: #d5d2f3;
+        text-align: center;
+      }
+
+      /* --- Success Badge --- */
+      .success-badge {
+        display: inline-block;
+        background: #10b981;
+        color: #ffffff;
+        padding: 8px 18px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        margin: 16px 0;
+      }
+
+      /* --- Review Summary Card --- */
+      .review-summary {
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 10px;
+        padding: 24px;
+        text-align: center;
+        border: 1px solid #3a2c5f;
+        margin: 24px 0;
+      }
+      .project-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0 0 12px;
+        letter-spacing: 0.5px;
+      }
+      .producer-name {
+        font-size: 14px;
+        color: #b891ff;
+        margin-bottom: 20px;
+      }
+      .rating {
+        font-size: 48px;
+        margin: 20px 0;
+        letter-spacing: 8px;
+        line-height: 1;
+      }
+
+      /* --- Info Box --- */
+      .info-box {
+        background: rgba(0, 0, 0, 0.25);
+        border-left: 4px solid #3b82f6;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 24px 0;
+        border: 1px solid #3a2c5f;
+      }
+      .info-box h3 {
+        color: #3b82f6;
+        font-size: 16px;
+        margin: 0 0 12px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .info-box p {
+        color: #d5d2f3;
+        font-size: 13px;
+        margin: 8px 0;
+        line-height: 1.6;
+        text-align: left;
+      }
+      .info-box p:before {
+        content: "• ";
+        color: #3b82f6;
+        font-weight: bold;
+        margin-right: 8px;
+      }
+
+      /* --- CTA Button --- */
+      .cta-button {
+        display: inline-block;
+        background: #c058f5;
+        color: #ffffff;
+        padding: 14px 32px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 16px;
+        margin: 20px 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
+      }
+      .cta-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 25px rgba(192, 88, 245, 0.7);
+      }
+
+      /* --- Footer --- */
+      .divider {
+        border: 0;
+        height: 1px;
+        margin: 24px 0;
+        background-image: linear-gradient(
+          to right,
+          rgba(192, 88, 245, 0),
+          rgba(192, 88, 245, 0.45),
+          rgba(192, 88, 245, 0)
+        );
+      }
+      .footer {
+        padding: 0 16px 24px;
+        color: #9b95af;
+        font-size: 12px;
+        text-align: center;
+      }
+      .footer p {
+        margin: 0 0 4px;
+        text-align: center;
+      }
+
+      /* --- Responsive --- */
+      @media (max-width: 600px) {
+        .content {
+          padding: 8px 20px 20px;
+        }
+        .greeting {
+          font-size: 16px;
+        }
+        .rating {
+          font-size: 36px;
+          letter-spacing: 4px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header PWB đồng bộ -->
+      <div class="header">
+        <table class="brand-table">
+          <tr>
+            <td class="brand-td" style="width: 36px"></td>
+            <td class="brand-td" style="text-align: center">
+              <div class="brand-name">PRODUCER WORKBENCH</div>
+              <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+            </td>
+            <td class="brand-td" style="width: 55px; text-align: right">
+              <img
+                src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG"
+                alt="PWB Logo"
+                class="brand-logo"
+              />
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Content -->
+      <div class="content">
+        <p class="greeting">
+          Chào Phi hành gia <strong th:text="${clientName}">Client</strong>,
+        </p>
+
+        <p>
+          Cảm ơn bạn đã dành thời gian đánh giá sứ mệnh âm nhạc! Đánh giá của
+          bạn đã được gửi thành công và sẽ giúp Producer cải thiện chất lượng
+          dịch vụ. 🎉
+        </p>
+
+        <div class="success-badge">✅ ĐÁNH GIÁ ĐÃ GỬI</div>
+
+        <!-- Review Summary -->
+        <div class="review-summary">
+          <div class="project-title" th:text="${projectTitle}">
+            Dự án: Project Name
+          </div>
+          <div class="producer-name" th:text="'Producer: ' + ${producerName}">
+            Producer: Name
+          </div>
+
+          <div class="rating">
+            <span th:text="${starsFilled}">⭐⭐⭐⭐⭐</span
+            ><span th:text="${starsEmpty}"></span>
+          </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+          <h3>ℹ️ Thông tin quan trọng</h3>
+          <p>Đánh giá của bạn đã được lưu vào hệ thống</p>
+          <p>Producer sẽ nhận được thông báo về đánh giá của bạn</p>
+          <p>Bạn có thể xem, chỉnh sửa hoặc xóa đánh giá bất cứ lúc nào</p>
+          <p>
+            Nếu bạn cho phép công khai, đánh giá sẽ hiển thị trong portfolio của
+            Producer
+          </p>
+        </div>
+
+        <!-- CTA Button -->
+        <div style="text-align: center">
+          <a th:href="${projectManageLink}" class="cta-button">
+            📋 XEM DỰ ÁN CỦA TÔI
+          </a>
+        </div>
+
+        <p style="margin-top: 24px; font-size: 14px; color: #9b95af">
+          Chúng tôi rất trân trọng phản hồi của bạn! Nếu có bất kỳ câu hỏi nào,
+          vui lòng liên hệ với chúng tôi. 🙏
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <hr class="divider" />
+      <div class="footer">
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB &copy; 2025</strong></p>
+      </div>
+    </div>
+  </body>
+</html>

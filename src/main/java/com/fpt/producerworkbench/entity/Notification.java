@@ -15,7 +15,7 @@ import lombok.*;
 public class Notification extends AbstractEntity<Long> {
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, length = 50)
     private NotificationType type;
 
     @Column(name = "title", nullable = false)

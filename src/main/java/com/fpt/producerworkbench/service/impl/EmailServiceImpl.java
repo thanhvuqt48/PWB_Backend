@@ -347,4 +347,95 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
+    @Override
+    @Async
+    public void sendReviewReceivedEmail(String producerEmail, String producerName, String clientName, 
+                                        String projectTitle, Integer rating, String comment) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        log.info("Sending review received email to {}", producerEmail);
+        
+        Context context = new Context();
+        context.setVariable("producerName", producerName);
+        context.setVariable("clientName", clientName);
+        context.setVariable("projectTitle", projectTitle);
+        context.setVariable("rating", rating);
+        context.setVariable("comment", comment != null ? comment : "Không có nhận xét");
+        
+        // Generate star icons
+        String starsFilled = "⭐".repeat(rating);
+        String starsEmpty = "☆".repeat(5 - rating);
+        context.setVariable("starsFilled", starsFilled);
+        context.setVariable("starsEmpty", starsEmpty);
+        
+        // Portfolio link
+        String portfolioLink = "http://localhost:5173/projectManage";
+        context.setVariable("portfolioLink", portfolioLink);
+        
+        try {
+            String html = templateEngine.process("producer-review-received", context);
+            
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            
+            helper.setFrom(emailFrom, "Producer Workbench");
+            helper.setTo(producerEmail);
+            helper.setSubject("🌟 Bạn nhận được đánh giá " + rating + " sao từ " + clientName);
+            helper.setText(html, true);
+            
+            mailSender.send(mimeMessage);
+            log.info("Review received email sent to {} successfully!", producerEmail);
+            
+        } catch (Exception e) {
+            log.error("Failed to send review received email to {}: {}", producerEmail, e.getMessage());
+            throw e;
+        }
+    }
+
+    @Override
+    @Async
+    public void sendReviewConfirmationEmail(String clientEmail, String clientName, String producerName, 
+                                            String projectTitle, Integer rating) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        log.info("Sending review confirmation email to {}", clientEmail);
+        
+        Context context = new Context();
+        context.setVariable("clientName", clientName);
+        context.setVariable("producerName", producerName);
+        context.setVariable("projectTitle", projectTitle);
+        context.setVariable("rating", rating);
+        
+        // Generate star icons
+        String starsFilled = "⭐".repeat(rating);
+        String starsEmpty = "☆".repeat(5 - rating);
+        context.setVariable("starsFilled", starsFilled);
+        context.setVariable("starsEmpty", starsEmpty);
+        
+        // Project manage link
+        String projectManageLink = "http://localhost:5173/projectManage";
+        context.setVariable("projectManageLink", projectManageLink);
+        
+        try {
+            String html = templateEngine.process("client-review-confirmation", context);
+            
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            
+            helper.setFrom(emailFrom, "Producer Workbench");
+            helper.setTo(clientEmail);
+            helper.setSubject("✅ Đánh giá của bạn đã được gửi thành công!");
+            helper.setText(html, true);
+            
+            mailSender.send(mimeMessage);
+            log.info("Review confirmation email sent to {} successfully!", clientEmail);
+            
+        } catch (Exception e) {
+            log.error("Failed to send review confirmation email to {}: {}", clientEmail, e.getMessage());
+            throw e;
+        }
+    }
+
 }
