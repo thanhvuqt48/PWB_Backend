@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.repository;
 
 import com.fpt.producerworkbench.common.PayoutSource;
+import com.fpt.producerworkbench.common.PayoutStatus;
 import com.fpt.producerworkbench.entity.TaxPayoutRecord;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +46,21 @@ public interface TaxPayoutRecordRepository extends JpaRepository<TaxPayoutRecord
         @Param("fromDate") LocalDate fromDate,
         @Param("toDate") LocalDate toDate,
         @Param("isDeclared") Boolean isDeclared,
+        Pageable pageable
+    );
+    
+    @Query("SELECT tpr FROM TaxPayoutRecord tpr WHERE " +
+           "tpr.user.id = :userId " +
+           "AND (:fromDate IS NULL OR tpr.payoutDate >= :fromDate) " +
+           "AND (:toDate IS NULL OR tpr.payoutDate <= :toDate) " +
+           "AND (:source IS NULL OR tpr.payoutSource = :source) " +
+           "AND (:status IS NULL OR tpr.status = :status)")
+    Page<TaxPayoutRecord> findByUserAndDateRange(
+        @Param("userId") Long userId,
+        @Param("fromDate") LocalDate fromDate,
+        @Param("toDate") LocalDate toDate,
+        @Param("source") PayoutSource source,
+        @Param("status") PayoutStatus status,
         Pageable pageable
     );
 }

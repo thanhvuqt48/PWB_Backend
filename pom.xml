@@ -205,6 +205,25 @@
             <version>7.2.6</version>
         </dependency>
 
+        <!-- HTML to PDF (easy styling via Thymeleaf + CSS) -->
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-pdfbox</artifactId>
+            <version>1.0.10</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openhtmltopdf</groupId>
+            <artifactId>openhtmltopdf-slf4j</artifactId>
+            <version>1.0.10</version>
+        </dependency>
+
+        <!-- Excel export -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
