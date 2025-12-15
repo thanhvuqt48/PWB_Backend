@@ -58,12 +58,6 @@ public class User extends AbstractEntity<Long> implements UserDetails {
     @Column(precision = 15, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
-    @Column(name = "otp")
-    String otp;
-
-    @Column(name = "otp_expiry_date")
-    LocalDateTime otpExpiryDate;
-
     @Column(name = "cccd_number", unique = true)
     private String cccdNumber;
 
@@ -100,6 +94,14 @@ public class User extends AbstractEntity<Long> implements UserDetails {
 
     @Column(name = "cccd_back_image_url", length = 1000)
     private String cccdBackImageUrl;
+
+    // === THÔNG TIN THUẾ ===
+    // Từ 01/07/2021: Số CCCD 12 số CHÍNH LÀ mã số thuế cá nhân
+    @Column(name = "tax_code", length = 13)
+    private String taxCode; // Mã số thuế (nếu có MST cũ)
+
+    @Column(name = "tax_department")
+    private String taxDepartment; // Chi cục thuế quản lý
 
     @Transient
     public String getFullName() {

@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 18pt 22pt 24pt 22pt;
+      }
+      body {
+        font-family: "Noto Serif", "Helvetica", "Arial", serif;
+        font-size: 11px;
+        color: #1e293b;
+        background: #f8fafc;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 14pt;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+        margin-bottom: 12pt;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10pt;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 2pt;
+      }
+      .brand-name {
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.4pt;
+        color: #111827;
+      }
+      .brand-sub {
+        font-size: 11px;
+        color: #475569;
+      }
+      .title {
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0;
+        color: #0f172a;
+      }
+      .meta {
+        margin: 0;
+        font-size: 11px;
+        color: #475569;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10pt;
+        margin-top: 8pt;
+      }
+      .summary-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 10pt;
+        background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      }
+      .summary-label {
+        color: #64748b;
+        font-size: 10px;
+        letter-spacing: 0.2pt;
+        text-transform: uppercase;
+      }
+      .summary-value {
+        font-weight: 800;
+        font-size: 14px;
+        margin-top: 2pt;
+        color: #0f172a;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 6pt;
+        overflow: hidden;
+        border-radius: 8px;
+      }
+      th,
+      td {
+        border: 1px solid #e2e8f0;
+        padding: 6pt 6pt;
+        background: #fff;
+      }
+      th {
+        background: #0f172a;
+        color: #e2e8f0;
+        font-weight: 700;
+        text-align: left;
+        letter-spacing: 0.3pt;
+        font-size: 10.5px;
+      }
+      td {
+        vertical-align: top;
+      }
+      .text-right {
+        text-align: right;
+      }
+      .text-center {
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="header">
+        <div class="brand">
+          <div class="brand-name">PWB — Producer Workbench</div>
+          <div class="brand-sub">Bảng kê Thuế &amp; Thu nhập</div>
+        </div>
+        <div style="text-align: right">
+          <p
+            class="meta"
+            th:text="'Người dùng: ' + ${userName} + ' (' + ${userEmail} + ')'"
+          ></p>
+          <p
+            class="meta"
+            th:text="'Kỳ: ' + ${fromDate} + ' → ' + ${toDate}"
+          ></p>
+          <p class="meta" th:text="'Ngày xuất: ' + ${exportDate}"></p>
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="summary-item">
+          <div class="summary-label">Tổng trước thuế (Gross)</div>
+          <div class="summary-value" th:text="${totalGross}">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Thuế đã khấu trừ</div>
+          <div class="summary-value" th:text="${totalTax}">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Thực nhận (Net)</div>
+          <div class="summary-value" th:text="${totalNet}">0</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Số giao dịch</div>
+          <div class="summary-value" th:text="${totalCount}">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Ngày chi trả</th>
+            <th>Nguồn</th>
+            <th>Dự án</th>
+            <th class="text-right">Tổng trước thuế</th>
+            <th class="text-right">Thuế</th>
+            <th class="text-right">Thực nhận</th>
+            <th>Trạng thái</th>
+            <th>Năm thuế</th>
+            <th>Tháng thuế</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="row : ${rows}">
+            <td th:text="${row.payoutDate}">2025-01-01</td>
+            <td th:text="${row.source}">MILESTONE_PAYMENT</td>
+            <td th:text="${row.projectTitle}">Dự án</td>
+            <td class="text-right" th:text="${row.grossAmount}">0</td>
+            <td class="text-right" th:text="${row.taxAmount}">0</td>
+            <td class="text-right" th:text="${row.netAmount}">0</td>
+            <td th:text="${row.status}">COMPLETED</td>
+            <td th:text="${row.taxPeriodYear}">2025</td>
+            <td th:text="${row.taxPeriodMonth}">12</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </body>
+</html>

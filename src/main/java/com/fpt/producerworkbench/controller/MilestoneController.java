@@ -22,7 +22,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -357,6 +356,26 @@ public class MilestoneController {
                 .build();
     }
 
+    @GetMapping("/{projectId}/milestones/{milestoneId}/brief/file")
+    public ApiResponse<String> getBriefFileUrl(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @RequestParam("key") String fileKey,
+            Authentication authentication) {
+
+        if (projectId == null || milestoneId == null || fileKey == null || fileKey.isBlank()) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        String url = milestoneBriefService.getBriefFileUrl(projectId, milestoneId, fileKey, authentication);
+
+        return ApiResponse.<String>builder()
+                .code(HttpStatus.OK.value())
+                .message("Lấy đường dẫn file thành công")
+                .result(url)
+                .build();
+    }
+
     @GetMapping("/{projectId}/milestones/{milestoneId}/brief")
     public ApiResponse<MilestoneBriefDetailResponse> getMilestoneBrief(
             @PathVariable Long projectId,
@@ -427,6 +446,54 @@ public class MilestoneController {
         return ApiResponse.<Void>builder()
                 .code(HttpStatus.OK.value())
                 .message("Xóa mô tả thành công")
+                .build();
+    }
+
+    @PostMapping("/{projectId}/milestones/{milestoneId}/brief/forward/{groupId}")
+    public ApiResponse<MilestoneBriefGroupResponse> forwardExternalToInternal(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @PathVariable Long groupId,
+            Authentication authentication) {
+
+        if (projectId == null || milestoneId == null || groupId == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefGroupResponse response = milestoneBriefService.forwardExternalGroupToInternal(projectId, milestoneId, groupId, authentication);
+
+        return ApiResponse.<MilestoneBriefGroupResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message("Đã chuyển tiếp nội dung này sang phòng nội bộ")
+                .result(response)
+                .build();
+    }
+
+    /**
+     * Chuyển tiếp group từ EXTERNAL sang INTERNAL với tùy chọn chỉnh sửa
+     * Chỉ Owner mới có quyền thực hiện
+     */
+    @PostMapping("/{projectId}/milestones/{milestoneId}/brief/forward/{groupId}/edit")
+    public ApiResponse<MilestoneBriefGroupResponse> forwardExternalToInternalWithEdit(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @PathVariable Long groupId,
+            @Valid @RequestBody(required = false) com.fpt.producerworkbench.dto.request.ForwardBriefGroupRequest request,
+            Authentication authentication) {
+
+        if (projectId == null || milestoneId == null || groupId == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefGroupResponse response = milestoneBriefService.forwardExternalGroupToInternalWithEdit(
+                projectId, milestoneId, groupId, request, authentication);
+
+        return ApiResponse.<MilestoneBriefGroupResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message(request != null && request.getGroup() != null 
+                        ? "Đã chỉnh sửa và chuyển tiếp nội dung này sang phòng nội bộ"
+                        : "Đã chuyển tiếp nội dung này sang phòng nội bộ")
+                .result(response)
                 .build();
     }
 

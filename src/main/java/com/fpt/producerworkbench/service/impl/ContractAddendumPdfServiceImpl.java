@@ -153,15 +153,6 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                 .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElse(null);
 
-        if (latestAddendum != null) {
-            ContractStatus latestStatus = latestAddendum.getSignnowStatus();
-            if (latestStatus == ContractStatus.PAID || latestStatus == ContractStatus.COMPLETED) {
-                if (latestStatus == ContractStatus.PAID) {
-                    throw new AppException(ErrorCode.ALREADY_SIGNED_FINAL);
-                }
-            }
-        }
-
         ContractAddendum add;
 
         if (latestAddendum == null) {
@@ -174,7 +165,8 @@ public class ContractAddendumPdfServiceImpl implements ContractAddendumPdfServic
                     .signnowStatus(ContractStatus.DRAFT)
                     .signnowDocumentId(null)
                     .build();
-        } else if (ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus())) {
+        } else if (ContractStatus.COMPLETED.equals(latestAddendum.getSignnowStatus()) || 
+                   ContractStatus.PAID.equals(latestAddendum.getSignnowStatus())) {
             int newAddendumNumber = latestAddendum.getAddendumNumber() + 1;
             add = ContractAddendum.builder()
                     .contract(contract)

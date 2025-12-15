@@ -44,9 +44,11 @@ public class Conversation {
     private MilestoneChatType milestoneChatType; // INTERNAL hoặc CLIENT - chỉ áp dụng cho group chat của milestone
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ParticipantInfo> participants = new ArrayList<>();
 
     @OneToMany(mappedBy = "conversation", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<ChatMessage> chatMessages = new ArrayList<>();
 
     @Column(name = "last_message_at")

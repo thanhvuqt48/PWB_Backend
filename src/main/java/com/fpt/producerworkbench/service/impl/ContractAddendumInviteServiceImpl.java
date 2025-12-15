@@ -51,7 +51,7 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
     private final ProjectPermissionService projectPermissionService;
     private final NotificationService notificationService;
     private final UserRepository userRepository;
-    
+
     @Lazy
     @Autowired
     private ContractAddendumInviteServiceImpl self;
@@ -62,7 +62,8 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
 
     private List<ContractInviteRequest.Signer> generateAutoSigners(Contract c) {
         var project = c.getProject();
-        if (project.getClient() == null) throw new AppException(ErrorCode.CLIENT_NOT_FOUND);
+        if (project.getClient() == null)
+            throw new AppException(ErrorCode.CLIENT_NOT_FOUND);
 
         List<ContractInviteRequest.Signer> signers = new ArrayList<>();
         signers.add(ContractInviteRequest.Signer.builder()
@@ -80,7 +81,8 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
     }
 
     @Async
-    public void sendInviteEmailsAsync(Contract contract, ContractAddendum addendum, List<ContractInviteRequest.Signer> signers) {
+    public void sendInviteEmailsAsync(Contract contract, ContractAddendum addendum,
+            List<ContractInviteRequest.Signer> signers) {
         try {
             String previewUrl = null;
             try {
@@ -90,12 +92,14 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 if (addDoc != null) {
                     previewUrl = fileStorageService.generatePresignedUrl(addDoc.getStorageUrl(), false, null);
                 }
-            } catch (Exception ignore) { }
+            } catch (Exception ignore) {
+            }
 
             for (var s : signers) {
-                if (s.getEmail() == null || s.getEmail().isBlank()) continue;
+                if (s.getEmail() == null || s.getEmail().isBlank())
+                    continue;
                 NotificationEvent event = NotificationEvent.builder()
-                        .subject("Yêu cầu ký phụ lục - Project #" + contract.getProject().getId())
+                        .subject("Yêu cầu ký phụ lục - Dự án #" + contract.getProject().getId())
                         .recipient(s.getEmail().trim())
                         .templateCode("contract-addendum-invite-sent.html")
                         .param(new HashMap<>())
@@ -111,7 +115,8 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
             }
             log.info("[Addendum] Sent invite emails for contract {} to {} signers", contract.getId(), signers.size());
         } catch (Exception mailEx) {
-            log.error("[Addendum] Failed to send invite emails for contract {}: {}", contract.getId(), mailEx.getMessage(), mailEx);
+            log.error("[Addendum] Failed to send invite emails for contract {}: {}", contract.getId(),
+                    mailEx.getMessage(), mailEx);
         }
     }
 
@@ -122,27 +127,29 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
 
         var permissions = projectPermissionService.checkContractPermissions(auth, contract.getProject().getId());
-        if (!permissions.isCanInviteToSign()) throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (!permissions.isCanInviteToSign())
+            throw new AppException(ErrorCode.ACCESS_DENIED);
 
         ContractAddendum addendum = addendumRepository
                 .findFirstByContractIdOrderByAddendumNumberDescVersionDesc(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
-        if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE || 
-            addendum.getSignnowStatus() == ContractStatus.PARTIALLY_SIGNED) {
+        if (addendum.getSignnowStatus() == ContractStatus.OUT_FOR_SIGNATURE ||
+                addendum.getSignnowStatus() == ContractStatus.PARTIALLY_SIGNED) {
             throw new AppException(ErrorCode.INVITE_ALREADY_SENT);
         }
 
-        if (addendum.getSignnowStatus() == ContractStatus.SIGNED || 
-            addendum.getSignnowStatus() == ContractStatus.PAID || 
-            addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
+        if (addendum.getSignnowStatus() == ContractStatus.SIGNED ||
+                addendum.getSignnowStatus() == ContractStatus.PAID ||
+                addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.INVITE_NOT_ALLOWED_ALREADY_COMPLETED);
         }
 
-        if (addendum.getSignnowStatus() == ContractStatus.DRAFT 
-                && addendum.getSignnowDocumentId() != null 
+        if (addendum.getSignnowStatus() == ContractStatus.DRAFT
+                && addendum.getSignnowDocumentId() != null
                 && !addendum.getSignnowDocumentId().isBlank()) {
-            log.info("[Addendum] Resetting signnowDocumentId for DRAFT addendum {} to allow new document upload", addendum.getId());
+            log.info("[Addendum] Resetting signnowDocumentId for DRAFT addendum {} to allow new document upload",
+                    addendum.getId());
             addendum.setSignnowDocumentId(null);
             addendumRepository.save(addendum);
         }
@@ -172,12 +179,12 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                 log.error("[Addendum] Upload document failed (unexpected): {}", ex.getMessage(), ex);
                 throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
             }
-            
+
             if (docId == null || docId.isBlank()) {
                 log.error("[Addendum] Upload document returned null or empty document ID");
                 throw new AppException(ErrorCode.SIGNNOW_UPLOAD_FAILED);
             }
-            
+
             addendum.setSignnowDocumentId(docId);
             addendumRepository.save(addendum);
 
@@ -197,7 +204,8 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
             ownerEmail = signNowClient.getDocumentOwnerEmail(addendum.getSignnowDocumentId());
         } catch (WebClientResponseException ex) {
             int sc = ex.getStatusCode().value();
-            log.error("[Addendum] Get document owner email failed: status={} body={}", sc, ex.getResponseBodyAsString());
+            log.error("[Addendum] Get document owner email failed: status={} body={}", sc,
+                    ex.getResponseBodyAsString());
             if (sc == 404) {
                 throw new AppException(ErrorCode.SIGNNOW_DOC_ID_NOT_FOUND);
             }
@@ -210,10 +218,12 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         for (var s : auto) {
             if (s.getEmail() == null || s.getEmail().isBlank())
                 throw new AppException(ErrorCode.SIGNER_EMAIL_REQUIRED);
-            if (eqIgnore(s.getEmail(), ownerEmail)) continue;
+            if (eqIgnore(s.getEmail(), ownerEmail))
+                continue;
             filtered.add(s);
         }
-        if (filtered.isEmpty()) throw new AppException(ErrorCode.SIGNERS_REQUIRED);
+        if (filtered.isEmpty())
+            throw new AppException(ErrorCode.SIGNERS_REQUIRED);
 
         boolean sequential = true;
         StartSigningResponse resp = new StartSigningResponse();
@@ -233,8 +243,9 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                     log.error("[Addendum] Get role ID map failed (unexpected): {}", ex.getMessage(), ex);
                     throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
                 }
-                
-                if (roleIdMap.isEmpty()) throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
+
+                if (roleIdMap.isEmpty())
+                    throw new AppException(ErrorCode.SIGNNOW_DOC_HAS_NO_FIELDS);
 
                 List<Map<String, Object>> to = new ArrayList<>();
                 for (var s : filtered) {
@@ -242,19 +253,24 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
                     if ((roleId == null || roleId.isBlank()) && s.getRoleName() != null) {
                         roleId = roleIdMap.get(s.getRoleName());
                     }
-                    if (roleId == null || roleId.isBlank()) throw new AppException(ErrorCode.ROLE_ID_REQUIRED);
+                    if (roleId == null || roleId.isBlank())
+                        throw new AppException(ErrorCode.ROLE_ID_REQUIRED);
                     Map<String, Object> m = new HashMap<>();
                     m.put("email", s.getEmail());
                     m.put("role_id", roleId);
-                    if (s.getOrder() != null) m.put("order", s.getOrder());
+                    if (s.getOrder() != null)
+                        m.put("order", s.getOrder());
                     to.add(m);
                 }
-                Map<String, Object> inv = signNowClient.createFieldInvite(addendum.getSignnowDocumentId(), to, sequential, null);
+                Map<String, Object> inv = signNowClient.createFieldInvite(addendum.getSignnowDocumentId(), to,
+                        sequential, null);
                 resp.setInviteId((String) inv.getOrDefault("id", "invite"));
             } else {
                 List<String> emails = new ArrayList<>();
-                for (var s : filtered) emails.add(s.getEmail());
-                Map<String, Object> inv = signNowClient.createFreeFormInvite(addendum.getSignnowDocumentId(), emails, sequential, null);
+                for (var s : filtered)
+                    emails.add(s.getEmail());
+                Map<String, Object> inv = signNowClient.createFreeFormInvite(addendum.getSignnowDocumentId(), emails,
+                        sequential, null);
                 resp.setInviteId((String) inv.getOrDefault("id", "invite"));
             }
         } catch (AppException ex) {
@@ -284,26 +300,31 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
         try {
             User currentUser = userRepository.findByEmail(auth.getName())
                     .orElse(null);
-            String inviterName = currentUser != null 
+            String inviterName = currentUser != null
                     ? (currentUser.getFullName() != null ? currentUser.getFullName() : currentUser.getEmail())
                     : "Hệ thống";
-            
-            for (var signer : filtered) {
-                if (signer.getEmail() == null || signer.getEmail().isBlank()) continue;
-                
-                userRepository.findByEmail(signer.getEmail()).ifPresent(user -> {
+
+            String clientEmail = contract.getProject().getClient() != null
+                    ? contract.getProject().getClient().getEmail()
+                    : null;
+
+            if (clientEmail != null && !clientEmail.isBlank()) {
+                userRepository.findByEmail(clientEmail).ifPresent(user -> {
+                    String actionUrl = String.format("/contractId=%d", contract.getProject().getId());
+
                     notificationService.sendNotification(
                             SendNotificationRequest.builder()
                                     .userId(user.getId())
                                     .type(NotificationType.CONTRACT_SIGNING)
                                     .title("Yêu cầu ký phụ lục hợp đồng")
-                                    .message(String.format("%s đã gửi yêu cầu ký phụ lục cho dự án \"%s\". Vui lòng ký phụ lục để tiếp tục.",
+                                    .message(String.format(
+                                            "%s đã gửi yêu cầu ký phụ lục cho dự án ở email \"%s\". Vui lòng ký phụ lục để tiếp tục.",
                                             inviterName,
                                             contract.getProject().getTitle()))
                                     .relatedEntityType(RelatedEntityType.CONTRACT)
                                     .relatedEntityId(contract.getId())
-                                    .build()
-                    );
+                                    .actionUrl(actionUrl)
+                                    .build());
                 });
             }
         } catch (Exception e) {

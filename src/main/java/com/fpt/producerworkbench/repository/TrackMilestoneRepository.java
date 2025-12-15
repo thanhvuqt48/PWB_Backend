@@ -4,6 +4,7 @@ import com.fpt.producerworkbench.common.ProcessingStatus;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.entity.Track;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -41,5 +42,20 @@ public interface TrackMilestoneRepository extends JpaRepository<Track, Long> {
 
     @Query("SELECT t FROM Track t WHERE t.milestone.id = :milestoneId AND t.name = :name ORDER BY t.createdAt ASC")
     List<Track> findByNameAndMilestoneId(@Param("name") String name, @Param("milestoneId") Long milestoneId);
+
+    /**
+     * Update query atomic để chuyển track từ UPLOADING sang PROCESSING.
+     * Chỉ update nếu track đang ở trạng thái UPLOADING (chống double finalize).
+     * 
+     * @param trackId ID của track
+     * @return Số lượng rows được update (0 nếu track không ở trạng thái UPLOADING)
+     */
+    @Modifying
+    @Query("UPDATE Track t SET t.processingStatus = :newStatus, t.errorMessage = NULL " +
+           "WHERE t.id = :trackId AND t.processingStatus = :oldStatus")
+    int updateProcessingStatusAtomic(
+            @Param("trackId") Long trackId,
+            @Param("oldStatus") ProcessingStatus oldStatus,
+            @Param("newStatus") ProcessingStatus newStatus);
 }
 

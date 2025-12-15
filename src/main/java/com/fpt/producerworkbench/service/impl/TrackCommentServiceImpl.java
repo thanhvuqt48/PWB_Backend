@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.CommentStatus;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.TrackCommentCreateRequest;
 import com.fpt.producerworkbench.dto.request.TrackCommentStatusUpdateRequest;
@@ -50,6 +51,7 @@ public class TrackCommentServiceImpl implements TrackCommentService {
     private final UserRepository userRepository;
     private final ClientDeliveryRepository clientDeliveryRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final FrontendProperties frontendProperties;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
@@ -547,8 +549,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     params.put("commentContent", comment.getContent());
                     params.put("timestamp", comment.getTimestamp() != null ? 
                               formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
-                    params.put("trackLink", String.format("http://localhost:5173/projects/%d/milestones/%d/client-room", 
-                            project.getId(), delivery.getMilestone().getId()));
+                    params.put("trackLink", String.format("%s/projects/%d/milestones/%d/client-room", 
+                            frontendProperties.getUrl(), project.getId(), delivery.getMilestone().getId()));
 
                     NotificationEvent event = NotificationEvent.builder()
                             .channel("EMAIL")
@@ -573,8 +575,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     params.put("commentContent", comment.getContent());
                     params.put("timestamp", comment.getTimestamp() != null ? 
                               formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
-                    params.put("trackLink", String.format("http://localhost:5173/projects/%d/milestones/%d/client-room", 
-                            project.getId(), delivery.getMilestone().getId()));
+                    params.put("trackLink", String.format("%s/projects/%d/milestones/%d/client-room", 
+                            frontendProperties.getUrl(), project.getId(), delivery.getMilestone().getId()));
 
                     NotificationEvent event = NotificationEvent.builder()
                             .channel("EMAIL")
