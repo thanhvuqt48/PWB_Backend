@@ -63,6 +63,43 @@ public interface TaxPayoutRecordRepository extends JpaRepository<TaxPayoutRecord
         @Param("status") PayoutStatus status,
         Pageable pageable
     );
+
+    // Dùng cho admin aggregate (userId optional)
+    @Query("SELECT tpr FROM TaxPayoutRecord tpr WHERE " +
+           "(:fromDate IS NULL OR tpr.payoutDate >= :fromDate) " +
+           "AND (:toDate IS NULL OR tpr.payoutDate <= :toDate)")
+    List<TaxPayoutRecord> findAllByPayoutDateBetween(
+        @Param("fromDate") LocalDate fromDate,
+        @Param("toDate") LocalDate toDate
+    );
+
+    @Query("SELECT tpr FROM TaxPayoutRecord tpr WHERE " +
+           "(:fromDate IS NULL OR tpr.payoutDate >= :fromDate) " +
+           "AND (:toDate IS NULL OR tpr.payoutDate <= :toDate) " +
+           "AND (:month IS NULL OR tpr.taxPeriodMonth = :month) " +
+           "AND (:year IS NULL OR tpr.taxPeriodYear = :year) " +
+           "AND (:quarter IS NULL OR tpr.taxPeriodQuarter = :quarter) " +
+           "AND (:userId IS NULL OR tpr.user.id = :userId) " +
+           "AND (:projectId IS NULL OR (tpr.contract.project.id = :projectId)) " +
+           "AND (:contractId IS NULL OR tpr.contract.id = :contractId) " +
+           "AND (:source IS NULL OR tpr.payoutSource = :source) " +
+           "AND (:declared IS NULL OR tpr.isTaxDeclared = :declared) " +
+           "AND (:paid IS NULL OR tpr.taxPaid = :paid) " +
+           "AND tpr.status = 'COMPLETED'")
+    Page<TaxPayoutRecord> findAdminPayouts(
+        @Param("fromDate") LocalDate fromDate,
+        @Param("toDate") LocalDate toDate,
+        @Param("month") Integer month,
+        @Param("year") Integer year,
+        @Param("quarter") Integer quarter,
+        @Param("userId") Long userId,
+        @Param("projectId") Long projectId,
+        @Param("contractId") Long contractId,
+        @Param("source") PayoutSource source,
+        @Param("declared") Boolean declared,
+        @Param("paid") Boolean paid,
+        Pageable pageable
+    );
 }
 
 
