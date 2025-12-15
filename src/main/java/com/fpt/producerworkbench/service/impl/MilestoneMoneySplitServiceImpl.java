@@ -131,7 +131,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                                             : ""))
                             .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
                             .relatedEntityId(saved.getId())
-                            .actionUrl(String.format("/project-workspace?milestoneId=%d", projectId, milestoneId))
+                            .actionUrl(String.format("/project-workspace?milestoneId=%d", milestoneId))
                             .build());
         } catch (Exception e) {
             log.error("Gặp lỗi khi gửi notification realtime cho money split: {}", e.getMessage());
@@ -214,7 +214,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                                             : ""))
                             .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
                             .relatedEntityId(saved.getId())
-                            .actionUrl(String.format("/project-workspace?milestoneId=%d", projectId, milestoneId))
+                            .actionUrl(String.format("/project-workspace?milestoneId=%d", milestoneId))
                             .build());
         } catch (Exception e) {
             log.error("Gặp lỗi khi gửi notification realtime cho money split update: {}", e.getMessage());
