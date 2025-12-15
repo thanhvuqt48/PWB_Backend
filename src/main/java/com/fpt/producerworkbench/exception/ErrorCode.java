@@ -277,6 +277,7 @@ public enum ErrorCode {
 
     // Client Delivery errors (8017-8022)
     PRODUCT_COUNT_EXHAUSTED(8037, "Đã hết lượt gửi sản phẩm cho milestone này", HttpStatus.BAD_REQUEST),
+    MILESTONE_PAYMENT_REQUIRED(8038, "Cột mốc chưa được thanh toán. Vui lòng thanh toán trước khi bắt đầu.", HttpStatus.PAYMENT_REQUIRED),
     EDIT_COUNT_EXHAUSTED(8043, "Đã hết lượt chỉnh sửa cho milestone này", HttpStatus.BAD_REQUEST),
     TRACK_ALREADY_SENT_TO_CLIENT(8038, "Track này đã được gửi cho khách hàng", HttpStatus.BAD_REQUEST),
     CANNOT_SEND_UNAPPROVED_TRACK(8039, "Chỉ có thể gửi track đã được phê duyệt nội bộ", HttpStatus.BAD_REQUEST),

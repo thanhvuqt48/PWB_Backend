@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.dto.response;
 
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -22,6 +23,7 @@ public class MilestoneDetailResponse {
     private BigDecimal amount;
     private LocalDate dueDate;
     private MilestoneStatus status;
+    private PaymentStatus paymentStatus;
     private Integer editCount;
     private Integer productCount;
     private Integer sequence;

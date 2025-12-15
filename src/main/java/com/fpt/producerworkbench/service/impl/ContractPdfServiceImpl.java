@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.ContractDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.dto.request.ContractPdfFillRequest;
 import com.fpt.producerworkbench.dto.request.MilestoneRequest;
@@ -274,6 +275,7 @@ public class ContractPdfServiceImpl implements ContractPdfService {
                         .vatTax(vat)
                         .dueDate(m.getDueDate())
                         .status(MilestoneStatus.PENDING)
+                        .paymentStatus(PaymentStatus.PENDING)
                         .sequence(idx + 1)
                         .editCount(m.getEditCount())
                         .productCount(m.getProductCount())
