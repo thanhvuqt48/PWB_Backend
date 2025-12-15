@@ -254,7 +254,7 @@ public class ProjectReviewServiceImpl implements ProjectReviewService {
                             rating))
                     .relatedEntityType(RelatedEntityType.PROJECT)
                     .relatedEntityId(projectId) // Fix: Dùng projectId thay vì producerId
-                    .actionUrl("/producer/" + producerId + "/portfolio")
+                    .actionUrl("/projectManage")
                     .build());
             log.info("In-app notification sent successfully to Producer ID: {}", producerId);
 
@@ -294,7 +294,7 @@ public class ProjectReviewServiceImpl implements ProjectReviewService {
                             projectTitle))
                     .relatedEntityType(RelatedEntityType.PROJECT)
                     .relatedEntityId(projectId) // Fix: Dùng projectId thay vì producerId
-                    .actionUrl("/producer/" + producerId + "/portfolio")
+                    .actionUrl("/projectManage")
                     .build());
 
             log.info("✅ Successfully sent review update notification to Producer {} (ID: {}) for Project {}", 
@@ -321,7 +321,7 @@ public class ProjectReviewServiceImpl implements ProjectReviewService {
                             projectTitle))
                     .relatedEntityType(RelatedEntityType.PROJECT)
                     .relatedEntityId(projectId)
-                    .actionUrl("/projectDetail?id=" + projectId)
+                    .actionUrl("/projectManage")
                     .build());
 
             log.info("✅ Successfully sent review delete notification to Producer {} (ID: {}) for Project {}", 

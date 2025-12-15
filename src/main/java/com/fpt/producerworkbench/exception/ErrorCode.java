@@ -287,6 +287,10 @@ public enum ErrorCode {
     CANNOT_DELETE_ACCEPTED_TRACK(8044, "Không thể xóa track đã được khách hàng chấp nhận. Track này đã được bàn giao cho khách hàng.", HttpStatus.BAD_REQUEST),
     CANNOT_COMPLETE_MILESTONE_WITHOUT_TRACKS(8045, "Cột mốc phải có ít nhất 1 track nhạc mới có thể hoàn thành", HttpStatus.BAD_REQUEST),
     TRACK_DOWNLOAD_PERMISSION_DENIED(8046, "Bạn không có quyền download track này. Chỉ chủ dự án hoặc thành viên được chỉ định quyền download mới có thể tải xuống.", HttpStatus.FORBIDDEN),
+    PROJECT_ALREADY_COMPLETED(8047, "Dự án đã được hoàn thành trước đó.", HttpStatus.BAD_REQUEST),
+    PROJECT_MILESTONES_NOT_COMPLETED(8048, "Không thể hoàn thành dự án vì vẫn còn cột mốc chưa COMPLETED.", HttpStatus.BAD_REQUEST),
+    MILESTONE_ALREADY_COMPLETED(8049, "Cột mốc đã được hoàn thành.", HttpStatus.BAD_REQUEST),
+    INVALID_MILESTONE_STATUS_FOR_COMPLETE(8050, "Cột mốc phải ở trạng thái PENDING hoặc IN_PROGRESS mới có thể hoàn thành.", HttpStatus.BAD_REQUEST),
 
     // ===== User Guide & AI Context Errors (18xxx) =====
     USER_GUIDE_NOT_FOUND(18001, "Không tìm thấy user guide.", HttpStatus.NOT_FOUND),
