@@ -469,6 +469,34 @@ public class MilestoneController {
                 .build();
     }
 
+    /**
+     * Chuyển tiếp group từ EXTERNAL sang INTERNAL với tùy chọn chỉnh sửa
+     * Chỉ Owner mới có quyền thực hiện
+     */
+    @PostMapping("/{projectId}/milestones/{milestoneId}/brief/forward/{groupId}/edit")
+    public ApiResponse<MilestoneBriefGroupResponse> forwardExternalToInternalWithEdit(
+            @PathVariable Long projectId,
+            @PathVariable Long milestoneId,
+            @PathVariable Long groupId,
+            @Valid @RequestBody(required = false) com.fpt.producerworkbench.dto.request.ForwardBriefGroupRequest request,
+            Authentication authentication) {
+
+        if (projectId == null || milestoneId == null || groupId == null) {
+            throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+        }
+
+        MilestoneBriefGroupResponse response = milestoneBriefService.forwardExternalGroupToInternalWithEdit(
+                projectId, milestoneId, groupId, request, authentication);
+
+        return ApiResponse.<MilestoneBriefGroupResponse>builder()
+                .code(HttpStatus.OK.value())
+                .message(request != null && request.getGroup() != null 
+                        ? "Đã chỉnh sửa và chuyển tiếp nội dung này sang phòng nội bộ"
+                        : "Đã chuyển tiếp nội dung này sang phòng nội bộ")
+                .result(response)
+                .build();
+    }
+
     @GetMapping("/{projectId}/milestones/{milestoneId}/brief/internal")
     public ApiResponse<MilestoneBriefDetailResponse> getInternalMilestoneBrief(
             @PathVariable Long projectId,
