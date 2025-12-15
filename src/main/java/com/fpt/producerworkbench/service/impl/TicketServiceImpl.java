@@ -50,8 +50,7 @@ public class TicketServiceImpl implements TicketService {
     private static final long MAX_SIZE = 10L * 1024 * 1024;
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
     private static final Set<String> IMAGE_MIMES = Set.of(
-            MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif"
-    );
+            MediaType.IMAGE_JPEG_VALUE, MediaType.IMAGE_PNG_VALUE, "image/webp", "image/gif");
 
     @Override
     @Transactional
@@ -114,7 +113,8 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @Transactional
-    public TicketReplyResponse createReply(Long ticketId, TicketReplyRequest request, List<MultipartFile> files, String currentEmail) {
+    public TicketReplyResponse createReply(Long ticketId, TicketReplyRequest request, List<MultipartFile> files,
+            String currentEmail) {
         User currentUser = getUserOrThrow(currentEmail);
         Ticket ticket = getTicketOrThrow(ticketId);
 
@@ -217,7 +217,6 @@ public class TicketServiceImpl implements TicketService {
         return response;
     }
 
-
     private void sendTicketCreatedNotification(Ticket ticket, User creator) {
         try {
             List<User> admins = userRepository.findAll().stream()
@@ -245,7 +244,7 @@ public class TicketServiceImpl implements TicketService {
 
                     NotificationEvent event = NotificationEvent.builder()
                             .recipient(admin.getEmail())
-                            .subject("Ticket mới đã được tạo - " + ticket.getTitle())
+                            .subject("Yêu cầu hỗ trợ mới đã được tạo - " + ticket.getTitle())
                             .templateCode("ticket-created-notification")
                             .param(params)
                             .build();
@@ -258,8 +257,8 @@ public class TicketServiceImpl implements TicketService {
                             SendNotificationRequest.builder()
                                     .userId(admin.getId())
                                     .type(NotificationType.SYSTEM)
-                                    .title("Ticket mới đã được tạo")
-                                    .message(String.format("%s đã tạo ticket mới: \"%s\"%s",
+                                    .title("Yêu cầu hỗ trợ mới đã được tạo")
+                                    .message(String.format("%s đã tạo yêu cầu hỗ trợ mới: \"%s\"%s",
                                             creatorName,
                                             ticket.getTitle(),
                                             ticket.getProject() != null ? " (Dự án: " + projectName + ")" : ""))
@@ -306,7 +305,8 @@ public class TicketServiceImpl implements TicketService {
                     }
 
                     Map<String, Object> params = new HashMap<>();
-                    params.put("recipientName", recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
+                    params.put("recipientName",
+                            recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
                     params.put("ticketTitle", ticketTitle);
                     params.put("senderName", senderName);
                     params.put("replyContent", reply.getContent());
@@ -314,21 +314,25 @@ public class TicketServiceImpl implements TicketService {
 
                     NotificationEvent event = NotificationEvent.builder()
                             .recipient(recipient.getEmail())
-                            .subject("Có phản hồi mới cho ticket - " + ticketTitle)
+                            .subject("Có phản hồi mới cho yêu cầu hỗ trợ - " + ticketTitle)
                             .templateCode("ticket-reply-notification")
                             .param(params)
                             .build();
 
                     kafkaTemplate.send(NOTIFICATION_TOPIC, event);
 
-                    String actionUrl = String.format("/supportAdmin");
+                    // Nếu admin reply (targetUser != null) -> gửi cho chủ ticket -> actionUrl =
+                    // /myTickets
+                    // Nếu chủ ticket reply (targetUser == null) -> gửi cho admin -> actionUrl =
+                    // /supportAdmin
+                    String actionUrl = targetUser != null ? "/myTickets" : "/supportAdmin";
 
                     notificationService.sendNotification(
                             SendNotificationRequest.builder()
                                     .userId(recipient.getId())
                                     .type(NotificationType.SYSTEM)
-                                    .title("Có phản hồi mới cho ticket")
-                                    .message(String.format("%s đã phản hồi ticket \"%s\".",
+                                    .title("Có phản hồi mới cho yêu cầu hỗ trợ")
+                                    .message(String.format("%s đã phản hồi yêu cầu hỗ trợ \"%s\".",
                                             senderName,
                                             ticketTitle))
                                     .relatedEntityType(null)
@@ -344,16 +348,19 @@ public class TicketServiceImpl implements TicketService {
         }
     }
 
-    private void sendTicketStatusUpdatedNotification(Ticket ticket, User ticketOwner, TicketStatus oldStatus, TicketStatus newStatus) {
+    private void sendTicketStatusUpdatedNotification(Ticket ticket, User ticketOwner, TicketStatus oldStatus,
+            TicketStatus newStatus) {
         if (ticketOwner.getEmail() == null || ticketOwner.getEmail().isBlank()) {
-            log.warn("Không thể gửi thông báo cập nhật trạng thái ticket vì chủ ticket {} không có email", ticketOwner.getId());
+            log.warn("Không thể gửi thông báo cập nhật trạng thái ticket vì chủ ticket {} không có email",
+                    ticketOwner.getId());
             return;
         }
 
         try {
             // Gửi email
             Map<String, Object> params = new HashMap<>();
-            params.put("recipientName", ticketOwner.getFullName() != null ? ticketOwner.getFullName() : ticketOwner.getEmail());
+            params.put("recipientName",
+                    ticketOwner.getFullName() != null ? ticketOwner.getFullName() : ticketOwner.getEmail());
             params.put("ticketTitle", ticket.getTitle());
             params.put("oldStatus", oldStatus != null ? oldStatus.name() : "");
             params.put("newStatus", newStatus.name());
@@ -361,7 +368,7 @@ public class TicketServiceImpl implements TicketService {
 
             NotificationEvent event = NotificationEvent.builder()
                     .recipient(ticketOwner.getEmail())
-                    .subject("Trạng thái ticket đã được cập nhật - " + ticket.getTitle())
+                    .subject("Trạng thái yêu cầu hỗ trợ đã được cập nhật - " + ticket.getTitle())
                     .templateCode("ticket-status-updated-notification")
                     .param(params)
                     .build();
@@ -370,15 +377,15 @@ public class TicketServiceImpl implements TicketService {
             log.info("Đã gửi email thông báo cập nhật trạng thái ticket qua Kafka: userId={}, ticketId={}",
                     ticketOwner.getId(), ticket.getId());
 
-            String actionUrl = String.format("/supportAdmin");
+            String actionUrl = String.format("/myTickets");
             String statusText = getStatusText(newStatus);
 
             notificationService.sendNotification(
                     SendNotificationRequest.builder()
                             .userId(ticketOwner.getId())
                             .type(NotificationType.SYSTEM)
-                            .title("Trạng thái ticket đã được cập nhật")
-                            .message(String.format("Trạng thái ticket \"%s\" đã được cập nhật thành: %s",
+                            .title("Trạng thái yêu cầu hỗ trợ đã được cập nhật")
+                            .message(String.format("Trạng thái yêu cầu hỗ trợ \"%s\" đã được cập nhật thành: %s",
                                     ticket.getTitle(),
                                     statusText))
                             .relatedEntityType(null)
@@ -415,10 +422,12 @@ public class TicketServiceImpl implements TicketService {
 
     private List<String> uploadAttachments(List<MultipartFile> files, String folderPrefix) {
         List<String> uploadedKeys = new ArrayList<>();
-        if (files == null || files.isEmpty()) return uploadedKeys;
+        if (files == null || files.isEmpty())
+            return uploadedKeys;
 
         for (MultipartFile file : files) {
-            if (file.isEmpty()) continue;
+            if (file.isEmpty())
+                continue;
             if (file.getSize() > MAX_SIZE) {
                 throw new AppException(ErrorCode.FILE_TOO_LARGE);
             }
@@ -436,7 +445,8 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private List<String> getPresignedUrls(List<String> keys) {
-        if (keys == null || keys.isEmpty()) return new ArrayList<>();
+        if (keys == null || keys.isEmpty())
+            return new ArrayList<>();
         return keys.stream()
                 .map(key -> storage.generatePresignedUrl(key, false, null))
                 .collect(Collectors.toList());
@@ -448,6 +458,7 @@ public class TicketServiceImpl implements TicketService {
                 .title(ticket.getTitle())
                 .status(ticket.getStatus().name())
                 .createdBy(ticket.getUser().getFullName())
+                .projectId(ticket.getProject() != null ? ticket.getProject().getId() : null)
                 .projectName(ticket.getProject() != null ? ticket.getProject().getTitle() : "N/A")
                 .createdAt(convertDateToLocalDateTime(ticket.getCreatedAt()))
                 .attachmentUrls(getPresignedUrls(ticket.getAttachmentKeys()))
@@ -467,7 +478,8 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private java.time.LocalDateTime convertDateToLocalDateTime(java.util.Date dateToConvert) {
-        if (dateToConvert == null) return null;
+        if (dateToConvert == null)
+            return null;
         return dateToConvert.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 }

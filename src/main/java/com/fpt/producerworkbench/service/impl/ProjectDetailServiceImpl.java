@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.dto.response.ProjectDetailResponse;
 import com.fpt.producerworkbench.entity.Project;
 import com.fpt.producerworkbench.entity.ProjectMember;
@@ -40,13 +41,14 @@ public class ProjectDetailServiceImpl implements ProjectDetailService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_NOT_FOUND));
 
+        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
         boolean isProjectOwner = project.getCreator() != null &&
                 currentUser.getId().equals(project.getCreator().getId());
         
         Optional<ProjectMember> memberOpt = projectMemberRepository
                 .findByProjectIdAndUserEmail(projectId, currentUser.getEmail());
         
-        if (!isProjectOwner && memberOpt.isEmpty()) {
+        if (!isAdmin && !isProjectOwner && memberOpt.isEmpty()) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
 

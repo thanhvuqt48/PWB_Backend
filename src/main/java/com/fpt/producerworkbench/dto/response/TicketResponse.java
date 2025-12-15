@@ -13,6 +13,7 @@ public class TicketResponse {
     private String title;
     private String status;
     private String createdBy;
+    private Long projectId;
     private String projectName;
     private LocalDateTime createdAt;
     private List<String> attachmentUrls;

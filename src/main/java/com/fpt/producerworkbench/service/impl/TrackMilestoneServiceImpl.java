@@ -9,6 +9,7 @@ import com.fpt.producerworkbench.common.ProcessingStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.common.TrackStatus;
+import com.fpt.producerworkbench.common.UserRole;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
@@ -823,6 +824,11 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     }
 
     private void checkViewPermission(User user, Project project) {
+        boolean isAdmin = user.getRole() == UserRole.ADMIN;
+        if (isAdmin) {
+            return;
+        }
+
         boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
         if (isOwner) {
             return;
@@ -1003,7 +1009,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
             // Gửi notification realtime cho owner
             try {
-                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),track.getMilestone().getId());
+                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),
+                        track.getMilestone().getId());
 
                 String uploaderName = uploader.getFullName() != null ? uploader.getFullName() : uploader.getEmail();
 
@@ -1091,7 +1098,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
             // Gửi notification realtime cho người upload track
             try {
-                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),track.getMilestone().getId());
+                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),
+                        track.getMilestone().getId());
 
                 String title;
                 String message;
