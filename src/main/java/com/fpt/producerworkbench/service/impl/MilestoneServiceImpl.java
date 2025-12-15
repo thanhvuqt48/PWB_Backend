@@ -1245,11 +1245,10 @@ public class MilestoneServiceImpl implements MilestoneService {
         // Kiểm tra milestone chưa được hoàn thành và đang ở trạng thái hợp lệ để
         // complete
         if (milestone.getStatus() == MilestoneStatus.COMPLETED) {
-            throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã được hoàn thành");
+            throw new AppException(ErrorCode.MILESTONE_ALREADY_COMPLETED);
         }
         if (milestone.getStatus() != MilestoneStatus.PENDING && milestone.getStatus() != MilestoneStatus.IN_PROGRESS) {
-            throw new AppException(ErrorCode.BAD_REQUEST,
-                    "Cột mốc phải ở trạng thái PENDING hoặc IN_PROGRESS mới có thể hoàn thành");
+            throw new AppException(ErrorCode.INVALID_MILESTONE_STATUS_FOR_COMPLETE);
         }
 
         // Cập nhật status thành COMPLETED
@@ -1258,26 +1257,10 @@ public class MilestoneServiceImpl implements MilestoneService {
 
         log.info("Đã cập nhật status cột mốc thành COMPLETED: milestoneId={}", saved.getId());
 
-        // Xử lý thanh toán tự động
+        // Xử lý thanh toán tự động CHỈ cho contract thanh toán theo từng milestone
         Contract contract = saved.getContract();
-        if (contract != null) {
-            if (contract.getPaymentType() == PaymentType.MILESTONE) {
-                // Thanh toán theo từng milestone
-                processMilestonePayment(saved, project);
-            } else if (contract.getPaymentType() == PaymentType.FULL) {
-                // Kiểm tra xem tất cả milestones đã completed chưa
-                if (areAllMilestonesCompleted(contract.getId())) {
-                    // Tự động set Project status thành COMPLETED nếu chưa
-                    if (project.getStatus() != ProjectStatus.COMPLETED) {
-                        project.setStatus(ProjectStatus.COMPLETED);
-                        project.setCompletedAt(LocalDateTime.now());
-                        projectRepository.save(project);
-                        log.info("Đã tự động set Project status thành COMPLETED: projectId={}", project.getId());
-                    }
-                    // Thanh toán FULL khi tất cả milestones đã completed và Project đã COMPLETED
-                    processFullPayment(contract, project);
-                }
-            }
+        if (contract != null && contract.getPaymentType() == PaymentType.MILESTONE) {
+            processMilestonePayment(saved, project);
         }
 
         // Gửi email thông báo cho chủ dự án
