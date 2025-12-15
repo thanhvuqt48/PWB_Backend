@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.entity;
 
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -35,6 +36,10 @@ public class Milestone extends AbstractEntity<Long>{
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MilestoneStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false)
+    private PaymentStatus paymentStatus;
 
     @Column(name = "pit_tax", precision = 15, scale = 2)
     private BigDecimal pitTax;

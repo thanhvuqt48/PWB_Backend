@@ -3,6 +3,8 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.ClientDeliveryStatus;
 import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
+import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProcessingStatus;
@@ -233,6 +235,13 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         // Kiểm tra milestone tồn tại
         Milestone milestone = milestoneRepository.findById(milestoneId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Milestone không tồn tại"));
+
+        // Với hợp đồng thanh toán theo cột mốc, yêu cầu milestone đã được thanh toán xong
+        if (milestone.getContract() != null
+                && PaymentType.MILESTONE.equals(milestone.getContract().getPaymentType())
+                && milestone.getPaymentStatus() != PaymentStatus.COMPLETED) {
+            throw new AppException(ErrorCode.MILESTONE_PAYMENT_REQUIRED);
+        }
 
         // Kiểm tra quyền xem
         Project project = milestone.getContract().getProject();

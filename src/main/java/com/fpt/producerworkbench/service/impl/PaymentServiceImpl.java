@@ -1,6 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.ProjectRole;
 import com.fpt.producerworkbench.common.TransactionStatus;
@@ -68,17 +69,47 @@ public class PaymentServiceImpl implements PaymentService {
         ProjectMember projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
 
-        if (!ProjectRole.CLIENT.equals(projectMember.getProjectRole())) throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (!ProjectRole.CLIENT.equals(projectMember.getProjectRole()))
+            throw new AppException(ErrorCode.ACCESS_DENIED);
         // Kiểm tra hợp đồng đã được thanh toán chưa (PAID hoặc COMPLETED)
-        if (contract.getSignnowStatus() == ContractStatus.PAID || contract.getSignnowStatus() == ContractStatus.COMPLETED) {
+        if (contract.getPaymentType() == PaymentType.FULL && (contract.getSignnowStatus() == ContractStatus.PAID
+                || contract.getSignnowStatus() == ContractStatus.COMPLETED)) {
             throw new AppException(ErrorCode.PROJECT_ALREADY_FUNDED);
         }
         // Kiểm tra hợp đồng đã được ký chưa (phải SIGNED mới được thanh toán)
-        if (contract.getSignnowStatus() != ContractStatus.SIGNED) {
+        if (contract.getPaymentType() == PaymentType.FULL && contract.getSignnowStatus() != ContractStatus.SIGNED) {
             throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
         }
 
-        BigDecimal amount = calculatePaymentAmount(contract);
+        BigDecimal amount;
+
+        Milestone targetMilestone = null;
+        if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
+            Long milestoneId = paymentRequest.getMilestoneId();
+            if (milestoneId == null || milestoneId <= 0) {
+                throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
+            }
+
+            targetMilestone = milestoneRepository.findById(milestoneId)
+                    .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
+
+            if (!targetMilestone.getContract().getId().equals(contractId)) {
+                throw new AppException(ErrorCode.ACCESS_DENIED);
+            }
+
+            if (PaymentStatus.COMPLETED.equals(targetMilestone.getPaymentStatus())) {
+                throw new AppException(ErrorCode.BAD_REQUEST, "Cột mốc đã được thanh toán");
+            }
+
+            // Có thể bổ sung kiểm tra milestone chưa được thanh toán nếu cần
+            amount = targetMilestone.getAmount();
+        } else {
+            amount = calculatePaymentAmount(contract);
+        }
+
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.BAD_REQUEST, "Số tiền thanh toán không hợp lệ");
+        }
 
         Transaction tx = Transaction.builder()
                 .user(user)
@@ -89,9 +120,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
         if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
-            Milestone first = milestoneRepository.findFirstByContractIdOrderBySequenceAsc(contractId)
-                    .orElseThrow(() -> new AppException(ErrorCode.MILESTONE_NOT_FOUND));
-            tx.setRelatedMilestone(first);
+            tx.setRelatedMilestone(targetMilestone);
         }
         Transaction saved = transactionRepository.save(tx);
 
@@ -99,8 +128,10 @@ public class PaymentServiceImpl implements PaymentService {
         saved.setTransactionCode(String.valueOf(orderCode));
         transactionRepository.save(saved);
 
-        String returnUrl = paymentRequest.getReturnUrl() != null ? paymentRequest.getReturnUrl() : payosProperties.getReturnUrl();
-        String cancelUrl = paymentRequest.getCancelUrl() != null ? paymentRequest.getCancelUrl() : payosProperties.getCancelUrl();
+        String returnUrl = paymentRequest.getReturnUrl() != null ? paymentRequest.getReturnUrl()
+                : payosProperties.getReturnUrl();
+        String cancelUrl = paymentRequest.getCancelUrl() != null ? paymentRequest.getCancelUrl()
+                : payosProperties.getCancelUrl();
         String description = createPaymentDescription(contract, project);
 
         try {
@@ -132,7 +163,8 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentResponse createAddendumPayment(Long userId, Long projectId, Long contractId, PaymentRequest paymentRequest) {
+    public PaymentResponse createAddendumPayment(Long userId, Long projectId, Long contractId,
+                                                 PaymentRequest paymentRequest) {
         log.info("Tạo thanh toán phụ lục cho người dùng: {}, dự án: {}, hợp đồng: {}", userId, projectId, contractId);
 
         User user = userRepository.findById(userId)
@@ -144,7 +176,8 @@ public class PaymentServiceImpl implements PaymentService {
         ProjectMember projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
                 .orElseThrow(() -> new AppException(ErrorCode.PROJECT_MEMBER_NOT_FOUND));
 
-        if (!ProjectRole.CLIENT.equals(projectMember.getProjectRole())) throw new AppException(ErrorCode.ACCESS_DENIED);
+        if (!ProjectRole.CLIENT.equals(projectMember.getProjectRole()))
+            throw new AppException(ErrorCode.ACCESS_DENIED);
 
         // Lấy phụ lục mới nhất của contract
         ContractAddendum addendum = contractAddendumRepository
@@ -152,10 +185,11 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST));
 
         // Kiểm tra phụ lục đã được thanh toán chưa (PAID hoặc COMPLETED)
-        if (addendum.getSignnowStatus() == ContractStatus.PAID || addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
+        if (addendum.getSignnowStatus() == ContractStatus.PAID
+                || addendum.getSignnowStatus() == ContractStatus.COMPLETED) {
             throw new AppException(ErrorCode.BAD_REQUEST);
         }
-        
+
         // Kiểm tra phụ lục đã được ký chưa (phải SIGNED mới được thanh toán)
         if (addendum.getSignnowStatus() != ContractStatus.SIGNED) {
             throw new AppException(ErrorCode.CONTRACT_NOT_READY_FOR_PAYMENT);
@@ -184,8 +218,10 @@ public class PaymentServiceImpl implements PaymentService {
         saved.setTransactionCode(String.valueOf(orderCode));
         transactionRepository.save(saved);
 
-        String returnUrl = paymentRequest.getReturnUrl() != null ? paymentRequest.getReturnUrl() : payosProperties.getReturnUrl();
-        String cancelUrl = paymentRequest.getCancelUrl() != null ? paymentRequest.getCancelUrl() : payosProperties.getCancelUrl();
+        String returnUrl = paymentRequest.getReturnUrl() != null ? paymentRequest.getReturnUrl()
+                : payosProperties.getReturnUrl();
+        String cancelUrl = paymentRequest.getCancelUrl() != null ? paymentRequest.getCancelUrl()
+                : payosProperties.getCancelUrl();
         String description = createAddendumPaymentDescription(addendum, project);
 
         try {
@@ -224,21 +260,20 @@ public class PaymentServiceImpl implements PaymentService {
             String description,
             String returnUrl,
             String cancelUrl,
-            String terminationReason
-    ) {
+            String terminationReason) {
         log.info("Creating owner compensation payment order. Contract: {}, Owner: {}, Amount: {}",
                 contractId, ownerId, amount);
-        
+
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new AppException(ErrorCode.CONTRACT_NOT_FOUND));
-        
+
         User owner = userRepository.findById(ownerId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        
+
         // Tạo order code unique
         Long orderCode = com.fpt.producerworkbench.utils.OrderCodeGenerator.generate();
         String orderCodeStr = "OCP-" + orderCode;
-        
+
         // Tạo OwnerCompensationPayment entity
         OwnerCompensationPayment payment = OwnerCompensationPayment.builder()
                 .contract(contract)
@@ -250,24 +285,24 @@ public class PaymentServiceImpl implements PaymentService {
                 .description(description)
                 .terminationReason(terminationReason) // Lưu reason từ FE request
                 .build();
-        
+
         payment = ownerCompensationPaymentRepository.save(payment);
-        
+
         // Tạo PayOS payment link
         try {
             long amountInVND = amount.setScale(0, java.math.RoundingMode.HALF_UP).longValue();
-            
+
             // PayOS yêu cầu description tối đa 25 ký tự
             String shortDescription = "Comp #" + contractId;
             if (shortDescription.length() > 25) {
                 shortDescription = shortDescription.substring(0, 25);
             }
-            
+
             // Dùng returnUrl và cancelUrl từ FE, fallback về payosProperties nếu null
             // Giống như các payment khác (contract, addendum, subscription)
             String finalReturnUrl = returnUrl != null ? returnUrl : payosProperties.getReturnUrl();
             String finalCancelUrl = cancelUrl != null ? cancelUrl : payosProperties.getCancelUrl();
-            
+
             CreatePaymentLinkRequest request = CreatePaymentLinkRequest.builder()
                     .orderCode(orderCode)
                     .amount(amountInVND)
@@ -275,18 +310,18 @@ public class PaymentServiceImpl implements PaymentService {
                     .returnUrl(finalReturnUrl)
                     .cancelUrl(finalCancelUrl)
                     .build();
-            
+
             CreatePaymentLinkResponse response = payOS.paymentRequests().create(request);
             String checkoutUrl = response.getCheckoutUrl();
-            
+
             payment.setPaymentUrl(checkoutUrl);
             payment.setPaymentOrderId(response.getPaymentLinkId());
             ownerCompensationPaymentRepository.save(payment);
-            
+
             log.info("Created PayOS payment link successfully. URL: {}", checkoutUrl);
-            
+
             return payment;
-            
+
         } catch (Exception e) {
             log.error("Failed to create PayOS payment link for owner compensation", e);
             payment.setStatus(com.fpt.producerworkbench.common.PaymentStatus.FAILED);
@@ -312,13 +347,12 @@ public class PaymentServiceImpl implements PaymentService {
 
             long orderCodeLong = verified.getOrderCode();
             String orderCode = String.valueOf(orderCodeLong);
-            
+
             // Kiểm tra tính hợp lệ của orderCode
             if (orderCodeLong <= 0) {
                 log.error("Mã đơn hàng không hợp lệ: {}", orderCodeLong);
                 throw new AppException(ErrorCode.INVALID_PARAMETER_FORMAT);
             }
-
 
             if ("123".equals(orderCode)) {
                 log.warn("Bỏ qua webhook cũ với mã đơn hàng=123 để xóa hàng đợi thử lại PayOS.");
@@ -329,124 +363,175 @@ public class PaymentServiceImpl implements PaymentService {
 
             // Thử tìm Transaction trước
             java.util.Optional<Transaction> txOpt = transactionRepository.findByTransactionCode(orderCode);
-            
+
             if (txOpt.isPresent()) {
                 // Xử lý webhook cho Transaction (contract payment, subscription, etc.)
                 Transaction tx = txOpt.get();
-            log.info("[Webhook/PayOS] orderCode={} resolved type={}, status={}", orderCode, tx.getType(), tx.getStatus());
+                log.info("[Webhook/PayOS] orderCode={} resolved type={}, status={}", orderCode, tx.getType(),
+                        tx.getStatus());
 
-            // Delegate subscription webhooks to ProSubscriptionService to keep logic in one place
-            if (TransactionType.SUBSCRIPTION.equals(tx.getType())) {
-                log.info("[Webhook/PayOS] Routing to SUBSCRIPTION handler. orderCode={}", orderCode);
-                proSubscriptionService.handleWebhook(body);
-                return;
-            }
-            
-            log.info("[Webhook/PayOS] Routing to CONTRACT PAYMENT handler. orderCode={}", orderCode);
+                // Delegate subscription webhooks to ProSubscriptionService to keep logic in one
+                // place
+                if (TransactionType.SUBSCRIPTION.equals(tx.getType())) {
+                    log.info("[Webhook/PayOS] Routing to SUBSCRIPTION handler. orderCode={}", orderCode);
+                    proSubscriptionService.handleWebhook(body);
+                    return;
+                }
 
-            if (!TransactionStatus.PENDING.equals(tx.getStatus())) {
-                log.warn("Webhook đã được xử lý. Mã đơn hàng: {}", orderCode);
-                return;
-            }
+                log.info("[Webhook/PayOS] Routing to CONTRACT PAYMENT handler. orderCode={}", orderCode);
 
-            if ("00".equals(payosStatusCode)) {
-                tx.setStatus(TransactionStatus.SUCCESSFUL);
+                if (!TransactionStatus.PENDING.equals(tx.getStatus())) {
+                    log.warn("Webhook đã được xử lý. Mã đơn hàng: {}", orderCode);
+                    return;
+                }
 
-                // Xử lý thanh toán cho contract hoặc addendum
-                if (tx.getRelatedAddendum() != null) {
-                    // Thanh toán phụ lục: chuyển từ SIGNED sang PAID
-                    ContractAddendum addendum = tx.getRelatedAddendum();
-                    if (addendum.getSignnowStatus() == ContractStatus.SIGNED) {
-                        addendum.setSignnowStatus(ContractStatus.PAID);
-                        contractAddendumRepository.save(addendum);
-                        log.info("Đánh dấu THÀNH CÔNG thanh toán phụ lục. Mã đơn hàng: {}, Addendum ID: {}, Status: PAID", orderCode, addendum.getId());
-                        
-                        // Cập nhật contract và milestones khi phụ lục được thanh toán
-                        try {
-                            contractAddendumService.updateContractAndMilestonesOnAddendumPaid(addendum.getId());
-                            log.info("Đã cập nhật contract và milestones cho addendum {} sau khi thanh toán thành công", addendum.getId());
-                        } catch (Exception e) {
-                            log.error("Lỗi khi cập nhật contract và milestones cho addendum {}: {}", 
-                                    addendum.getId(), e.getMessage(), e);
-                            // Không throw exception để không ảnh hưởng đến việc đánh dấu thanh toán
+                if ("00".equals(payosStatusCode)) {
+                    tx.setStatus(TransactionStatus.SUCCESSFUL);
+
+                    // Xử lý thanh toán cho contract hoặc addendum
+                    if (tx.getRelatedAddendum() != null) {
+                        // Thanh toán phụ lục: chuyển từ SIGNED sang PAID
+                        ContractAddendum addendum = tx.getRelatedAddendum();
+                        if (addendum.getSignnowStatus() == ContractStatus.SIGNED) {
+                            addendum.setSignnowStatus(ContractStatus.PAID);
+                            contractAddendumRepository.save(addendum);
+                            log.info(
+                                    "Đánh dấu THÀNH CÔNG thanh toán phụ lục. Mã đơn hàng: {}, Addendum ID: {}, Status: PAID",
+                                    orderCode, addendum.getId());
+
+                            // Cập nhật contract và milestones khi phụ lục được thanh toán
+                            try {
+                                contractAddendumService.updateContractAndMilestonesOnAddendumPaid(addendum.getId());
+                                log.info(
+                                        "Đã cập nhật contract và milestones cho addendum {} sau khi thanh toán thành công",
+                                        addendum.getId());
+                            } catch (Exception e) {
+                                log.error("Lỗi khi cập nhật contract và milestones cho addendum {}: {}",
+                                        addendum.getId(), e.getMessage(), e);
+                                // Không throw exception để không ảnh hưởng đến việc đánh dấu thanh toán
+                            }
+                        } else {
+                            log.warn(
+                                    "Addendum {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}",
+                                    addendum.getId(), addendum.getSignnowStatus());
                         }
-                    } else {
-                        log.warn("Addendum {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}", addendum.getId(), addendum.getSignnowStatus());
-                    }
-                } else if (tx.getRelatedContract() != null) {
-                    // Thanh toán hợp đồng: chuyển từ SIGNED sang PAID
-                    Contract contract = tx.getRelatedContract();
-                    if (contract.getSignnowStatus() == ContractStatus.SIGNED) {
-                        contract.setSignnowStatus(ContractStatus.PAID);
-                        contractRepository.save(contract);
-                        log.info("Đánh dấu THÀNH CÔNG thanh toán hợp đồng. Mã đơn hàng: {}, Contract ID: {}, Status: PAID", orderCode, contract.getId());
+                    } else if (tx.getRelatedContract() != null) {
+                        // Thanh toán hợp đồng: chuyển từ SIGNED sang PAID
+                        Contract contract = tx.getRelatedContract();
+                        if ((contract.getPaymentType() == PaymentType.FULL
+                                && contract.getSignnowStatus() == ContractStatus.SIGNED)
+                                || contract.getPaymentType() == PaymentType.MILESTONE) {
+                            contract.setSignnowStatus(ContractStatus.PAID);
+                            contractRepository.save(contract);
+                            log.info(
+                                    "Đánh dấu THÀNH CÔNG thanh toán hợp đồng. Mã đơn hàng: {}, Contract ID: {}, Status: PAID",
+                                    orderCode, contract.getId());
 
-                        // Nếu hợp đồng là dạng thanh toán theo MILESTONE,
-                        // tự động thêm chủ dự án (owner) và khách hàng (client)
-                        // vào thành viên của TẤT CẢ các milestones
-                        if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
-                            Project project = contract.getProject();
+                            // Nếu hợp đồng là dạng thanh toán theo MILESTONE,
+                            // tự động thêm chủ dự án (owner) và khách hàng (client)
+                            // vào thành viên của TẤT CẢ các milestones
+                            if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
+                                Project project = contract.getProject();
 
-                            if (project != null) {
-                                User owner = project.getCreator();
-                                User client = project.getClient();
+                                if (project != null) {
+                                    User owner = project.getCreator();
+                                    User client = project.getClient();
 
-                                // Lấy tất cả milestones của contract
-                                List<Milestone> milestones = milestoneRepository.findByContractIdOrderBySequenceAsc(contract.getId());
+                                    // Lấy tất cả milestones của contract
+                                    List<Milestone> milestones = milestoneRepository
+                                            .findByContractIdOrderBySequenceAsc(contract.getId());
 
-                                for (Milestone milestone : milestones) {
-                                    // Thêm owner nếu chưa có
-                                    if (owner != null
-                                            && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), owner.getId())) {
-                                        MilestoneMember ownerMember = MilestoneMember.builder()
-                                                .milestone(milestone)
-                                                .user(owner)
-                                                .build();
-                                        milestoneMemberRepository.save(ownerMember);
-                                        log.info("Đã thêm owner vào milestone {} sau khi thanh toán", milestone.getId());
+                                    // Cập nhật trạng thái thanh toán cho milestones theo loại thanh toán
+                                    if (PaymentType.MILESTONE.equals(contract.getPaymentType())) {
+                                        Milestone paidMilestone = tx.getRelatedMilestone();
+                                        if (paidMilestone != null) {
+                                            Long paidMilestoneId = paidMilestone.getId();
+                                            Milestone managed = milestoneRepository.findById(paidMilestoneId)
+                                                    .orElse(null);
+                                            if (managed != null) {
+                                                managed.setPaymentStatus(PaymentStatus.COMPLETED);
+                                                milestoneRepository.save(managed);
+                                                log.info(
+                                                        "Đã cập nhật paymentStatus=COMPLETED cho milestone {} sau thanh toán hợp đồng (MILESTONE)",
+                                                        managed.getId());
+                                            } else {
+                                                log.warn(
+                                                        "Không tìm thấy milestone {} trong DB khi cập nhật paymentStatus sau thanh toán",
+                                                        paidMilestoneId);
+                                            }
+                                        } else {
+                                            log.warn(
+                                                    "Không tìm thấy milestone liên quan trong giao dịch thanh toán MILESTONE, bỏ qua cập nhật paymentStatus");
+                                        }
+                                    } else if (PaymentType.FULL.equals(contract.getPaymentType())) {
+                                        milestones.forEach(m -> m.setPaymentStatus(PaymentStatus.COMPLETED));
+                                        milestoneRepository.saveAll(milestones);
+                                        log.info(
+                                                "Đã cập nhật paymentStatus=COMPLETED cho tất cả milestones của contract {} (thanh toán FULL)",
+                                                contract.getId());
                                     }
 
-                                    // Thêm client nếu khác owner và chưa có
-                                    if (client != null) {
-                                        boolean sameAsOwner = owner != null && owner.getId().equals(client.getId());
-                                        if (!sameAsOwner
-                                                && !milestoneMemberRepository.existsByMilestoneIdAndUserId(milestone.getId(), client.getId())) {
-                                            MilestoneMember clientMember = MilestoneMember.builder()
+                                    for (Milestone milestone : milestones) {
+                                        // Thêm owner nếu chưa có
+                                        if (owner != null
+                                                && !milestoneMemberRepository.existsByMilestoneIdAndUserId(
+                                                milestone.getId(), owner.getId())) {
+                                            MilestoneMember ownerMember = MilestoneMember.builder()
                                                     .milestone(milestone)
-                                                    .user(client)
+                                                    .user(owner)
                                                     .build();
-                                            milestoneMemberRepository.save(clientMember);
-                                            log.info("Đã thêm client vào milestone {} sau khi thanh toán", milestone.getId());
+                                            milestoneMemberRepository.save(ownerMember);
+                                            log.info("Đã thêm owner vào milestone {} sau khi thanh toán",
+                                                    milestone.getId());
+                                        }
+
+                                        // Thêm client nếu khác owner và chưa có
+                                        if (client != null) {
+                                            boolean sameAsOwner = owner != null && owner.getId().equals(client.getId());
+                                            if (!sameAsOwner
+                                                    && !milestoneMemberRepository.existsByMilestoneIdAndUserId(
+                                                    milestone.getId(), client.getId())) {
+                                                MilestoneMember clientMember = MilestoneMember.builder()
+                                                        .milestone(milestone)
+                                                        .user(client)
+                                                        .build();
+                                                milestoneMemberRepository.save(clientMember);
+                                                log.info("Đã thêm client vào milestone {} sau khi thanh toán",
+                                                        milestone.getId());
+                                            }
                                         }
                                     }
                                 }
                             }
+                        } else {
+                            log.warn(
+                                    "Contract {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}",
+                                    contract.getId(), contract.getSignnowStatus());
                         }
-                    } else {
-                        log.warn("Contract {} không ở trạng thái SIGNED khi thanh toán thành công, status hiện tại: {}", contract.getId(), contract.getSignnowStatus());
                     }
+
+                } else {
+                    tx.setStatus(TransactionStatus.FAILED);
+                    log.warn("Webhook báo cáo trạng thái không thành công. Mã đơn hàng: {}, mã PayOS: {}", orderCode,
+                            payosStatusCode);
                 }
 
-            } else {
-                tx.setStatus(TransactionStatus.FAILED);
-                log.warn("Webhook báo cáo trạng thái không thành công. Mã đơn hàng: {}, mã PayOS: {}", orderCode, payosStatusCode);
-            }
-
-            transactionRepository.save(tx);
+                transactionRepository.save(tx);
                 return; // Đã xử lý xong Transaction
             }
-            
+
             // Nếu không tìm thấy Transaction, thử tìm Owner Compensation Payment
             String ownerCompOrderCode = "OCP-" + orderCode;
-            java.util.Optional<com.fpt.producerworkbench.entity.OwnerCompensationPayment> ownerCompOpt = 
-                    ownerCompensationPaymentRepository.findByPaymentOrderCode(ownerCompOrderCode);
-            
+            java.util.Optional<com.fpt.producerworkbench.entity.OwnerCompensationPayment> ownerCompOpt = ownerCompensationPaymentRepository
+                    .findByPaymentOrderCode(ownerCompOrderCode);
+
             if (ownerCompOpt.isPresent()) {
-                log.info("[Webhook/PayOS] Routing to OWNER COMPENSATION PAYMENT handler. orderCode={}, ownerCompOrderCode={}", 
+                log.info(
+                        "[Webhook/PayOS] Routing to OWNER COMPENSATION PAYMENT handler. orderCode={}, ownerCompOrderCode={}",
                         orderCode, ownerCompOrderCode);
-                
+
                 OwnerCompensationPayment payment = ownerCompOpt.get();
-                
+
                 // Xử lý trạng thái không thành công
                 if (!"00".equals(payosStatusCode)) {
                     if ("CANCELLED".equals(payosStatusCode) || "EXPIRED".equals(payosStatusCode)) {
@@ -459,19 +544,20 @@ public class PaymentServiceImpl implements PaymentService {
                     ownerCompensationPaymentRepository.save(payment);
                     return;
                 }
-                
+
                 // Payment successful → Route đến ContractTerminationService
                 if (payment.getStatus() == com.fpt.producerworkbench.common.PaymentStatus.COMPLETED) {
                     log.info("Owner compensation payment already processed");
                     return;
                 }
-                
+
                 contractTerminationService.handleOwnerCompensationWebhook(ownerCompOrderCode, "SUCCESS");
                 return;
             }
-            
+
             // Không tìm thấy cả Transaction lẫn Owner Compensation Payment
-            log.error("Không tìm thấy giao dịch. Mã đơn hàng: {} (đã thử Transaction và OwnerCompensationPayment)", orderCode);
+            log.error("Không tìm thấy giao dịch. Mã đơn hàng: {} (đã thử Transaction và OwnerCompensationPayment)",
+                    orderCode);
             throw new AppException(ErrorCode.TRANSACTION_NOT_FOUND);
 
         } catch (Exception e) {
@@ -479,7 +565,6 @@ public class PaymentServiceImpl implements PaymentService {
             throw e;
         }
     }
-
 
     @Override
     @Transactional(readOnly = true)
@@ -490,14 +575,14 @@ public class PaymentServiceImpl implements PaymentService {
 
         // Normalize input: trim
         orderCode = orderCode.trim();
-        
+
         // Extract raw numeric code if starts with "OCP-"
         String rawOrderCode = orderCode;
         boolean hasOcpPrefix = orderCode.startsWith("OCP-");
         if (hasOcpPrefix) {
             rawOrderCode = orderCode.substring(4); // Remove "OCP-" prefix
         }
-        
+
         // Try Transaction first (using raw numeric code)
         // Transaction stores transactionCode as String.valueOf(orderCode)
         java.util.Optional<Transaction> txOpt = transactionRepository.findByTransactionCode(rawOrderCode);
@@ -506,7 +591,7 @@ public class PaymentServiceImpl implements PaymentService {
             Project project = null;
             Contract contract = tx.getRelatedContract();
             ContractAddendum addendum = tx.getRelatedAddendum();
-            
+
             if (contract != null) {
                 project = contract.getProject();
             } else if (addendum != null && addendum.getContract() != null) {
@@ -522,7 +607,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .addendumId(addendum != null ? addendum.getId() : null)
                     .build();
         }
-        
+
         // If no Transaction found, try OwnerCompensationPayment
         String ownerCompOrderCode;
         if (hasOcpPrefix) {
@@ -532,15 +617,15 @@ public class PaymentServiceImpl implements PaymentService {
             // Request is "xxx" → lookup with "OCP-" prefix
             ownerCompOrderCode = "OCP-" + orderCode;
         }
-        
-        java.util.Optional<OwnerCompensationPayment> ownerCompOpt = 
-                ownerCompensationPaymentRepository.findByPaymentOrderCode(ownerCompOrderCode);
-        
+
+        java.util.Optional<OwnerCompensationPayment> ownerCompOpt = ownerCompensationPaymentRepository
+                .findByPaymentOrderCode(ownerCompOrderCode);
+
         if (ownerCompOpt.isPresent()) {
             OwnerCompensationPayment payment = ownerCompOpt.get();
             Contract contract = payment.getContract();
             Project project = contract != null ? contract.getProject() : null;
-            
+
             return PaymentStatusResponse.builder()
                     .orderCode(orderCode) // Return original orderCode from request
                     .status(mapPaymentStatusToString(payment.getStatus()))
@@ -550,11 +635,11 @@ public class PaymentServiceImpl implements PaymentService {
                     .addendumId(null) // OwnerCompensationPayment không liên quan đến addendum
                     .build();
         }
-        
+
         // Not found in both Transaction and OwnerCompensationPayment
         throw new AppException(ErrorCode.TRANSACTION_NOT_FOUND);
     }
-    
+
     /**
      * Map TransactionStatus to string status for FE
      * FE expects: PENDING | SUCCESSFUL | FAILED
@@ -566,7 +651,7 @@ public class PaymentServiceImpl implements PaymentService {
             case FAILED -> "FAILED";
         };
     }
-    
+
     /**
      * Map PaymentStatus to string status for FE
      * FE expects: PENDING | SUCCESSFUL | FAILED | EXPIRED

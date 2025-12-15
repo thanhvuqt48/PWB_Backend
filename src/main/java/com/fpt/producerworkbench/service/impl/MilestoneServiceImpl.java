@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.ProjectRole;
@@ -200,6 +201,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .amount(amount)
                 .dueDate(request.getDueDate())
                 .status(MilestoneStatus.PENDING)
+                .paymentStatus(PaymentStatus.PENDING)
                 .sequence(nextSequence)
                 .editCount(request.getEditCount())
                 .productCount(request.getProductCount())
@@ -391,6 +393,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .amount(milestone.getAmount())
                 .dueDate(milestone.getDueDate())
                 .status(milestone.getStatus())
+                .paymentStatus(milestone.getPaymentStatus())
                 .editCount(milestone.getEditCount())
                 .productCount(milestone.getProductCount())
                 .sequence(milestone.getSequence())
@@ -529,6 +532,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .title(milestone.getTitle())
                 .description(milestone.getDescription())
                 .status(milestone.getStatus())
+                .paymentStatus(milestone.getPaymentStatus())
                 .sequence(milestone.getSequence())
                 .productCount(milestone.getProductCount())
                 .editCount(milestone.getEditCount())
@@ -550,6 +554,7 @@ public class MilestoneServiceImpl implements MilestoneService {
                 .amount(milestone.getAmount())
                 .dueDate(milestone.getDueDate())
                 .status(milestone.getStatus())
+                .paymentStatus(milestone.getPaymentStatus())
                 .editCount(milestone.getEditCount())
                 .productCount(milestone.getProductCount())
                 .sequence(milestone.getSequence())

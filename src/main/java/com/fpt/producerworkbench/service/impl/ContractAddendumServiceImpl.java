@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.service.impl;
 import com.fpt.producerworkbench.common.AddendumDocumentType;
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.RelatedEntityType;
@@ -539,6 +540,7 @@ public class ContractAddendumServiceImpl implements ContractAddendumService {
                 .pitTax(pitTax)
                 .vatTax(vatTax)
                 .status(MilestoneStatus.PENDING)
+                .paymentStatus(PaymentStatus.PENDING)
                 .sequence(sequence)
                 .build();
         

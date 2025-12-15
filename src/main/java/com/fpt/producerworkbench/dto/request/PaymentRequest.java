@@ -17,4 +17,10 @@ public class PaymentRequest {
     
     @NotBlank(message = "Cancel URL is required")
     private String cancelUrl;
+
+    /**
+     * milestoneId: dùng khi contract paymentType = MILESTONE để chỉ định cột mốc cần thanh toán.
+     * Optional cho paymentType = FULL hoặc thanh toán phụ lục.
+     */
+    private Long milestoneId;
 }
