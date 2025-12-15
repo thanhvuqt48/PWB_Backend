@@ -230,4 +230,19 @@ public class ProjectController {
                 .result(details)
                 .build());
     }
+
+    @PostMapping("/projects/{projectId}/complete")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ProjectResponse>> completeProject(
+            @PathVariable Long projectId,
+            Authentication auth) {
+
+        Project project = projectService.completeProject(projectId, auth);
+        ProjectResponse projectResponse = projectMapper.toProjectResponse(project);
+
+        return ResponseEntity.ok(ApiResponse.<ProjectResponse>builder()
+                .message("Xác nhận hoàn thành dự án thành công")
+                .result(projectResponse)
+                .build());
+    }
 }
