@@ -26,4 +26,9 @@ public interface MilestoneRepository extends JpaRepository<Milestone, Long> {
     void deleteByContract(Contract contract);
 
     long countByContract(Contract contract);
+    
+    // New method for contract termination
+    @Query("SELECT m FROM Milestone m WHERE m.contract.id = :contractId AND m.status = :status")
+    List<Milestone> findByContractIdAndStatus(@Param("contractId") Long contractId, 
+                                              @Param("status") com.fpt.producerworkbench.common.MilestoneStatus status);
 }

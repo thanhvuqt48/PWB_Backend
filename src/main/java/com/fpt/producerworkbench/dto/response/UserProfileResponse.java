@@ -1,6 +1,5 @@
 package com.fpt.producerworkbench.dto.response;
 
-import jakarta.persistence.Column;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;

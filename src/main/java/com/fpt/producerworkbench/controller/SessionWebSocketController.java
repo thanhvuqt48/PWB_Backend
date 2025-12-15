@@ -6,6 +6,7 @@ import com.fpt.producerworkbench.entity.User;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.LiveSessionRepository;
+import com.fpt.producerworkbench.repository.SessionParticipantRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.JoinRequestService;
 import com.fpt.producerworkbench.service.WebSocketService;
@@ -33,6 +34,7 @@ public class SessionWebSocketController {
     private final UserRepository userRepository;
     private final JoinRequestService joinRequestService;
     private final LiveSessionRepository sessionRepository;
+    private final SessionParticipantRepository participantRepository;
 
     /**
      * Handle chat messages
@@ -86,33 +88,108 @@ public class SessionWebSocketController {
      * Handle playback control events
      * Client sends to: /app/session/{sessionId}/playback
      * Server broadcasts to: /topic/session/{sessionId}/playback
+     * 
+     * Quyền:
+     * - Tất cả thành viên trong phòng đều có thể play/pause/stop track đang phát
+     * - Chỉ chủ dự án (host) mới có quyền chọn bài hát mới để phát
      */
     @MessageMapping("/session/{sessionId}/playback")
     public void controlPlayback(
             @DestinationVariable String sessionId,
             @Payload PlaybackEvent event,
-            SimpMessageHeaderAccessor headerAccessor) {  // ✅ Changed
+            SimpMessageHeaderAccessor headerAccessor) {
 
-        log.info("🎵 Received playback event in session {}: {}", sessionId, event.getAction());
+        log.info("🎵 Received playback event in session {}: {} from user", sessionId, event.getAction());
 
         try {
             Long userId = (Long) headerAccessor.getSessionAttributes().get("userId");
 
             if (userId == null) {
-                log.warn("⚠️ Anonymous playback control in session {}", sessionId);
-                event.setTriggeredByUserId(0L);
-                event.setTriggeredByUserName("Anonymous");
-            } else {
-                User user = userRepository.findById(userId)
-                        .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-                event.setTriggeredByUserId(user.getId());
-                event.setTriggeredByUserName(user.getFirstName() + " " + user.getLastName());
+                log.warn("⚠️ Anonymous playback control attempt in session {}", sessionId);
+                webSocketService.sendToUser(0L, "/queue/error",
+                        com.fpt.producerworkbench.dto.websocket.SystemNotification.builder()
+                                .type("ERROR")
+                                .title("Authentication Required")
+                                .message("Bạn cần đăng nhập để điều khiển phát nhạc")
+                                .requiresAction(false)
+                                .build());
+                return;
             }
 
-            webSocketService.broadcastPlaybackEvent(sessionId, event);
-            log.info("✅ Playback event broadcasted: {}", event.getAction());
+            // Validate user exists
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
+            // Validate session exists
+            LiveSession session = sessionRepository.findById(sessionId)
+                    .orElseThrow(() -> new AppException(ErrorCode.SESSION_NOT_FOUND));
+
+            // Check if user is participant in the session
+            boolean isParticipant = participantRepository.existsBySessionIdAndUserId(sessionId, userId);
+            boolean isHost = session.isHost(userId);
+
+            if (!isParticipant && !isHost) {
+                log.warn("⚠️ User {} attempted to control playback but is not a participant in session {}", userId, sessionId);
+                webSocketService.sendToUser(userId, "/queue/error",
+                        com.fpt.producerworkbench.dto.websocket.SystemNotification.builder()
+                                .type("ERROR")
+                                .title("Không có quyền")
+                                .message("Bạn không phải là thành viên trong phòng này")
+                                .requiresAction(false)
+                                .build());
+                return;
+            }
+
+            // ✅ Logic phân quyền:
+            // - Nếu action = "PLAY" và có fileId/fileUrl mới (chọn track mới) → chỉ host được
+            // - Nếu action = "PLAY"/"PAUSE"/"STOP" mà không đổi track → tất cả participants đều được
+            
+            boolean isSelectingNewTrack = "PLAY".equalsIgnoreCase(event.getAction()) 
+                    && event.getFileId() != null 
+                    && (session.getCurrentPlayingFileId() == null 
+                            || !event.getFileId().equals(session.getCurrentPlayingFileId()));
+
+            if (isSelectingNewTrack && !isHost) {
+                log.warn("⚠️ User {} attempted to select new track but is not host of session {}", userId, sessionId);
+                webSocketService.sendToUser(userId, "/queue/error",
+                        com.fpt.producerworkbench.dto.websocket.SystemNotification.builder()
+                                .type("ERROR")
+                                .title("Không có quyền")
+                                .message("Chỉ chủ dự án mới có thể chọn bài hát mới để phát")
+                                .requiresAction(false)
+                                .build());
+                return;
+            }
+
+            // Set user info in event
+            event.setTriggeredByUserId(user.getId());
+            event.setTriggeredByUserName(user.getFirstName() + " " + user.getLastName());
+
+            // Update current playing file ID if selecting new track
+            if (isSelectingNewTrack && event.getFileId() != null) {
+                session.setCurrentPlayingFileId(event.getFileId());
+                session.setPlaybackStartedAt(java.time.LocalDateTime.now());
+                sessionRepository.save(session);
+                log.info("✅ Updated current playing file ID to {} in session {}", event.getFileId(), sessionId);
+            }
+
+            // Broadcast to all participants in the session
+            webSocketService.broadcastPlaybackEvent(sessionId, event);
+            log.info("✅ Playback event broadcasted by {} (host: {}): {}", 
+                    user.getEmail(), isHost, event.getAction());
+
+        } catch (AppException e) {
+            log.error("❌ AppException handling playback event: {}", e.getMessage());
+            Long userId = (Long) headerAccessor.getSessionAttributes().get("userId");
+            if (userId != null) {
+                webSocketService.sendToUser(userId, "/queue/error",
+                        com.fpt.producerworkbench.dto.websocket.SystemNotification.builder()
+                                .type("ERROR")
+                                .title("Lỗi")
+                                .message(e.getMessage())
+                                .requiresAction(false)
+                                .build());
+            }
         } catch (Exception e) {
             log.error("❌ Error handling playback event: {}", e.getMessage(), e);
         }

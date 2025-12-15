@@ -3,6 +3,7 @@ package com.fpt.producerworkbench.dto.response;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.PaymentStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -38,6 +39,9 @@ public class MilestoneResponse {
     
     @JsonProperty("status")
     private MilestoneStatus status;
+
+    @JsonProperty("paymentStatus")
+    private PaymentStatus paymentStatus;
     
     @JsonProperty("editCount")
     private Integer editCount;

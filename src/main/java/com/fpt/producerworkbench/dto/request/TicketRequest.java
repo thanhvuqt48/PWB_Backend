@@ -1,6 +1,5 @@
 package com.fpt.producerworkbench.dto.request;
 
-import com.fpt.producerworkbench.common.TicketPriority;
 import lombok.Data;
 
 import java.util.List;

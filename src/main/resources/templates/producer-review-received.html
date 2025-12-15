@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌟 Bạn nhận được đánh giá mới!</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* --- CSS CHO DARK MODE (VŨ TRỤ) --- */
+      body {
+        font-family: "Space Grotesk", Arial, sans-serif;
+        line-height: 1.55;
+        margin: 0;
+        padding: 0;
+        background-color: #0d0b14;
+        color: #e3e1fa;
+      }
+      .container {
+        max-width: 600px;
+        margin: 16px auto;
+        background: radial-gradient(circle, #242446, #151526 70%);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 0 16px rgba(192, 88, 245, 0.18);
+        border: 1px solid #322a50;
+        color: #e3e1fa;
+      }
+
+      /* --- Header đồng bộ --- */
+      .header {
+        padding: 24px 24px 16px;
+      }
+      .brand-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .brand-td {
+        vertical-align: middle;
+      }
+      .brand-logo {
+        width: 55px;
+        height: 55px;
+        border-radius: 6px;
+        display: block;
+      }
+      .brand-name {
+        text-align: center;
+        font-size: 14px;
+        color: #ffffff;
+        letter-spacing: 1.2px;
+        font-weight: bold;
+      }
+      .tagline {
+        text-align: center;
+        font-size: 11px;
+        color: #b891ff;
+        margin-top: 2px;
+      }
+
+      /* --- Nội dung chính --- */
+      .content {
+        padding: 8px 30px 30px;
+      }
+      .greeting {
+        margin: 16px 0 10px;
+        font-size: 18px;
+        font-weight: 500;
+        color: #ffffff;
+        text-align: center;
+      }
+      .greeting strong {
+        color: #b891ff;
+      }
+      .content p {
+        margin: 0 0 16px;
+        font-size: 15px;
+        color: #d5d2f3;
+        text-align: center;
+      }
+
+      /* --- Review Card (Mission Card Style) --- */
+      .review-card {
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 10px;
+        padding: 24px;
+        text-align: center;
+        border: 1px solid #3a2c5f;
+        margin: 24px 0;
+      }
+      .review-badge {
+        display: inline-block;
+        background: #c058f5;
+        color: #ffffff;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        margin-bottom: 16px;
+      }
+      .project-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0 0 12px;
+        letter-spacing: 0.5px;
+      }
+      .client-name {
+        font-size: 14px;
+        color: #b891ff;
+        margin-bottom: 20px;
+      }
+      .rating {
+        font-size: 48px;
+        margin: 20px 0;
+        letter-spacing: 8px;
+        line-height: 1;
+      }
+      .comment-box {
+        background: rgba(192, 88, 245, 0.15);
+        border: 1px solid rgba(192, 88, 245, 0.3);
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 20px;
+        text-align: left;
+      }
+      .comment-box .quote-icon {
+        font-size: 24px;
+        color: #c058f5;
+        margin-bottom: 8px;
+      }
+      .comment-text {
+        color: #e3e1fa;
+        font-style: italic;
+        font-size: 15px;
+        line-height: 1.6;
+        margin: 0;
+      }
+
+      /* --- Benefits Section --- */
+      .benefits {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid #3a2c5f;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 24px 0;
+      }
+      .benefits h3 {
+        color: #b891ff;
+        font-size: 16px;
+        margin: 0 0 12px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .benefits ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .benefits li {
+        padding: 8px 0;
+        color: #d5d2f3;
+        font-size: 13px;
+        border-bottom: 1px solid rgba(58, 44, 95, 0.5);
+        text-align: left;
+      }
+      .benefits li:last-child {
+        border-bottom: none;
+      }
+      .benefits li:before {
+        content: "✨ ";
+        color: #c058f5;
+        font-weight: bold;
+        margin-right: 8px;
+      }
+
+      /* --- CTA Button --- */
+      .cta-button {
+        display: inline-block;
+        background: #c058f5;
+        color: #ffffff;
+        padding: 14px 32px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 16px;
+        margin: 20px 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 15px rgba(192, 88, 245, 0.4);
+      }
+      .cta-button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 25px rgba(192, 88, 245, 0.7);
+      }
+
+      /* --- Footer --- */
+      .divider {
+        border: 0;
+        height: 1px;
+        margin: 24px 0;
+        background-image: linear-gradient(
+          to right,
+          rgba(192, 88, 245, 0),
+          rgba(192, 88, 245, 0.45),
+          rgba(192, 88, 245, 0)
+        );
+      }
+      .footer {
+        padding: 0 16px 24px;
+        color: #9b95af;
+        font-size: 12px;
+        text-align: center;
+      }
+      .footer p {
+        margin: 0 0 4px;
+        text-align: center;
+      }
+
+      /* --- Responsive --- */
+      @media (max-width: 600px) {
+        .content {
+          padding: 8px 20px 20px;
+        }
+        .greeting {
+          font-size: 16px;
+        }
+        .rating {
+          font-size: 36px;
+          letter-spacing: 4px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header PWB đồng bộ -->
+      <div class="header">
+        <table class="brand-table">
+          <tr>
+            <td class="brand-td" style="width: 36px"></td>
+            <td class="brand-td" style="text-align: center">
+              <div class="brand-name">PRODUCER WORKBENCH</div>
+              <div class="tagline">Trạm Chỉ Huy cho Hành Trình Âm Nhạc</div>
+            </td>
+            <td class="brand-td" style="width: 55px; text-align: right">
+              <img
+                src="https://producer-workbench-media.s3.ap-southeast-1.amazonaws.com/logo/logo1.PNG"
+                alt="PWB Logo"
+                class="brand-logo"
+              />
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Content -->
+      <div class="content">
+        <p class="greeting">
+          Chào Phi hành gia <strong th:text="${producerName}">Producer</strong>,
+        </p>
+
+        <p>
+          Thật tuyệt vời! <strong th:text="${clientName}">Client</strong> đã
+          đánh giá sứ mệnh âm nhạc của bạn. Đây là minh chứng cho sự chuyên
+          nghiệp và chất lượng công việc của bạn! 🎉
+        </p>
+
+        <!-- Review Card -->
+        <div class="review-card">
+          <div class="review-badge">🌟 ĐÁNH GIÁ MỚI</div>
+          <div class="project-title" th:text="${projectTitle}">
+            Dự án: Project Name
+          </div>
+          <div class="client-name" th:text="'Từ: ' + ${clientName}">
+            Từ: Client Name
+          </div>
+
+          <div class="rating">
+            <span th:text="${starsFilled}">⭐⭐⭐⭐⭐</span
+            ><span th:text="${starsEmpty}"></span>
+          </div>
+
+          <div
+            class="comment-box"
+            th:if="${comment != null and comment != 'Không có nhận xét'}"
+          >
+            <div class="quote-icon">"</div>
+            <p class="comment-text" th:text="${comment}">Great work!</p>
+          </div>
+        </div>
+
+        <!-- Benefits -->
+        <div class="benefits">
+          <h3>🎯 Lợi ích của đánh giá tốt:</h3>
+          <ul>
+            <li>Tăng uy tín và độ tin cậy trên nền tảng</li>
+            <li>Dễ dàng thu hút khách hàng mới hơn</li>
+            <li>Xây dựng portfolio chuyên nghiệp</li>
+            <li>Cải thiện thứ hạng trong tìm kiếm</li>
+          </ul>
+        </div>
+
+        <!-- CTA Button -->
+        <div style="text-align: center">
+          <a th:href="${portfolioLink}" class="cta-button">
+            📊 XEM PORTFOLIO CỦA BẠN
+          </a>
+        </div>
+
+        <p style="margin-top: 24px; font-size: 14px; color: #9b95af">
+          Hãy tiếp tục phát huy và mang đến những sản phẩm âm nhạc tuyệt vời!
+          Chúng tôi tự hào có bạn trong cộng đồng Producer Workbench. 🎵
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <hr class="divider" />
+      <div class="footer">
+        <p>Giữ vững hành trình,</p>
+        <p><strong>Trung tâm Điều khiển PWB &copy; 2025</strong></p>
+      </div>
+    </div>
+  </body>
+</html>

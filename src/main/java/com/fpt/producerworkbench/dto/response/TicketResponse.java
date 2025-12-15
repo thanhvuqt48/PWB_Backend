@@ -1,7 +1,5 @@
 package com.fpt.producerworkbench.dto.response;
 
-import com.fpt.producerworkbench.common.TicketPriority;
-import com.fpt.producerworkbench.common.TicketStatus;
 import lombok.Builder;
 import lombok.Data;
 
@@ -15,6 +13,7 @@ public class TicketResponse {
     private String title;
     private String status;
     private String createdBy;
+    private Long projectId;
     private String projectName;
     private LocalDateTime createdAt;
     private List<String> attachmentUrls;

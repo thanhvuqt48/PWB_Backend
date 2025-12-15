@@ -1,5 +1,6 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.entity.LiveSession;
 import com.fpt.producerworkbench.service.EmailService;
@@ -38,6 +39,7 @@ public class EmailServiceImpl implements EmailService {
 
     JavaMailSender mailSender;
     SpringTemplateEngine templateEngine;
+    FrontendProperties frontendProperties;
 
     @Async
     public void sendEmail(String subject, String content, List<String> toList)
@@ -114,8 +116,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Session link (adjust based on your frontend URL structure)
-        String sessionLink = String.format("http://localhost:5173/projects/%d/sessions/%s", 
-                session.getProject().getId(), session.getId());
+        String sessionLink = String.format("%s/projects/%d/sessions/%s", 
+                frontendProperties.getUrl(), session.getProject().getId(), session.getId());
         context.setVariable("sessionLink", sessionLink);
 
         // Send email to each member
@@ -130,7 +132,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(memberEmail);
-                helper.setSubject("🎵 You're Invited: " + session.getTitle());
+                helper.setSubject("🎵 Bạn được mời: " + session.getTitle());
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -191,8 +193,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Session link
-        String sessionLink = String.format("http://localhost:5173/projects/%d/sessions/%s", 
-                session.getProject().getId(), session.getId());
+        String sessionLink = String.format("%s/projects/%d/sessions/%s", 
+                frontendProperties.getUrl(), session.getProject().getId(), session.getId());
         context.setVariable("sessionLink", sessionLink);
 
         // Send email to each participant
@@ -207,7 +209,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(participantEmail);
-                helper.setSubject("⏰ REMINDER: " + session.getTitle() + " starts in 5 minutes!");
+                helper.setSubject("⏰ NHẮC NHỞ: " + session.getTitle() + " bắt đầu sau 5 phút!");
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -250,7 +252,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Project link
-        String projectLink = String.format("http://localhost:5173/projects/%d", 
+        String projectLink = String.format("%s/projects/%d",
+                frontendProperties.getUrl(), 
                 session.getProject().getId());
         context.setVariable("projectLink", projectLink);
 
@@ -266,7 +269,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(participantEmail);
-                helper.setSubject("❌ Session Cancelled: " + session.getTitle());
+                helper.setSubject("❌ Phiên làm việc đã bị hủy: " + session.getTitle());
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -315,7 +318,8 @@ public class EmailServiceImpl implements EmailService {
         }
         
         // Project link
-        String projectLink = String.format("http://localhost:5173/projects/%d", 
+        String projectLink = String.format("%s/projects/%d",
+                frontendProperties.getUrl(), 
                 session.getProject().getId());
         context.setVariable("projectLink", projectLink);
 
@@ -331,7 +335,7 @@ public class EmailServiceImpl implements EmailService {
 
                 helper.setFrom(emailFrom, "Producer Workbench");
                 helper.setTo(participantEmail);
-                helper.setSubject("🔄 Session Time Changed: " + session.getTitle());
+                helper.setSubject("🔄 Thời gian phiên làm việc đã thay đổi: " + session.getTitle());
                 helper.setText(personalizedHtml, true);
 
                 mailSender.send(mimeMessage);
@@ -340,6 +344,97 @@ public class EmailServiceImpl implements EmailService {
             } catch (Exception e) {
                 log.error("Failed to send schedule change email to {}: {}", participantEmail, e.getMessage());
             }
+        }
+    }
+
+    @Override
+    @Async
+    public void sendReviewReceivedEmail(String producerEmail, String producerName, String clientName, 
+                                        String projectTitle, Integer rating, String comment) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        log.info("Sending review received email to {}", producerEmail);
+        
+        Context context = new Context();
+        context.setVariable("producerName", producerName);
+        context.setVariable("clientName", clientName);
+        context.setVariable("projectTitle", projectTitle);
+        context.setVariable("rating", rating);
+        context.setVariable("comment", comment != null ? comment : "Không có nhận xét");
+        
+        // Generate star icons
+        String starsFilled = "⭐".repeat(rating);
+        String starsEmpty = "☆".repeat(5 - rating);
+        context.setVariable("starsFilled", starsFilled);
+        context.setVariable("starsEmpty", starsEmpty);
+        
+        // Portfolio link
+        String portfolioLink = "http://localhost:5173/projectManage";
+        context.setVariable("portfolioLink", portfolioLink);
+        
+        try {
+            String html = templateEngine.process("producer-review-received", context);
+            
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            
+            helper.setFrom(emailFrom, "Producer Workbench");
+            helper.setTo(producerEmail);
+            helper.setSubject("🌟 Bạn nhận được đánh giá " + rating + " sao từ " + clientName);
+            helper.setText(html, true);
+            
+            mailSender.send(mimeMessage);
+            log.info("Review received email sent to {} successfully!", producerEmail);
+            
+        } catch (Exception e) {
+            log.error("Failed to send review received email to {}: {}", producerEmail, e.getMessage());
+            throw e;
+        }
+    }
+
+    @Override
+    @Async
+    public void sendReviewConfirmationEmail(String clientEmail, String clientName, String producerName, 
+                                            String projectTitle, Integer rating) 
+            throws MessagingException, UnsupportedEncodingException {
+        
+        log.info("Sending review confirmation email to {}", clientEmail);
+        
+        Context context = new Context();
+        context.setVariable("clientName", clientName);
+        context.setVariable("producerName", producerName);
+        context.setVariable("projectTitle", projectTitle);
+        context.setVariable("rating", rating);
+        
+        // Generate star icons
+        String starsFilled = "⭐".repeat(rating);
+        String starsEmpty = "☆".repeat(5 - rating);
+        context.setVariable("starsFilled", starsFilled);
+        context.setVariable("starsEmpty", starsEmpty);
+        
+        // Project manage link
+        String projectManageLink = "http://localhost:5173/projectManage";
+        context.setVariable("projectManageLink", projectManageLink);
+        
+        try {
+            String html = templateEngine.process("client-review-confirmation", context);
+            
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage,
+                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, StandardCharsets.UTF_8.name());
+            
+            helper.setFrom(emailFrom, "Producer Workbench");
+            helper.setTo(clientEmail);
+            helper.setSubject("✅ Đánh giá của bạn đã được gửi thành công!");
+            helper.setText(html, true);
+            
+            mailSender.send(mimeMessage);
+            log.info("Review confirmation email sent to {} successfully!", clientEmail);
+            
+        } catch (Exception e) {
+            log.error("Failed to send review confirmation email to {}: {}", clientEmail, e.getMessage());
+            throw e;
         }
     }
 

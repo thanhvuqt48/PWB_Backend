@@ -1,8 +1,6 @@
 package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.request.BeatToLyricsRequest;
-import com.fpt.producerworkbench.dto.request.TrackUploadCompleteRequest;
-import com.fpt.producerworkbench.dto.request.TrackUploadUrlRequest;
 import com.fpt.producerworkbench.dto.request.CompleteAndSuggestRequest;
 import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.entity.User;

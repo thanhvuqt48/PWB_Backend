@@ -1,5 +1,7 @@
 package com.fpt.producerworkbench.service.impl;
 
+import com.fpt.producerworkbench.common.NotificationType;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.FollowListResponse;
 import com.fpt.producerworkbench.dto.response.FollowResponse;
 import com.fpt.producerworkbench.entity.Follow;
@@ -9,6 +11,7 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.FollowRepository;
 import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.FollowService;
+import com.fpt.producerworkbench.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -27,6 +30,7 @@ public class FollowServiceImpl implements FollowService {
 
     private final FollowRepository followRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     private Long resolveCurrentUserId(Authentication auth) {
         if (auth == null) throw new AppException(ErrorCode.UNAUTHORIZED);
@@ -70,6 +74,32 @@ public class FollowServiceImpl implements FollowService {
                     .followee(userRepository.getReferenceById(followeeId))
                     .build();
             followRepository.saveAndFlush(follow);
+            
+            // Gửi notification cho người được follow
+            try {
+                User follower = userRepository.findById(followerId).orElse(null);
+                if (follower != null) {
+                    String followerName = follower.getFullName() != null 
+                            ? follower.getFullName() 
+                            : follower.getEmail();
+                    
+                    String actionUrl = String.format("/portfolio/user/%d", followerId);
+                    
+                    notificationService.sendNotification(
+                            SendNotificationRequest.builder()
+                                    .userId(followeeId)
+                                    .type(NotificationType.SYSTEM)
+                                    .title("Có người theo dõi bạn")
+                                    .message(String.format("%s đã bắt đầu theo dõi bạn.", followerName))
+                                    .relatedEntityType(null)
+                                    .relatedEntityId(null)
+                                    .actionUrl(actionUrl)
+                                    .build()
+                    );
+                }
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification cho follow: {}", e.getMessage());
+            }
         } catch (DataIntegrityViolationException ex) {
             log.debug("Follow already exists ({} -> {}): {}", followerId, followeeId, ex.getMessage());
         }

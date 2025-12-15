@@ -11,9 +11,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class VnptEkycClientConfig {
 
-    /**
-     * Encoder để hỗ trợ multipart form data upload
-     */
     @Bean
     public Encoder feignFormEncoder(ObjectFactory<HttpMessageConverters> messageConverters) {
         return new SpringFormEncoder(new SpringEncoder(messageConverters));
