@@ -323,8 +323,8 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         webSocketService.broadcastSystemNotification(sessionId,
                 SystemNotification.builder()
                         .type("SUCCESS")
-                        .title("Session Started")
-                        .message(session.getTitle() + " is now live!")
+                        .title("Phiên làm việc đã bắt đầu")
+                        .message(session.getTitle() + " đã bắt đầu!")
                         .requiresAction(false)
                         .build()
         );
@@ -377,7 +377,7 @@ public class LiveSessionServiceImpl implements LiveSessionService {
                         .newStatus(SessionStatus.ENDED)
                         .triggeredBy(getFullName(host))
                         .triggeredByUserId(userId)
-                        .message("Session has ended")
+                        .message("Phiên làm việc đã kết thúc")
                         .build()
         );
 
@@ -388,8 +388,8 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         webSocketService.broadcastSystemNotification(sessionId,
                 SystemNotification.builder()
                         .type("INFO")
-                        .title("Session Ended")
-                        .message("Thank you for participating! Duration: " + summary.getDuration())
+                        .title("Phiên làm việc đã kết thúc")
+                        .message("Cảm ơn bạn đã tham gia! Thời lượng: " + summary.getDuration())
                         .requiresAction(false)
                         .build()
         );
@@ -434,8 +434,8 @@ public class LiveSessionServiceImpl implements LiveSessionService {
         webSocketService.broadcastSystemNotification(sessionId,
                 SystemNotification.builder()
                         .type("WARNING")
-                        .title("Session Cancelled")
-                        .message(reason != null ? reason : "This session has been cancelled")
+                        .title("Phiên làm việc đã bị hủy")
+                        .message(reason != null ? reason : "Phiên làm việc này đã bị hủy")
                         .requiresAction(false)
                         .build()
         );

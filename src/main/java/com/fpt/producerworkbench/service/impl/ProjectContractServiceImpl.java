@@ -161,7 +161,7 @@ public class ProjectContractServiceImpl implements ProjectContractService {
         if (ownerEmail != null) {
             try {
                 NotificationEvent evt = NotificationEvent.builder()
-                        .subject("Hợp đồng bị từ chối - Contract #" + c.getId())
+                        .subject("Hợp đồng bị từ chối - Hợp đồng #" + c.getId())
                         .recipient(ownerEmail)
                         .templateCode("contract-declined")
                         .param(new HashMap<>())
@@ -177,7 +177,7 @@ public class ProjectContractServiceImpl implements ProjectContractService {
             } catch (Exception ex) {
                 log.error("Lỗi khi gửi email qua Kafka, thử gửi trực tiếp: {}", ex.getMessage());
                 try {
-                    String subject = "Hợp đồng bị từ chối - Contract #" + c.getId();
+                    String subject = "Hợp đồng bị từ chối - Hợp đồng #" + c.getId();
                     String content = "<p>Hợp đồng đã bị từ chối với lý do:</p><p>" + (reason == null ? "(không cung cấp)" : reason) + "</p>"
                             + "<p>Vui lòng chỉnh sửa và gửi lại để khách hàng duyệt tiếp.</p>";
                     emailService.sendEmail(subject, content, List.of(ownerEmail));

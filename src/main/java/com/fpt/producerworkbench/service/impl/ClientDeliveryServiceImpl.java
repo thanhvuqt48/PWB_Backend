@@ -470,43 +470,6 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
         return editCount - used;
     }
 
-    @Override
-    @Transactional
-    public void cancelDelivery(Authentication auth, Long deliveryId) {
-        log.info("Cancelling delivery: deliveryId={}", deliveryId);
-
-        // 1. Load user
-        User currentUser = loadUser(auth);
-
-        // 2. Load delivery
-        ClientDelivery delivery = clientDeliveryRepository.findById(deliveryId)
-                .orElseThrow(() -> new AppException(ErrorCode.CLIENT_DELIVERY_NOT_FOUND));
-
-        // 3. Check permission (Only owner)
-        Project project = delivery.getMilestone().getContract().getProject();
-        if (!isOwner(currentUser.getId(), project)) {
-            throw new AppException(ErrorCode.FORBIDDEN);
-        }
-
-        // 4. Update MilestoneDelivery status to CANCELLED
-        Optional<MilestoneDelivery> milestoneDeliveryOpt = milestoneDeliveryRepository
-                .findByClientDeliveryId(deliveryId);
-
-        if (milestoneDeliveryOpt.isPresent()) {
-            MilestoneDelivery milestoneDelivery = milestoneDeliveryOpt.get();
-            milestoneDelivery.setStatus(DeliveryStatus.CANCELLED);
-            milestoneDeliveryRepository.save(milestoneDelivery);
-            log.info("Cancelled MilestoneDelivery: id={}", milestoneDelivery.getId());
-        }
-
-        log.info("Delivery cancelled successfully: deliveryId={}", deliveryId);
-    }
-
-    // ==================== Helper Methods ====================
-
-    /**
-     * Map ClientDelivery to response
-     */
     private ClientDeliveryResponse mapToClientDeliveryResponse(ClientDelivery delivery, Track track,
             User sentBy, Integer remaining) {
         return ClientDeliveryResponse.builder()
@@ -596,7 +559,7 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String projectUrl = String.format("%s/projects/%d/milestones/%d/client-room",
+            String projectUrl = String.format("%s/client-room?projectId=%d&milestoneId=%d",
                     frontendProperties.getUrl(), project.getId(), milestone.getId());
 
             for (User recipient : recipients) {
@@ -638,8 +601,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String trackUrl = String.format("%s/projects/%d/tracks/%d",
-                    frontendProperties.getUrl(), project.getId(), track.getId());
+            String trackUrl = String.format("%s/client-room?projectId=%d&milestoneId=%d",
+                    frontendProperties.getUrl(), project.getId(), delivery.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
@@ -660,8 +623,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
             // Gửi notification realtime cho owner
             try {
-                String actionUrl = String.format("/project-workspace?projectId=%d&trackId=%d",
-                        project.getId(), track.getId());
+                String actionUrl = String.format("/client-room?projectId=%d&milestoneId=%d",
+                        project.getId(), delivery.getMilestone().getId());
 
                 notificationService.sendNotification(
                         SendNotificationRequest.builder()
@@ -700,8 +663,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String trackUrl = String.format("%s/projects/%d/tracks/%d",
-                    frontendProperties.getUrl(), project.getId(), track.getId());
+            String trackUrl = String.format("%s/client-room?projectId=%d&milestoneId=%d",
+                    frontendProperties.getUrl(), project.getId(), delivery.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
@@ -722,8 +685,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
             // Gửi notification realtime cho owner
             try {
-                String actionUrl = String.format("/project-workspace?projectId=%d&trackId=%d",
-                        project.getId(), track.getId());
+                String actionUrl = String.format("/client-room?projectId=%d&milestoneId=%d",
+                        project.getId(), delivery.getMilestone().getId());
 
                 notificationService.sendNotification(
                         SendNotificationRequest.builder()
@@ -763,8 +726,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
                 return;
             }
 
-            String trackUrl = String.format("%s/projects/%d/tracks/%d",
-                    frontendProperties.getUrl(), project.getId(), track.getId());
+            String trackUrl = String.format("%s/client-room?projectId=%d&milestoneId=%d",
+                    frontendProperties.getUrl(), project.getId(), delivery.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
@@ -785,8 +748,8 @@ public class ClientDeliveryServiceImpl implements ClientDeliveryService {
 
             // Gửi notification realtime cho owner
             try {
-                String actionUrl = String.format("/project-workspace?projectId=%d&trackId=%d",
-                        project.getId(), track.getId());
+                String actionUrl = String.format("/client-room?projectId=%d&milestoneId=%d",
+                        project.getId(), delivery.getMilestone().getId());
 
                 notificationService.sendNotification(
                         SendNotificationRequest.builder()

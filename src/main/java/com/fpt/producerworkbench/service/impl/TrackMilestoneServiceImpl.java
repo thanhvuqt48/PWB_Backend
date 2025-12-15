@@ -4,10 +4,13 @@ import com.fpt.producerworkbench.common.ClientDeliveryStatus;
 import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.common.MilestoneStatus;
 import com.fpt.producerworkbench.common.MoneySplitStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.ProcessingStatus;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.common.TrackStatus;
 import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.request.TrackCreateRequest;
 import com.fpt.producerworkbench.dto.request.TrackDownloadPermissionRequest;
 import com.fpt.producerworkbench.dto.request.TrackStatusUpdateRequest;
@@ -40,6 +43,7 @@ import com.fpt.producerworkbench.repository.UserRepository;
 import com.fpt.producerworkbench.service.AudioProcessingService;
 import com.fpt.producerworkbench.service.FileKeyGenerator;
 import com.fpt.producerworkbench.service.FileStorageService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.TrackMilestoneService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,12 +78,14 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private final AudioProcessingService audioProcessingService;
     private final FrontendProperties frontendProperties;
     private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final NotificationService notificationService;
 
     private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
     @Override
     @Transactional
-    public TrackUploadUrlResponse createTrack(Authentication auth, Long projectId, Long milestoneId, TrackCreateRequest request) {
+    public TrackUploadUrlResponse createTrack(Authentication auth, Long projectId, Long milestoneId,
+            TrackCreateRequest request) {
         log.info("Tạo track mới cho milestone {}", milestoneId);
 
         // Kiểm tra authentication
@@ -105,7 +111,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             }
         }
 
-        // Tự động xác định version: nếu không có trong request, tự động tính version tiếp theo
+        // Tự động xác định version: nếu không có trong request, tự động tính version
+        // tiếp theo
         String version = request.getVersion();
         if (version == null || version.isBlank()) {
             version = calculateNextVersion(request.getName(), milestoneId);
@@ -148,8 +155,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         String masterKey = fileKeyGenerator.generateTrackMasterKey(
                 track.getId(),
-                request.getName() + getExtensionFromContentType(request.getContentType())
-        );
+                request.getName() + getExtensionFromContentType(request.getContentType()));
         track.setS3OriginalKey(masterKey);
         trackRepository.save(track);
 
@@ -176,7 +182,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         log.info("Hoàn tất upload cho track {}", trackId);
 
         User currentUser = loadUser(auth);
-        
+
         // Load track để kiểm tra quyền và lấy thông tin
         Track track = trackRepository.findById(trackId)
                 .orElseThrow(() -> new AppException(ErrorCode.BAD_REQUEST, "Track không tồn tại"));
@@ -196,12 +202,11 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         int updated = trackRepository.updateProcessingStatusAtomic(
                 trackId,
                 ProcessingStatus.UPLOADING,
-                ProcessingStatus.PROCESSING
-        );
+                ProcessingStatus.PROCESSING);
 
         if (updated == 0) {
             // Track đã bị finalize bởi request khác (race condition)
-            throw new AppException(ErrorCode.BAD_REQUEST, 
+            throw new AppException(ErrorCode.BAD_REQUEST,
                     "Track không ở trạng thái UPLOADING hoặc đã được finalize");
         }
 
@@ -329,22 +334,24 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         // Kiểm tra track đã được gửi cho khách hàng chưa
         List<ClientDelivery> clientDeliveries = clientDeliveryRepository.findByTrackIdOrderBySentAtDesc(trackId);
-        
+
         if (!clientDeliveries.isEmpty()) {
             // Track đã được gửi cho khách hàng
             // Kiểm tra xem có delivery nào đã được khách hàng chấp nhận (ACCEPTED) không
             boolean hasAcceptedDelivery = clientDeliveries.stream()
                     .anyMatch(delivery -> delivery.getStatus() == ClientDeliveryStatus.ACCEPTED);
-            
+
             if (hasAcceptedDelivery) {
                 log.warn("Không thể xóa track {} vì đã được khách hàng chấp nhận (ACCEPTED)", trackId);
                 throw new AppException(ErrorCode.CANNOT_DELETE_ACCEPTED_TRACK);
             }
-            
-            // Nếu track đã gửi nhưng chưa được chấp nhận (status = DELIVERED, REJECTED, hoặc REQUEST_EDIT)
+
+            // Nếu track đã gửi nhưng chưa được chấp nhận (status = DELIVERED, REJECTED,
+            // hoặc REQUEST_EDIT)
             // thì cho phép xóa, nhưng cần xóa ClientDelivery trước
-            log.info("Track {} đã được gửi cho khách hàng nhưng chưa được chấp nhận. Sẽ xóa ClientDelivery trước.", trackId);
-            
+            log.info("Track {} đã được gửi cho khách hàng nhưng chưa được chấp nhận. Sẽ xóa ClientDelivery trước.",
+                    trackId);
+
             // Xóa tất cả ClientDelivery của track này
             // MilestoneDelivery sẽ tự động bị xóa do cascade = CascadeType.ALL
             for (ClientDelivery delivery : clientDeliveries) {
@@ -360,9 +367,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             trackCommentRepository.deleteAll(comments);
             log.info("Đã xóa {} TrackComment cho track {}", comments.size(), trackId);
         }
-        
+
         // Xóa TrackStatusTransitionLog (audit trail)
-        List<TrackStatusTransitionLog> transitionLogs = trackStatusTransitionLogRepository.findByTrackIdOrderByCreatedAtDesc(trackId);
+        List<TrackStatusTransitionLog> transitionLogs = trackStatusTransitionLogRepository
+                .findByTrackIdOrderByCreatedAtDesc(trackId);
         if (transitionLogs != null && !transitionLogs.isEmpty()) {
             trackStatusTransitionLogRepository.deleteAll(transitionLogs);
             log.info("Đã xóa {} TrackStatusTransitionLog cho track {}", transitionLogs.size(), trackId);
@@ -421,7 +429,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         // Kiểm tra track đã sẵn sàng chưa
         if (track.getProcessingStatus() != ProcessingStatus.READY) {
-            throw new AppException(ErrorCode.BAD_REQUEST, 
+            throw new AppException(ErrorCode.BAD_REQUEST,
                     "Track chưa sẵn sàng để phát. Trạng thái: " + track.getProcessingStatus());
         }
 
@@ -439,7 +447,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
     @Override
     @Transactional
-    public TrackUploadUrlResponse uploadNewVersion(Authentication auth, Long trackId, TrackVersionUploadRequest request) {
+    public TrackUploadUrlResponse uploadNewVersion(Authentication auth, Long trackId,
+            TrackVersionUploadRequest request) {
         log.info("Upload version mới cho track {}", trackId);
 
         // Kiểm tra authentication
@@ -464,7 +473,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         String nextVersion = calculateNextVersion(originalTrack.getName(), originalTrack.getMilestone().getId());
         log.info("Tự động tạo version {} cho track {}", nextVersion, originalTrack.getName());
 
-        // Xác định rootTrackId: nếu originalTrack có rootTrackId thì dùng, nếu không thì dùng chính ID của originalTrack
+        // Xác định rootTrackId: nếu originalTrack có rootTrackId thì dùng, nếu không
+        // thì dùng chính ID của originalTrack
         // (trường hợp track cũ chưa có rootTrackId)
         Long rootTrackId = originalTrack.getRootTrackId();
         if (rootTrackId == null) {
@@ -474,7 +484,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         // Tạo track mới với version mới
         Track newVersionTrack = Track.builder()
                 .name(originalTrack.getName()) // Giữ nguyên tên
-                .description(request.getDescription() != null ? request.getDescription() : originalTrack.getDescription())
+                .description(
+                        request.getDescription() != null ? request.getDescription() : originalTrack.getDescription())
                 .version(nextVersion)
                 .milestone(originalTrack.getMilestone())
                 .user(currentUser)
@@ -493,8 +504,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         String masterKey = fileKeyGenerator.generateTrackMasterKey(
                 newVersionTrack.getId(),
-                newVersionTrack.getName() + getExtensionFromContentType(request.getContentType())
-        );
+                newVersionTrack.getName() + getExtensionFromContentType(request.getContentType()));
         newVersionTrack.setS3OriginalKey(masterKey);
         trackRepository.save(newVersionTrack);
 
@@ -581,7 +591,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         // Kiểm tra processing status
         if (track.getProcessingStatus() == ProcessingStatus.UPLOADING) {
-            throw new AppException(ErrorCode.BAD_REQUEST, 
+            throw new AppException(ErrorCode.BAD_REQUEST,
                     "Track đang được upload. Vui lòng đợi hoàn tất trước khi download.");
         }
 
@@ -592,8 +602,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         String downloadUrl = fileStorageService.generatePresignedUrl(
                 track.getS3OriginalKey(),
                 true, // forDownload = true
-                fileName
-        );
+                fileName);
 
         log.info("Đã tạo presigned download URL cho track {}", trackId);
         return downloadUrl;
@@ -625,7 +634,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         for (Long userId : request.getUserIds()) {
             // Kiểm tra user tồn tại
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, 
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND,
                             "User với ID " + userId + " không tồn tại"));
 
             // Kiểm tra user có phải là thành viên của project không
@@ -678,7 +687,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
             // Kiểm tra user tồn tại
             User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, 
+                    .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND,
                             "User với ID " + userId + " không tồn tại"));
 
             // Kiểm tra user có phải là thành viên của project không
@@ -717,13 +726,13 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
         // Kiểm tra user tồn tại
         userRepository.findById(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, 
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND,
                         "User với ID " + userId + " không tồn tại"));
 
         // Kiểm tra user có quyền download không
         boolean hasPermission = trackDownloadPermissionRepository.existsByTrackIdAndUserId(trackId, userId);
         if (!hasPermission) {
-            throw new AppException(ErrorCode.BAD_REQUEST, 
+            throw new AppException(ErrorCode.BAD_REQUEST,
                     "User này không có quyền download track này");
         }
 
@@ -752,15 +761,15 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 .map(permission -> {
                     User user = permission.getUser();
                     User grantedBy = permission.getGrantedBy();
-                    
-                    String userName = (user.getFirstName() != null ? user.getFirstName() : "") + 
-                                     " " + (user.getLastName() != null ? user.getLastName() : "").trim();
+
+                    String userName = (user.getFirstName() != null ? user.getFirstName() : "") +
+                            " " + (user.getLastName() != null ? user.getLastName() : "").trim();
                     if (userName.isBlank()) {
                         userName = user.getEmail();
                     }
 
-                    String grantedByName = (grantedBy.getFirstName() != null ? grantedBy.getFirstName() : "") + 
-                                          " " + (grantedBy.getLastName() != null ? grantedBy.getLastName() : "").trim();
+                    String grantedByName = (grantedBy.getFirstName() != null ? grantedBy.getFirstName() : "") +
+                            " " + (grantedBy.getLastName() != null ? grantedBy.getLastName() : "").trim();
                     if (grantedByName.isBlank()) {
                         grantedByName = grantedBy.getEmail();
                     }
@@ -804,8 +813,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         if (member != null && member.getProjectRole() == ProjectRole.COLLABORATOR) {
             // COLLABORATOR phải approve Money Split trước
             if (!hasApprovedMoneySplit(project, user.getId())) {
-                throw new AppException(ErrorCode.ACCESS_DENIED, 
-                    "Bạn cần chấp nhận phân chia tiền (Money Split) trước khi upload track");
+                throw new AppException(ErrorCode.ACCESS_DENIED,
+                        "Bạn cần chấp nhận phân chia tiền (Money Split) trước khi upload track");
             }
             return;
         }
@@ -825,8 +834,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         if (member != null && member.getProjectRole() == ProjectRole.COLLABORATOR) {
             // COLLABORATOR phải approve Money Split trước
             if (!hasApprovedMoneySplit(project, user.getId())) {
-                throw new AppException(ErrorCode.ACCESS_DENIED, 
-                    "Bạn cần chấp nhận phân chia tiền (Money Split) trước khi xem track");
+                throw new AppException(ErrorCode.ACCESS_DENIED,
+                        "Bạn cần chấp nhận phân chia tiền (Money Split) trước khi xem track");
             }
             return;
         }
@@ -836,7 +845,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
     private void checkUpdatePermission(User user, Project project, Track track) {
         boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
-        
+
         // Owner có thể update bất kỳ track nào
         if (isOwner) {
             return;
@@ -848,10 +857,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         if (member != null && member.getProjectRole() == ProjectRole.COLLABORATOR) {
             // Phải approve Money Split trước
             if (!hasApprovedMoneySplit(project, user.getId())) {
-                throw new AppException(ErrorCode.ACCESS_DENIED, 
-                    "Bạn cần chấp nhận phân chia tiền (Money Split) trước khi cập nhật track");
+                throw new AppException(ErrorCode.ACCESS_DENIED,
+                        "Bạn cần chấp nhận phân chia tiền (Money Split) trước khi cập nhật track");
             }
-            
+
             if (track.getUser().getId().equals(user.getId())) {
                 return;
             }
@@ -863,17 +872,18 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private void checkDeletePermission(User user, Project project, Track track) {
         boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
         boolean isTrackCreator = track.getUser() != null && user.getId().equals(track.getUser().getId());
-        
+
         if (!isOwner && !isTrackCreator) {
-            throw new AppException(ErrorCode.ACCESS_DENIED, 
-                "Chỉ chủ dự án hoặc người tải track lên mới có thể xóa track");
+            throw new AppException(ErrorCode.ACCESS_DENIED,
+                    "Chỉ chủ dự án hoặc người tải track lên mới có thể xóa track");
         }
     }
 
     private void checkOwnerPermission(User user, Project project) {
         boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
         if (!isOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED, "Chỉ chủ dự án mới có thể phê duyệt/từ chối trạng thái track");
+            throw new AppException(ErrorCode.ACCESS_DENIED,
+                    "Chỉ chủ dự án mới có thể phê duyệt/từ chối trạng thái track");
         }
     }
 
@@ -884,7 +894,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
 
     private void checkDownloadPermission(User user, Project project, Track track) {
         boolean isOwner = project.getCreator() != null && user.getId().equals(project.getCreator().getId());
-        
+
         // Owner luôn được download
         if (isOwner) {
             return;
@@ -893,7 +903,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         // Kiểm tra xem user có được cấp quyền download cho track này không
         boolean hasDownloadPermission = trackDownloadPermissionRepository.existsByTrackIdAndUserId(
                 track.getId(), user.getId());
-        
+
         if (hasDownloadPermission) {
             log.info("User {} được cấp quyền download track {}", user.getId(), track.getId());
             return;
@@ -909,21 +919,20 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         if (project == null || userId == null) {
             return false;
         }
-        
+
         List<Milestone> milestones = milestoneRepository.findByProjectIdOrderBySequenceAsc(project.getId());
         if (milestones.isEmpty()) {
             return false;
         }
-        
+
         List<Long> milestoneIds = milestones.stream()
                 .map(Milestone::getId)
                 .collect(Collectors.toList());
-        
+
         return milestoneMoneySplitRepository.existsByMilestoneIdInAndUserIdAndStatus(
                 milestoneIds,
                 userId,
-                MoneySplitStatus.APPROVED
-        );
+                MoneySplitStatus.APPROVED);
     }
 
     /**
@@ -936,7 +945,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             track.setProcessingStatus(ProcessingStatus.PROCESSING);
             track.setErrorMessage(null);
             trackRepository.save(track);
-            
+
             audioProcessingService.processTrackAudio(track.getId());
             log.info("Voice tag thay đổi. Đã trigger re-process audio cho track {}", track.getId());
         }
@@ -949,7 +958,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     private void sendTrackUploadNotificationEmail(Track track, Project project, User uploader) {
         try {
             User projectCreator = project.getCreator();
-            
+
             // Không gửi email nếu người upload chính là project creator
             if (projectCreator.getId().equals(uploader.getId())) {
                 log.debug("Người upload là project creator, không cần gửi thông báo");
@@ -962,7 +971,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("%s/projects/%d/milestones/%d", 
+            String projectUrl = String.format("%s/internal-studio?projectId=%d&milestoneId=%d",
                     frontendProperties.getUrl(), project.getId(), track.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
@@ -972,8 +981,8 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             }
             params.put("recipientName", recipientName);
             params.put("uploaderName", uploader.getFullName() != null ? uploader.getFullName() : uploader.getEmail());
-            params.put("uploaderAvatar", uploader.getAvatarUrl() != null ? 
-                      uploader.getAvatarUrl() : "https://via.placeholder.com/48");
+            params.put("uploaderAvatar",
+                    uploader.getAvatarUrl() != null ? uploader.getAvatarUrl() : "https://via.placeholder.com/48");
             params.put("projectName", project.getTitle());
             params.put("milestoneTitle", track.getMilestone().getTitle());
             params.put("trackName", track.getName());
@@ -989,11 +998,34 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                     .build();
 
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-            log.info("Đã gửi email thông báo upload track cho project creator: trackId={}, projectCreatorId={}", 
+            log.info("Đã gửi email thông báo upload track cho project creator: trackId={}, projectCreatorId={}",
                     track.getId(), projectCreator.getId());
 
+            // Gửi notification realtime cho owner
+            try {
+                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),track.getMilestone().getId());
+
+                String uploaderName = uploader.getFullName() != null ? uploader.getFullName() : uploader.getEmail();
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(projectCreator.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title("Sản phẩm mới đã được tải lên")
+                                .message(String.format("%s đã tải lên sản phẩm \"%s\" trong dự án \"%s\".",
+                                        uploaderName,
+                                        track.getName(),
+                                        project.getTitle()))
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(track.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho owner khi upload track: {}", e.getMessage());
+            }
+
         } catch (Exception e) {
-            log.error("Lỗi khi gửi email thông báo upload track: trackId={}", 
+            log.error("Lỗi khi gửi email thông báo upload track: trackId={}",
                     track.getId(), e);
         }
     }
@@ -1001,9 +1033,9 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
     /**
      * Gửi email thông báo khi trạng thái track thay đổi
      */
-    private void sendTrackStatusNotificationEmail(Track track, Project project, 
-                                                   TrackStatus oldStatus, TrackStatus newStatus, 
-                                                   String reason) {
+    private void sendTrackStatusNotificationEmail(Track track, Project project,
+            TrackStatus oldStatus, TrackStatus newStatus,
+            String reason) {
         try {
             User trackOwner = track.getUser();
             if (trackOwner.getEmail() == null || trackOwner.getEmail().isBlank()) {
@@ -1011,7 +1043,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                 return;
             }
 
-            String projectUrl = String.format("%s/projects/%d/milestones/%d", 
+            String projectUrl = String.format("%s/internal-studio?projectId=%d&milestoneId=%d",
                     frontendProperties.getUrl(), project.getId(), track.getMilestone().getId());
 
             Map<String, Object> params = new HashMap<>();
@@ -1027,7 +1059,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             params.put("oldStatus", oldStatus.name());
             params.put("newStatus", newStatus.name());
             params.put("projectUrl", projectUrl);
-            
+
             if (reason != null && !reason.trim().isEmpty()) {
                 params.put("reason", reason);
             }
@@ -1036,10 +1068,10 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
             String templateCode;
 
             if (newStatus == TrackStatus.INTERNAL_APPROVED) {
-                subject = String.format("Track '%s' đã được phê duyệt", track.getName());
+                subject = String.format("Sản phẩm '%s' đã được phê duyệt", track.getName());
                 templateCode = "track-status-approved-template";
             } else if (newStatus == TrackStatus.INTERNAL_REJECTED) {
-                subject = String.format("Track '%s' đã bị từ chối", track.getName());
+                subject = String.format("Sản phẩm '%s' đã bị từ chối", track.getName());
                 templateCode = "track-status-rejected-template";
             } else {
                 log.warn("Trạng thái không hợp lệ để gửi email: {}", newStatus);
@@ -1054,11 +1086,45 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
                     .build();
 
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
-            log.info("Đã gửi email thông báo trạng thái track qua Kafka: trackId={}, userId={}, newStatus={}", 
+            log.info("Đã gửi email thông báo trạng thái track qua Kafka: trackId={}, userId={}, newStatus={}",
                     track.getId(), trackOwner.getId(), newStatus);
 
+            // Gửi notification realtime cho người upload track
+            try {
+                String actionUrl = String.format("/internal-studio?projectId=%d&milestoneId=%d", project.getId(),track.getMilestone().getId());
+
+                String title;
+                String message;
+                if (newStatus == TrackStatus.INTERNAL_APPROVED) {
+                    title = "Sản phẩm đã được phê duyệt";
+                    message = String.format("Sản phẩm \"%s\" của bạn trong dự án \"%s\" đã được phê duyệt.%s",
+                            track.getName(),
+                            project.getTitle(),
+                            reason != null && !reason.trim().isEmpty() ? " Lý do: " + reason : "");
+                } else {
+                    title = "Sản phẩm đã bị từ chối";
+                    message = String.format("Sản phẩm \"%s\" của bạn trong dự án \"%s\" đã bị từ chối.%s",
+                            track.getName(),
+                            project.getTitle(),
+                            reason != null && !reason.trim().isEmpty() ? " Lý do: " + reason : "");
+                }
+
+                notificationService.sendNotification(
+                        SendNotificationRequest.builder()
+                                .userId(trackOwner.getId())
+                                .type(NotificationType.SYSTEM)
+                                .title(title)
+                                .message(message)
+                                .relatedEntityType(RelatedEntityType.MILESTONE)
+                                .relatedEntityId(track.getMilestone().getId())
+                                .actionUrl(actionUrl)
+                                .build());
+            } catch (Exception e) {
+                log.error("Gặp lỗi khi gửi notification realtime cho người upload track: {}", e.getMessage());
+            }
+
         } catch (Exception e) {
-            log.error("Lỗi khi gửi email thông báo trạng thái track qua Kafka: trackId={}", 
+            log.error("Lỗi khi gửi email thông báo trạng thái track qua Kafka: trackId={}",
                     track.getId(), e);
         }
     }
@@ -1134,7 +1200,7 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
      */
     private String calculateNextVersion(String trackName, Long milestoneId) {
         List<Track> existingTracks = trackRepository.findByNameAndMilestoneId(trackName, milestoneId);
-        
+
         if (existingTracks.isEmpty()) {
             return "1";
         }
@@ -1175,4 +1241,3 @@ public class TrackMilestoneServiceImpl implements TrackMilestoneService {
         }
     }
 }
-
