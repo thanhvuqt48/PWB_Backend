@@ -1,6 +1,5 @@
 package com.fpt.producerworkbench.entity;
 
-import com.fpt.producerworkbench.common.TicketPriority;
 import com.fpt.producerworkbench.common.TicketStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -36,6 +35,7 @@ public class Ticket  extends AbstractEntity<Long>{
     @ElementCollection
     @CollectionTable(name = "ticket_attachments", joinColumns = @JoinColumn(name = "ticket_id"))
     @Column(name = "s3_key")
+    @Builder.Default
     private List<String> attachmentKeys = new ArrayList<>();
 
 }

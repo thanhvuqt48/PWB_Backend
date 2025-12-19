@@ -2,7 +2,6 @@ package com.fpt.producerworkbench.controller;
 
 import com.fpt.producerworkbench.dto.response.ApiResponse;
 import com.fpt.producerworkbench.dto.response.FollowListResponse;
-import com.fpt.producerworkbench.dto.response.FollowResponse;
 import com.fpt.producerworkbench.service.FollowService;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;

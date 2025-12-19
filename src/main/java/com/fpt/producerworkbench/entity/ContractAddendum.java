@@ -42,15 +42,18 @@ public class ContractAddendum extends AbstractEntity<Long> {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "signnow_status", length = 32, nullable = false)
+    @Builder.Default
     private ContractStatus signnowStatus = ContractStatus.DRAFT;
 
 
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_mode", length = 16, nullable = false)
+    @Builder.Default
     private SigningMode signingMode = SigningMode.EMAIL;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_order_type", length = 16, nullable = false)
+    @Builder.Default
     private SigningOrderType signingOrderType = SigningOrderType.SEQUENTIAL;
 
     @Column(name = "num_of_money", precision = 15, scale = 2)

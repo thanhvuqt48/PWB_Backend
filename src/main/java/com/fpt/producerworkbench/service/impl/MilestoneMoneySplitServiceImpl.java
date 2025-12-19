@@ -368,7 +368,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             
             totalAllocated = totalSplitAmount.add(totalExpenseAmount);
-            // Tính remaining dựa trên số tiền có thể chia (sau khi trừ thuế)
+            // Tính remaining dựa trên số tiền có thể chia (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
             BigDecimal availableAmount = getAvailableAmountForSplit(milestone);
             remainingAmount = availableAmount.subtract(totalAllocated);
         } else {
@@ -528,17 +528,15 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
     }
 
     /**
-     * Tính số tiền có thể phân chia cho các thành viên sau khi trừ thuế.
-     * Số tiền có thể chia = amount - pitTax - vatTax
+     * Tính số tiền có thể phân chia cho các thành viên.
+     * Số tiền có thể chia = amount (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
      * 
      * @param milestone Milestone cần tính
-     * @return Số tiền có thể chia (amount - pitTax - vatTax)
+     * @return Số tiền có thể chia (amount)
      */
     private BigDecimal getAvailableAmountForSplit(Milestone milestone) {
         BigDecimal amount = milestone.getAmount() != null ? milestone.getAmount() : BigDecimal.ZERO;
-        BigDecimal pitTax = milestone.getPitTax() != null ? milestone.getPitTax() : BigDecimal.ZERO;
-        BigDecimal vatTax = milestone.getVatTax() != null ? milestone.getVatTax() : BigDecimal.ZERO;
-        return amount.subtract(pitTax).subtract(vatTax);
+        return amount;
     }
 
     private void validateTotalAmount(Milestone milestone, BigDecimal newAmount, Long excludeMoneySplitId) {
@@ -555,7 +553,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalAllocated = totalSplitAmount.add(totalExpenseAmount).add(newAmount);
-        // Sử dụng số tiền có thể chia (sau khi trừ thuế) thay vì milestone.getAmount()
+        // Sử dụng số tiền có thể chia (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
         BigDecimal availableAmount = getAvailableAmountForSplit(milestone);
 
         if (totalAllocated.compareTo(availableAmount) > 0) {
@@ -577,7 +575,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalAllocated = totalSplitAmount.add(totalExpenseAmount).add(newAmount);
-        // Sử dụng số tiền có thể chia (sau khi trừ thuế) thay vì milestone.getAmount()
+        // Sử dụng số tiền có thể chia (không trừ thuế vì thuế sẽ được tính khi chuyển tiền vào balance)
         BigDecimal availableAmount = getAvailableAmountForSplit(milestone);
 
         if (totalAllocated.compareTo(availableAmount) > 0) {

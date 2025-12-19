@@ -62,16 +62,19 @@ public class Contract extends AbstractEntity<Long> {
     /** Trạng thái phía SignNow: DRAFT/OUT_FOR_SIGNATURE/COMPLETED/... */
     @Enumerated(EnumType.STRING)
     @Column(name = "signnow_status", length = 32, nullable = false)
+    @Builder.Default
     private ContractStatus signnowStatus = ContractStatus.DRAFT;
 
     /** Hình thức mời ký: EMAIL | EMBEDDED */
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_mode", length = 16, nullable = false)
+    @Builder.Default
     private SigningMode signingMode = SigningMode.EMAIL;
 
     /** Thứ tự ký: SEQUENTIAL | PARALLEL */
     @Enumerated(EnumType.STRING)
     @Column(name = "signing_order_type", length = 16, nullable = false)
+    @Builder.Default
     private SigningOrderType signingOrderType = SigningOrderType.SEQUENTIAL;
 
     /** Thời hạn ký (nếu đặt) */

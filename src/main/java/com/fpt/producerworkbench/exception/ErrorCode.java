@@ -205,6 +205,28 @@ public enum ErrorCode {
     SESSION_ALREADY_STARTED(5014, "Phiên đã bắt đầu", HttpStatus.BAD_REQUEST),
     CAN_ONLY_CANCEL_SCHEDULED_SESSION(5016, "Chỉ có thể hủy phiên đã lên lịch", HttpStatus.BAD_REQUEST),
     MUST_REQUEST_JOIN_FIRST(5017, "Bạn phải gửi yêu cầu tham gia và được phê duyệt trước", HttpStatus.FORBIDDEN),
+    
+    // ========== Contract Termination & Tax (11xxx) ==========
+    CONTRACT_ALREADY_TERMINATED(11001, "Hợp đồng đã được chấm dứt trước đó.", HttpStatus.BAD_REQUEST),
+    CONTRACT_NOT_TERMINATED(11002, "Hợp đồng chưa được chấm dứt.", HttpStatus.BAD_REQUEST),
+    TERMINATION_NOT_FOUND(11003, "Không tìm thấy thông tin chấm dứt hợp đồng.", HttpStatus.NOT_FOUND),
+    INSUFFICIENT_BALANCE_FOR_COMPENSATION(11004, "Số dư không đủ để đền bù cho Team. Vui lòng nạp thêm tiền.", HttpStatus.BAD_REQUEST),
+    OWNER_COMPENSATION_PAYMENT_NOT_FOUND(11005, "Không tìm thấy thông tin thanh toán đền bù của Owner.", HttpStatus.NOT_FOUND),
+    OWNER_COMPENSATION_PAYMENT_PENDING(11006, "Đang chờ Owner thanh toán đền bù cho Team.", HttpStatus.PAYMENT_REQUIRED),
+    OWNER_COMPENSATION_PAYMENT_EXPIRED(11007, "Yêu cầu thanh toán đã hết hạn.", HttpStatus.BAD_REQUEST),
+    ONLY_OWNER_CAN_TERMINATE_AS_OWNER(11008, "Chỉ Owner mới có thể chấm dứt với vai trò Owner.", HttpStatus.FORBIDDEN),
+    ONLY_CLIENT_CAN_TERMINATE_AS_CLIENT(11009, "Chỉ Client mới có thể chấm dứt với vai trò Client.", HttpStatus.FORBIDDEN),
+    INVALID_TERMINATION_REQUEST(11010, "Yêu cầu chấm dứt không hợp lệ.", HttpStatus.BAD_REQUEST),
+    
+    // Tax related errors
+    TAX_RECORD_NOT_FOUND(11011, "Không tìm thấy bản ghi thuế.", HttpStatus.NOT_FOUND),
+    TAX_DECLARATION_NOT_FOUND(11012, "Không tìm thấy tờ khai thuế.", HttpStatus.NOT_FOUND),
+    TAX_DECLARATION_ALREADY_SUBMITTED(11013, "Tờ khai thuế đã được nộp.", HttpStatus.BAD_REQUEST),
+    USER_IDENTITY_NOT_VERIFIED(11014, "Chưa xác thực CCCD. Vui lòng xác thực trước khi thực hiện giao dịch.", HttpStatus.BAD_REQUEST),
+    CCCD_ALREADY_EXISTS(11015, "Số CCCD này đã được đăng ký bởi tài khoản khác.", HttpStatus.CONFLICT),
+    INVALID_TAX_PERIOD(11016, "Kỳ thuế không hợp lệ.", HttpStatus.BAD_REQUEST),
+    TAX_SUMMARY_NOT_FOUND(11017, "Không tìm thấy báo cáo thuế.", HttpStatus.NOT_FOUND),
+    
     CANNOT_REMOVE_HOST(5106, "Không thể xóa người chủ trì phiên", HttpStatus.BAD_REQUEST),
 
 

@@ -15,6 +15,7 @@ import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.ContractAddendumService;
+import com.fpt.producerworkbench.service.OwnerCompensationPaymentService;
 import com.fpt.producerworkbench.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,9 @@ import vn.payos.model.webhooks.WebhookData;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -41,11 +44,14 @@ public class PaymentServiceImpl implements PaymentService {
     private final ContractRepository contractRepository;
     private final MilestoneRepository milestoneRepository;
     private final MilestoneMemberRepository milestoneMemberRepository;
+    private final MilestoneMoneySplitRepository milestoneMoneySplitRepository;
     private final TransactionRepository transactionRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ContractAddendumRepository contractAddendumRepository;
     private final ContractAddendumService contractAddendumService;
     private final com.fpt.producerworkbench.service.ProSubscriptionService proSubscriptionService;
+    private final OwnerCompensationPaymentRepository ownerCompensationPaymentRepository;
+    private final com.fpt.producerworkbench.service.OwnerCompensationPaymentService ownerCompensationPaymentService;
 
     @Override
     @Transactional
@@ -239,12 +245,12 @@ public class PaymentServiceImpl implements PaymentService {
 
             String payosStatusCode = verified.getCode();
 
-            Transaction tx = transactionRepository.findByTransactionCode(orderCode)
-                    .orElseThrow(() -> {
-                        log.error("Không tìm thấy giao dịch. Mã đơn hàng: {}", orderCode);
-                        return new AppException(ErrorCode.TRANSACTION_NOT_FOUND);
-                    });
-
+            // Thử tìm Transaction trước
+            java.util.Optional<Transaction> txOpt = transactionRepository.findByTransactionCode(orderCode);
+            
+            if (txOpt.isPresent()) {
+                // Xử lý webhook cho Transaction (contract payment, subscription, etc.)
+                Transaction tx = txOpt.get();
             log.info("[Webhook/PayOS] orderCode={} resolved type={}, status={}", orderCode, tx.getType(), tx.getStatus());
 
             // Delegate subscription webhooks to ProSubscriptionService to keep logic in one place
@@ -253,6 +259,7 @@ public class PaymentServiceImpl implements PaymentService {
                 proSubscriptionService.handleWebhook(body);
                 return;
             }
+            
             log.info("[Webhook/PayOS] Routing to CONTRACT PAYMENT handler. orderCode={}", orderCode);
 
             if (!TransactionStatus.PENDING.equals(tx.getStatus())) {
@@ -344,6 +351,34 @@ public class PaymentServiceImpl implements PaymentService {
             }
 
             transactionRepository.save(tx);
+                return; // Đã xử lý xong Transaction
+            }
+            
+            // Nếu không tìm thấy Transaction, thử tìm Owner Compensation Payment
+            String ownerCompOrderCode = "OCP-" + orderCode;
+            java.util.Optional<com.fpt.producerworkbench.entity.OwnerCompensationPayment> ownerCompOpt = 
+                    ownerCompensationPaymentRepository.findByPaymentOrderCode(ownerCompOrderCode);
+            
+            if (ownerCompOpt.isPresent()) {
+                // Route đến Owner Compensation Payment Service
+                log.info("[Webhook/PayOS] Routing to OWNER COMPENSATION PAYMENT handler. orderCode={}, ownerCompOrderCode={}", 
+                        orderCode, ownerCompOrderCode);
+                
+                // Convert PayOS status code to OwnerCompensationPaymentService format
+                String status;
+                if ("00".equals(payosStatusCode)) {
+                    status = "SUCCESS"; // PayOS code "00" means success
+                } else {
+                    status = "FAILED";
+                }
+                
+                ownerCompensationPaymentService.handlePaymentWebhook(ownerCompOrderCode, status);
+                return;
+            }
+            
+            // Không tìm thấy cả Transaction lẫn Owner Compensation Payment
+            log.error("Không tìm thấy giao dịch. Mã đơn hàng: {} (đã thử Transaction và OwnerCompensationPayment)", orderCode);
+            throw new AppException(ErrorCode.TRANSACTION_NOT_FOUND);
 
         } catch (Exception e) {
             log.error("Lỗi xử lý webhook PayOS", e);
@@ -475,4 +510,5 @@ public class PaymentServiceImpl implements PaymentService {
     private String createAddendumPaymentDescription(ContractAddendum addendum, Project project) {
         return String.format("PWB-Addendum-%d", project.getId());
     }
+
 }
