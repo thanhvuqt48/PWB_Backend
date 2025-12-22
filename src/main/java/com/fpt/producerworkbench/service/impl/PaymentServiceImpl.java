@@ -1,13 +1,18 @@
 package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.PaymentStatus;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.ProjectRole;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.common.TransactionStatus;
 import com.fpt.producerworkbench.common.TransactionType;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
 import com.fpt.producerworkbench.configuration.PayosProperties;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
 import com.fpt.producerworkbench.dto.request.PaymentRequest;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.PaymentResponse;
 import com.fpt.producerworkbench.dto.response.PaymentStatusResponse;
 import com.fpt.producerworkbench.dto.response.PaymentLatestResponse;
@@ -17,7 +22,10 @@ import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.ContractAddendumService;
 import com.fpt.producerworkbench.service.ContractTerminationService;
+import com.fpt.producerworkbench.service.EmailService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.PaymentService;
+import org.springframework.kafka.core.KafkaTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -30,7 +38,9 @@ import vn.payos.model.webhooks.WebhookData;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -51,9 +61,15 @@ public class PaymentServiceImpl implements PaymentService {
     private final ContractAddendumService contractAddendumService;
     private final com.fpt.producerworkbench.service.ProSubscriptionService proSubscriptionService;
     private final OwnerCompensationPaymentRepository ownerCompensationPaymentRepository;
+    private final NotificationService notificationService;
+    private final EmailService emailService;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final FrontendProperties frontendProperties;
     @org.springframework.beans.factory.annotation.Autowired
     @Lazy
     private ContractTerminationService contractTerminationService;
+    
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
 
     @Override
     @Transactional
@@ -388,6 +404,9 @@ public class PaymentServiceImpl implements PaymentService {
                 if ("00".equals(payosStatusCode)) {
                     tx.setStatus(TransactionStatus.SUCCESSFUL);
 
+                    // Gửi notification khi thanh toán thành công
+                    sendPaymentSuccessNotifications(tx);
+
                     // Xử lý thanh toán cho contract hoặc addendum
                     if (tx.getRelatedAddendum() != null) {
                         // Thanh toán phụ lục: chuyển từ SIGNED sang PAID
@@ -514,6 +533,9 @@ public class PaymentServiceImpl implements PaymentService {
                     tx.setStatus(TransactionStatus.FAILED);
                     log.warn("Webhook báo cáo trạng thái không thành công. Mã đơn hàng: {}, mã PayOS: {}", orderCode,
                             payosStatusCode);
+                    
+                    // Gửi notification khi thanh toán thất bại
+                    sendPaymentFailureNotifications(tx, payosStatusCode);
                 }
 
                 transactionRepository.save(tx);
@@ -745,6 +767,314 @@ public class PaymentServiceImpl implements PaymentService {
             return first.getAmount();
         } else {
             throw new AppException(ErrorCode.INVALID_PAYMENT_TYPE);
+        }
+    }
+
+    /**
+     * Gửi email và notification khi thanh toán thành công
+     */
+    private void sendPaymentSuccessNotifications(Transaction tx) {
+        try {
+            if (tx.getRelatedContract() == null && tx.getRelatedAddendum() == null) {
+                return; // Không phải payment cho contract/addendum
+            }
+
+            Project project = null;
+            User owner = null;
+            User client = null;
+            String paymentType = "";
+            String paymentDescription = "";
+
+            if (tx.getRelatedContract() != null) {
+                Contract contract = tx.getRelatedContract();
+                project = contract.getProject();
+                if (project != null) {
+                    owner = project.getCreator();
+                    client = project.getClient();
+                }
+                paymentType = contract.getPaymentType() == PaymentType.FULL ? "toàn bộ hợp đồng" : "cột mốc";
+                if (contract.getPaymentType() == PaymentType.MILESTONE && tx.getRelatedMilestone() != null) {
+                    paymentDescription = "Cột mốc: " + tx.getRelatedMilestone().getTitle();
+                } else {
+                    paymentDescription = "Hợp đồng: " + contract.getProject().getTitle();
+                }
+            } else if (tx.getRelatedAddendum() != null) {
+                ContractAddendum addendum = tx.getRelatedAddendum();
+                Contract contract = addendum.getContract();
+                project = contract != null ? contract.getProject() : null;
+                if (project != null) {
+                    owner = project.getCreator();
+                    client = project.getClient();
+                }
+                paymentType = "phụ lục hợp đồng";
+                paymentDescription = "Phụ lục hợp đồng cho dự án: " + (project != null ? project.getTitle() : "");
+            }
+
+            if (project == null || owner == null || client == null) {
+                log.warn("Không thể gửi notification: thiếu thông tin project/owner/client");
+                return;
+            }
+
+            String projectUrl = String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId());
+
+            // Gửi email và notification cho Owner
+            if (owner.getEmail() != null && !owner.getEmail().isBlank()) {
+                sendPaymentSuccessEmailToOwner(owner, project, tx.getAmount(), paymentType, paymentDescription, projectUrl);
+                sendPaymentSuccessRealtimeNotification(owner, project, tx.getAmount(), paymentType, paymentDescription, projectUrl);
+            }
+
+            // Gửi email và notification cho Client
+            if (client.getEmail() != null && !client.getEmail().isBlank()) {
+                sendPaymentSuccessEmailToClient(client, project, tx.getAmount(), paymentType, paymentDescription, projectUrl);
+                sendPaymentSuccessRealtimeNotification(client, project, tx.getAmount(), paymentType, paymentDescription, projectUrl);
+            }
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification thanh toán thành công: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Gửi email và notification khi thanh toán thất bại
+     */
+    private void sendPaymentFailureNotifications(Transaction tx, String payosStatusCode) {
+        try {
+            if (tx.getRelatedContract() == null && tx.getRelatedAddendum() == null) {
+                return;
+            }
+
+            Project project = null;
+            User client = null;
+
+            if (tx.getRelatedContract() != null) {
+                Contract contract = tx.getRelatedContract();
+                project = contract.getProject();
+                if (project != null) {
+                    client = project.getClient();
+                }
+            } else if (tx.getRelatedAddendum() != null) {
+                ContractAddendum addendum = tx.getRelatedAddendum();
+                Contract contract = addendum.getContract();
+                project = contract != null ? contract.getProject() : null;
+                if (project != null) {
+                    client = project.getClient();
+                }
+            }
+
+            if (project == null || client == null) {
+                log.warn("Không thể gửi notification: thiếu thông tin project/client");
+                return;
+            }
+
+            String projectUrl = String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId());
+            String failureReason = getFailureReason(payosStatusCode);
+
+            // Chỉ gửi cho Client (người thanh toán)
+            if (client.getEmail() != null && !client.getEmail().isBlank()) {
+                sendPaymentFailureEmailToClient(client, project, tx.getAmount(), failureReason, projectUrl);
+                sendPaymentFailureRealtimeNotification(client, project, tx.getAmount(), failureReason, projectUrl);
+            }
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification thanh toán thất bại: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Gửi email cho Owner khi thanh toán thành công
+     */
+    private void sendPaymentSuccessEmailToOwner(User owner, Project project, BigDecimal amount, 
+                                               String paymentType, String paymentDescription, String projectUrl) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("amount", amount.toString());
+            params.put("paymentType", paymentType);
+            params.put("paymentDescription", paymentDescription);
+            params.put("projectUrl", projectUrl);
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(owner.getEmail())
+                    .subject("Thanh toán thành công cho dự án: " + project.getTitle())
+                    .templateCode("payment-success-owner-template")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo thanh toán thành công cho Owner: {}", owner.getEmail());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Owner: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Thanh toán thành công cho dự án: " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nThanh toán %s VNĐ cho %s đã thành công.\n\nDự án: %s\n\nXem chi tiết: %s",
+                        owner.getFullName() != null ? owner.getFullName() : owner.getEmail(),
+                        amount.toString(),
+                        paymentDescription,
+                        project.getTitle(),
+                        projectUrl);
+                emailService.sendEmail(subject, content, List.of(owner.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Owner: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Gửi email cho Client khi thanh toán thành công
+     */
+    private void sendPaymentSuccessEmailToClient(User client, Project project, BigDecimal amount,
+                                                String paymentType, String paymentDescription, String projectUrl) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", client.getFullName() != null ? client.getFullName() : client.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("amount", amount.toString());
+            params.put("paymentType", paymentType);
+            params.put("paymentDescription", paymentDescription);
+            params.put("projectUrl", projectUrl);
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(client.getEmail())
+                    .subject("Thanh toán thành công: " + project.getTitle())
+                    .templateCode("payment-success-client-template")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo thanh toán thành công cho Client: {}", client.getEmail());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Client: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Thanh toán thành công: " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nThanh toán %s VNĐ của bạn đã thành công.\n\nDự án: %s\n\nXem chi tiết: %s",
+                        client.getFullName() != null ? client.getFullName() : client.getEmail(),
+                        amount.toString(),
+                        project.getTitle(),
+                        projectUrl);
+                emailService.sendEmail(subject, content, List.of(client.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Client: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Gửi email cho Client khi thanh toán thất bại
+     */
+    private void sendPaymentFailureEmailToClient(User client, Project project, BigDecimal amount,
+                                                String failureReason, String projectUrl) {
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", client.getFullName() != null ? client.getFullName() : client.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("amount", amount.toString());
+            params.put("failureReason", failureReason);
+            params.put("projectUrl", projectUrl);
+
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(client.getEmail())
+                    .subject("Thanh toán thất bại: " + project.getTitle())
+                    .templateCode("payment-failure-client-template")
+                    .param(params)
+                    .build();
+
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo thanh toán thất bại cho Client: {}", client.getEmail());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email thanh toán thất bại cho Client: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Thanh toán thất bại: " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nThanh toán %s VNĐ của bạn đã thất bại.\n\nLý do: %s\n\nDự án: %s\n\nVui lòng thử lại: %s",
+                        client.getFullName() != null ? client.getFullName() : client.getEmail(),
+                        amount.toString(),
+                        failureReason,
+                        project.getTitle(),
+                        projectUrl);
+                emailService.sendEmail(subject, content, List.of(client.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Client: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+
+    /**
+     * Gửi realtime notification khi thanh toán thành công
+     */
+    private void sendPaymentSuccessRealtimeNotification(User user, Project project, BigDecimal amount,
+                                                        String paymentType, String paymentDescription, String projectUrl) {
+        try {
+            if (user.getId() == null) {
+                return;
+            }
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(user.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Thanh toán thành công")
+                            .message(String.format("Thanh toán %s VNĐ cho %s đã thành công", amount.toString(), paymentDescription))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(projectUrl)
+                            .build()
+            );
+
+            log.info("Đã gửi notification realtime cho user: {}", user.getId());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification realtime: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Gửi realtime notification khi thanh toán thất bại
+     */
+    private void sendPaymentFailureRealtimeNotification(User user, Project project, BigDecimal amount,
+                                                        String failureReason, String projectUrl) {
+        try {
+            if (user.getId() == null) {
+                return;
+            }
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(user.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Thanh toán thất bại")
+                            .message(String.format("Thanh toán %s VNĐ đã thất bại. Lý do: %s", amount.toString(), failureReason))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(projectUrl)
+                            .build()
+            );
+
+            log.info("Đã gửi notification realtime cho user: {}", user.getId());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification realtime: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Lấy lý do thất bại từ PayOS status code
+     */
+    private String getFailureReason(String payosStatusCode) {
+        switch (payosStatusCode) {
+            case "CANCELLED":
+                return "Thanh toán đã bị hủy";
+            case "EXPIRED":
+                return "Link thanh toán đã hết hạn";
+            case "01":
+                return "Giao dịch không thành công";
+            default:
+                return "Thanh toán không thành công (Mã lỗi: " + payosStatusCode + ")";
         }
     }
 

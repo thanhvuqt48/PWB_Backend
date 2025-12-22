@@ -266,7 +266,8 @@ public class ContractAddendumServiceImpl implements ContractAddendumService {
                     : null;
             
             if (owner != null) {
-                String actionUrl = String.format("/contractId=%d", contract.getProject().getId());
+                String actionUrl = String.format("/addendum-space?id=%d&contractId=%d&addendumNumber=%d", contract.getProject().getId(),
+                        contract.getId(), addendum.getId());
                 String addendumTitle = addendum.getTitle() != null ? addendum.getTitle() : "Phụ lục hợp đồng";
                 String declineReason = reason != null ? reason : "(không cung cấp)";
                 

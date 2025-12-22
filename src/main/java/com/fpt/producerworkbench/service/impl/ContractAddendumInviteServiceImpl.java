@@ -82,7 +82,7 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
 
     @Async
     public void sendInviteEmailsAsync(Contract contract, ContractAddendum addendum,
-            List<ContractInviteRequest.Signer> signers) {
+                                      List<ContractInviteRequest.Signer> signers) {
         try {
             String previewUrl = null;
             try {
@@ -310,7 +310,8 @@ public class ContractAddendumInviteServiceImpl implements ContractAddendumInvite
 
             if (clientEmail != null && !clientEmail.isBlank()) {
                 userRepository.findByEmail(clientEmail).ifPresent(user -> {
-                    String actionUrl = String.format("/contractId=%d", contract.getProject().getId());
+                    String actionUrl = String.format("/addendum-space?id=%d&contractId=%d&addendumNumber=%d", contract.getProject().getId(),
+                            contract.getId(), addendum.getId());
 
                     notificationService.sendNotification(
                             SendNotificationRequest.builder()
