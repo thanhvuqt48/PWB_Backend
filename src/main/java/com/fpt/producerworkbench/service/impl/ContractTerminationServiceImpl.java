@@ -2,23 +2,31 @@ package com.fpt.producerworkbench.service.impl;
 
 import com.fpt.producerworkbench.common.ContractStatus;
 import com.fpt.producerworkbench.common.MilestoneStatus;
+import com.fpt.producerworkbench.common.NotificationType;
 import com.fpt.producerworkbench.common.PaymentType;
 import com.fpt.producerworkbench.common.PayoutMethod;
 import com.fpt.producerworkbench.common.PayoutSource;
 import com.fpt.producerworkbench.common.PayoutStatus;
+import com.fpt.producerworkbench.common.RelatedEntityType;
 import com.fpt.producerworkbench.common.TaxStatus;
 import com.fpt.producerworkbench.common.TerminatedBy;
 import com.fpt.producerworkbench.common.TerminationStatus;
 import com.fpt.producerworkbench.common.TerminationType;
 import com.fpt.producerworkbench.common.TransactionStatus;
+import com.fpt.producerworkbench.configuration.FrontendProperties;
+import com.fpt.producerworkbench.dto.event.NotificationEvent;
+import com.fpt.producerworkbench.dto.request.SendNotificationRequest;
 import com.fpt.producerworkbench.dto.response.*;
 import com.fpt.producerworkbench.entity.*;
 import com.fpt.producerworkbench.exception.AppException;
 import com.fpt.producerworkbench.exception.ErrorCode;
 import com.fpt.producerworkbench.repository.*;
 import com.fpt.producerworkbench.service.ContractTerminationService;
+import com.fpt.producerworkbench.service.EmailService;
+import com.fpt.producerworkbench.service.NotificationService;
 import com.fpt.producerworkbench.service.PaymentService;
 import com.fpt.producerworkbench.utils.SecurityUtils;
+import org.springframework.kafka.core.KafkaTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -54,6 +62,10 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
     private final ContractTerminationRepository contractTerminationRepository;
     private final OwnerCompensationPaymentRepository ownerCompensationPaymentRepository;
     private final TaxPayoutRecordRepository taxPayoutRecordRepository;
+    private final EmailService emailService;
+    private final NotificationService notificationService;
+    private final KafkaTemplate<String, NotificationEvent> kafkaTemplate;
+    private final FrontendProperties frontendProperties;
     @org.springframework.beans.factory.annotation.Autowired
     @Lazy
     private PaymentService paymentService;
@@ -61,6 +73,7 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
     // Constants
     private static final BigDecimal TAX_RATE = new BigDecimal("0.07"); // 7%
     private static final int TAX_DECLARATION_DAY = 20;
+    private static final String NOTIFICATION_TOPIC = "notification-delivery";
     
     @Override
     @Transactional(readOnly = true)
@@ -109,7 +122,6 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
             TerminationCalculation calc, 
             Contract contract
     ) {
-        User owner = contract.getProject().getCreator();
         Long projectId = contract.getProject().getId();
         
         // Build danh sách team members với thông tin chi tiết
@@ -272,6 +284,9 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
         contract.setSignnowStatus(ContractStatus.TERMINATED);
         contractRepository.save(contract);
         
+        // === Send notifications ===
+        sendClientTerminationNotifications(contract, calc, teamSplits);
+        
         // === Build response ===
         return buildClientTerminationResponse(termination, calc);
     }
@@ -300,7 +315,8 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
                 request.getReason()       // Lưu reason từ FE request
         );
         
-        // TODO: Gửi notification cho Owner
+        // === Send notifications ===
+        sendOwnerTerminationRequestNotifications(contract, calc, payment);
         
         log.info("Created owner compensation payment. Waiting for payment confirmation.");
         
@@ -408,6 +424,10 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
         // Update contract status
         contract.setSignnowStatus(ContractStatus.TERMINATED);
         contractRepository.save(contract);
+        
+        // === Send notifications ===
+        List<MilestoneMoneySplit> teamSplits = getTeamSplits(contract);
+        sendOwnerTerminationCompletedNotifications(contract, calc, teamSplits);
         
         log.info("Owner termination completed for contract: {}", contract.getId());
     }
@@ -855,6 +875,512 @@ public class ContractTerminationServiceImpl implements ContractTerminationServic
                 .reason(termination.getReason())
                 .notes(termination.getNotes())
                 .build();
+    }
+    
+    // ===== NOTIFICATION METHODS =====
+    
+    /**
+     * Gửi thông báo khi CLIENT chấm dứt hợp đồng
+     */
+    private void sendClientTerminationNotifications(
+            Contract contract,
+            TerminationCalculation calc,
+            List<MilestoneMoneySplit> teamSplits
+    ) {
+        try {
+            User owner = contract.getProject().getCreator();
+            User client = contract.getProject().getClient();
+            Project project = contract.getProject();
+            
+            // 1. Thông báo cho Owner
+            if (owner != null && owner.getEmail() != null && !owner.getEmail().isBlank()) {
+                sendTerminationEmailToOwner(owner, project, contract, calc, TerminatedBy.CLIENT);
+                sendTerminationRealtimeNotification(owner, project, contract, 
+                        "Client đã chấm dứt hợp đồng", 
+                        String.format("Client \"%s\" đã chấm dứt hợp đồng cho dự án \"%s\". Bạn đã nhận đền bù %s VNĐ.",
+                                client.getFullName() != null ? client.getFullName() : client.getEmail(),
+                                project.getTitle(),
+                                calc.getOwnerActualReceive() != null ? calc.getOwnerActualReceive().toString() : "0"));
+            }
+            
+            // 2. Thông báo cho Client
+            if (client != null && client.getEmail() != null && !client.getEmail().isBlank()) {
+                sendTerminationEmailToClient(client, project, contract, calc, TerminatedBy.CLIENT);
+                sendTerminationRealtimeNotification(client, project, contract,
+                        "Hợp đồng đã được chấm dứt",
+                        String.format("Hợp đồng cho dự án \"%s\" đã được chấm dứt. Bạn đã nhận hoàn tiền %s VNĐ.",
+                                project.getTitle(),
+                                calc.getClientRefund() != null ? calc.getClientRefund().toString() : "0"));
+            }
+            
+            // 3. Thông báo cho Team Members
+            for (MilestoneMoneySplit split : teamSplits) {
+                User member = split.getUser();
+                if (member != null && member.getEmail() != null && !member.getEmail().isBlank()) {
+                    sendTerminationEmailToTeamMember(member, project, contract, split, calc);
+                    sendTerminationRealtimeNotification(member, project, contract,
+                            "Bạn đã nhận đền bù từ chấm dứt hợp đồng",
+                            String.format("Bạn đã nhận đền bù %s VNĐ từ chấm dứt hợp đồng cho dự án \"%s\".",
+                                    split.getAmount().subtract(split.getAmount().multiply(TAX_RATE)).toString(),
+                                    project.getTitle()));
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo chấm dứt hợp đồng (Client termination): {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Gửi thông báo khi OWNER yêu cầu chấm dứt hợp đồng (trước khi thanh toán)
+     */
+    private void sendOwnerTerminationRequestNotifications(
+            Contract contract,
+            TerminationCalculation calc,
+            OwnerCompensationPayment payment
+    ) {
+        try {
+            User owner = contract.getProject().getCreator();
+            User client = contract.getProject().getClient();
+            Project project = contract.getProject();
+            List<MilestoneMoneySplit> teamSplits = calc.getTeamSplits();
+            
+            // 1. Thông báo cho Owner - cần thanh toán
+            if (owner != null && owner.getEmail() != null && !owner.getEmail().isBlank()) {
+                sendOwnerPaymentRequiredEmail(owner, project, contract, payment, calc);
+                sendTerminationRealtimeNotification(owner, project, contract,
+                        "Yêu cầu thanh toán đền bù cho team",
+                        String.format("Bạn cần thanh toán %s VNĐ để hoàn tất chấm dứt hợp đồng cho dự án \"%s\".",
+                                calc.getTotalTeamGross().toString(),
+                                project.getTitle()));
+            }
+            
+            // 2. Thông báo cho Client
+            if (client != null && client.getEmail() != null && !client.getEmail().isBlank()) {
+                sendOwnerTerminationRequestEmailToClient(client, project, contract, calc);
+                sendTerminationRealtimeNotification(client, project, contract,
+                        "Owner đã yêu cầu chấm dứt hợp đồng",
+                        String.format("Owner đã yêu cầu chấm dứt hợp đồng cho dự án \"%s\". Đang chờ thanh toán đền bù cho team.",
+                                project.getTitle()));
+            }
+            
+            // 3. Thông báo cho Team Members
+            for (MilestoneMoneySplit split : teamSplits) {
+                User member = split.getUser();
+                if (member != null && member.getEmail() != null && !member.getEmail().isBlank()) {
+                    sendOwnerTerminationRequestEmailToTeamMember(member, project, contract, split, calc);
+                    sendTerminationRealtimeNotification(member, project, contract,
+                            "Owner đã yêu cầu chấm dứt hợp đồng",
+                            String.format("Owner đã yêu cầu chấm dứt hợp đồng cho dự án \"%s\". Đang chờ thanh toán đền bù.",
+                                    project.getTitle()));
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo yêu cầu chấm dứt hợp đồng (Owner termination request): {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Gửi thông báo khi OWNER đã hoàn tất thanh toán và hợp đồng đã được chấm dứt
+     */
+    private void sendOwnerTerminationCompletedNotifications(
+            Contract contract,
+            TerminationCalculation calc,
+            List<MilestoneMoneySplit> teamSplits
+    ) {
+        try {
+            User owner = contract.getProject().getCreator();
+            User client = contract.getProject().getClient();
+            Project project = contract.getProject();
+            
+            // 1. Thông báo cho Owner
+            if (owner != null && owner.getEmail() != null && !owner.getEmail().isBlank()) {
+                sendOwnerTerminationCompletedEmail(owner, project, contract, calc);
+                sendTerminationRealtimeNotification(owner, project, contract,
+                        "Hợp đồng đã được chấm dứt",
+                        String.format("Thanh toán đã hoàn tất, hợp đồng cho dự án \"%s\" đã được chấm dứt thành công.",
+                                project.getTitle()));
+            }
+            
+            // 2. Thông báo cho Client
+            if (client != null && client.getEmail() != null && !client.getEmail().isBlank()) {
+                sendTerminationEmailToClient(client, project, contract, calc, TerminatedBy.OWNER);
+                sendTerminationRealtimeNotification(client, project, contract,
+                        "Hợp đồng đã được chấm dứt",
+                        String.format("Hợp đồng cho dự án \"%s\" đã được chấm dứt. Bạn đã nhận hoàn tiền %s VNĐ.",
+                                project.getTitle(),
+                                calc.getClientRefund() != null ? calc.getClientRefund().toString() : "0"));
+            }
+            
+            // 3. Thông báo cho Team Members
+            for (MilestoneMoneySplit split : teamSplits) {
+                User member = split.getUser();
+                if (member != null && member.getEmail() != null && !member.getEmail().isBlank()) {
+                    sendTerminationEmailToTeamMember(member, project, contract, split, calc);
+                    sendTerminationRealtimeNotification(member, project, contract,
+                            "Bạn đã nhận đền bù từ chấm dứt hợp đồng",
+                            String.format("Bạn đã nhận đền bù %s VNĐ từ chấm dứt hợp đồng cho dự án \"%s\".",
+                                    split.getAmount().subtract(split.getAmount().multiply(TAX_RATE)).toString(),
+                                    project.getTitle()));
+                }
+            }
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi thông báo hoàn tất chấm dứt hợp đồng (Owner termination completed): {}", e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Gửi email cho Owner khi Client chấm dứt hợp đồng
+     */
+    private void sendTerminationEmailToOwner(User owner, Project project, Contract contract,
+                                            TerminationCalculation calc, TerminatedBy terminatedBy) {
+        try {
+            String contractUrl = String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            params.put("compensationAmount", calc.getOwnerActualReceive() != null ? 
+                    calc.getOwnerActualReceive().toString() : "0");
+            params.put("terminatedBy", terminatedBy == TerminatedBy.CLIENT ? "Client" : "Owner");
+            
+            String subject = terminatedBy == TerminatedBy.CLIENT 
+                    ? "Client đã chấm dứt hợp đồng - " + project.getTitle()
+                    : "Hợp đồng đã được chấm dứt - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(owner.getEmail())
+                    .subject(subject)
+                    .templateCode("contract-termination-owner-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo chấm dứt hợp đồng cho Owner: {}", owner.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Owner: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Client đã chấm dứt hợp đồng - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nClient đã chấm dứt hợp đồng cho dự án \"%s\". " +
+                        "Bạn đã nhận đền bù %s VNĐ.\n\nXem chi tiết: %s",
+                        owner.getFullName() != null ? owner.getFullName() : owner.getEmail(),
+                        project.getTitle(),
+                        calc.getOwnerActualReceive() != null ? calc.getOwnerActualReceive().toString() : "0",
+                        String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(owner.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Owner: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi email cho Client khi hợp đồng được chấm dứt
+     */
+    private void sendTerminationEmailToClient(User client, Project project, Contract contract,
+                                             TerminationCalculation calc, TerminatedBy terminatedBy) {
+        try {
+            String contractUrl = String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", client.getFullName() != null ? client.getFullName() : client.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            params.put("refundAmount", calc.getClientRefund() != null ? calc.getClientRefund().toString() : "0");
+            params.put("terminatedBy", terminatedBy == TerminatedBy.CLIENT ? "Bạn" : "Owner");
+            
+            String subject = "Hợp đồng đã được chấm dứt - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(client.getEmail())
+                    .subject(subject)
+                    .templateCode("contract-termination-client-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo chấm dứt hợp đồng cho Client: {}", client.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Client: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Hợp đồng đã được chấm dứt - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nHợp đồng cho dự án \"%s\" đã được chấm dứt. " +
+                        "Bạn đã nhận hoàn tiền %s VNĐ.\n\nXem chi tiết: %s",
+                        client.getFullName() != null ? client.getFullName() : client.getEmail(),
+                        project.getTitle(),
+                        calc.getClientRefund() != null ? calc.getClientRefund().toString() : "0",
+                        String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(client.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Client: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi email cho Team Member khi nhận đền bù từ chấm dứt hợp đồng
+     */
+    private void sendTerminationEmailToTeamMember(User member, Project project, Contract contract,
+                                                   MilestoneMoneySplit split, TerminationCalculation calc) {
+        try {
+            BigDecimal netAmount = split.getAmount().subtract(split.getAmount().multiply(TAX_RATE));
+            String contractUrl = String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", member.getFullName() != null ? member.getFullName() : member.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            params.put("grossAmount", split.getAmount().toString());
+            params.put("taxAmount", split.getAmount().multiply(TAX_RATE).toString());
+            params.put("netAmount", netAmount.toString());
+            params.put("milestoneTitle", split.getMilestone().getTitle());
+            
+            String subject = "Bạn đã nhận đền bù từ chấm dứt hợp đồng - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(member.getEmail())
+                    .subject(subject)
+                    .templateCode("contract-termination-team-member-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo đền bù cho Team Member: {}", member.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Team Member: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                BigDecimal netAmount = split.getAmount().subtract(split.getAmount().multiply(TAX_RATE));
+                String subject = "Bạn đã nhận đền bù từ chấm dứt hợp đồng - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nBạn đã nhận đền bù %s VNĐ (sau thuế) " +
+                        "từ chấm dứt hợp đồng cho dự án \"%s\".\n\nXem chi tiết: %s",
+                        member.getFullName() != null ? member.getFullName() : member.getEmail(),
+                        netAmount.toString(),
+                        project.getTitle(),
+                        String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(member.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Team Member: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi email cho Owner khi cần thanh toán đền bù
+     */
+    private void sendOwnerPaymentRequiredEmail(User owner, Project project, Contract contract,
+                                              OwnerCompensationPayment payment, TerminationCalculation calc) {
+        try {
+            String contractUrl = String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId());
+            String paymentUrl = payment.getPaymentUrl() != null ? payment.getPaymentUrl() : contractUrl;
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            params.put("paymentUrl", paymentUrl);
+            params.put("amount", calc.getTotalTeamGross().toString());
+            
+            String subject = "Bạn cần thanh toán đền bù cho team - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(owner.getEmail())
+                    .subject(subject)
+                    .templateCode("owner-compensation-payment-required-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email yêu cầu thanh toán cho Owner: {}", owner.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email yêu cầu thanh toán cho Owner: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Bạn cần thanh toán đền bù cho team - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nBạn cần thanh toán %s VNĐ để hoàn tất " +
+                        "chấm dứt hợp đồng cho dự án \"%s\".\n\nThanh toán: %s\n\nXem chi tiết: %s",
+                        owner.getFullName() != null ? owner.getFullName() : owner.getEmail(),
+                        calc.getTotalTeamGross().toString(),
+                        project.getTitle(),
+                        payment.getPaymentUrl() != null ? payment.getPaymentUrl() : "N/A",
+                        String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(owner.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Owner: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi email cho Client khi Owner yêu cầu chấm dứt hợp đồng
+     */
+    private void sendOwnerTerminationRequestEmailToClient(User client, Project project, Contract contract,
+                                                         TerminationCalculation calc) {
+        try {
+            String contractUrl = String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", client.getFullName() != null ? client.getFullName() : client.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            
+            String subject = "Owner đã yêu cầu chấm dứt hợp đồng - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(client.getEmail())
+                    .subject(subject)
+                    .templateCode("owner-termination-request-client-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo yêu cầu chấm dứt cho Client: {}", client.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Client (owner termination request): {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Owner đã yêu cầu chấm dứt hợp đồng - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nOwner đã yêu cầu chấm dứt hợp đồng cho dự án \"%s\". " +
+                        "Đang chờ thanh toán đền bù cho team.\n\nXem chi tiết: %s",
+                        client.getFullName() != null ? client.getFullName() : client.getEmail(),
+                        project.getTitle(),
+                        String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(client.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Client: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi email cho Team Member khi Owner yêu cầu chấm dứt hợp đồng
+     */
+    private void sendOwnerTerminationRequestEmailToTeamMember(User member, Project project, Contract contract,
+                                                             MilestoneMoneySplit split, TerminationCalculation calc) {
+        try {
+            String contractUrl = String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", member.getFullName() != null ? member.getFullName() : member.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            params.put("expectedAmount", split.getAmount().subtract(split.getAmount().multiply(TAX_RATE)).toString());
+            params.put("milestoneTitle", split.getMilestone().getTitle());
+            
+            String subject = "Owner đã yêu cầu chấm dứt hợp đồng - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(member.getEmail())
+                    .subject(subject)
+                    .templateCode("owner-termination-request-team-member-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo yêu cầu chấm dứt cho Team Member: {}", member.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email cho Team Member (owner termination request): {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                BigDecimal netAmount = split.getAmount().subtract(split.getAmount().multiply(TAX_RATE));
+                String subject = "Owner đã yêu cầu chấm dứt hợp đồng - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nOwner đã yêu cầu chấm dứt hợp đồng cho dự án \"%s\". " +
+                        "Đang chờ thanh toán đền bù. Bạn sẽ nhận %s VNĐ (sau thuế).\n\nXem chi tiết: %s",
+                        member.getFullName() != null ? member.getFullName() : member.getEmail(),
+                        project.getTitle(),
+                        netAmount.toString(),
+                        String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(member.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Team Member: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi email cho Owner khi đã hoàn tất chấm dứt hợp đồng
+     */
+    private void sendOwnerTerminationCompletedEmail(User owner, Project project, Contract contract,
+                                                    TerminationCalculation calc) {
+        try {
+            String contractUrl = String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            Map<String, Object> params = new HashMap<>();
+            params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
+            params.put("projectName", project.getTitle());
+            params.put("contractUrl", contractUrl);
+            params.put("teamCompensation", calc.getTotalTeamGross().toString());
+            
+            String subject = "Hợp đồng đã được chấm dứt thành công - " + project.getTitle();
+            
+            NotificationEvent event = NotificationEvent.builder()
+                    .recipient(owner.getEmail())
+                    .subject(subject)
+                    .templateCode("owner-termination-completed-template")
+                    .param(params)
+                    .build();
+            
+            kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+            log.info("Đã gửi email thông báo hoàn tất chấm dứt cho Owner: {}", owner.getEmail());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email hoàn tất chấm dứt cho Owner: {}", e.getMessage(), e);
+            // Fallback: gửi email trực tiếp
+            try {
+                String subject = "Hợp đồng đã được chấm dứt thành công - " + project.getTitle();
+                String content = String.format("Xin chào %s,\n\nThanh toán đã hoàn tất, hợp đồng cho dự án \"%s\" " +
+                        "đã được chấm dứt thành công.\n\nXem chi tiết: %s",
+                        owner.getFullName() != null ? owner.getFullName() : owner.getEmail(),
+                        project.getTitle(),
+                        String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId()));
+                emailService.sendEmail(subject, content, List.of(owner.getEmail()));
+            } catch (Exception emailEx) {
+                log.error("Lỗi khi gửi email trực tiếp cho Owner: {}", emailEx.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Gửi thông báo realtime (in-app notification)
+     */
+    private void sendTerminationRealtimeNotification(User user, Project project, Contract contract,
+                                                     String title, String message) {
+        try {
+            if (user.getId() == null) {
+                log.warn("Không thể gửi notification: user không có ID");
+                return;
+            }
+            
+            String contractUrl = String.format("%s/contractSpace?id=%d", frontendProperties.getUrl(), project.getId());
+            
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(user.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title(title)
+                            .message(message)
+                            .relatedEntityType(RelatedEntityType.CONTRACT)
+                            .relatedEntityId(contract.getId())
+                            .actionUrl(contractUrl)
+                            .build()
+            );
+            
+            log.info("Đã gửi notification realtime cho user: {}", user.getId());
+            
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification realtime: {}", e.getMessage(), e);
+        }
     }
     
     // ===== INNER CLASS =====

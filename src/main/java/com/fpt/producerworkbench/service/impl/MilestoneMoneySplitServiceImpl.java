@@ -131,7 +131,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                                             : ""))
                             .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
                             .relatedEntityId(saved.getId())
-                            .actionUrl(String.format("/project-workspace?milestoneId=%d", projectId, milestoneId))
+                            .actionUrl(String.format("/project-workspace?milestoneId=%d", milestoneId))
                             .build());
         } catch (Exception e) {
             log.error("Gặp lỗi khi gửi notification realtime cho money split: {}", e.getMessage());
@@ -214,7 +214,7 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                                             : ""))
                             .relatedEntityType(RelatedEntityType.MONEY_SPLIT)
                             .relatedEntityId(saved.getId())
-                            .actionUrl(String.format("/project-workspace?milestoneId=%d", projectId, milestoneId))
+                            .actionUrl(String.format("/project-workspace?milestoneId=%d", milestoneId))
                             .build());
         } catch (Exception e) {
             log.error("Gặp lỗi khi gửi notification realtime cho money split update: {}", e.getMessage());
@@ -762,9 +762,8 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 return;
             }
 
-            String projectUrl = String.format("%s/project-workspace?projectId=%d&milestoneId=%d",
-                    frontendProperties.getUrl(),
-                    project.getId(), milestone.getId());
+            String projectUrl = String.format("%s/project-workspace?milestoneId=%d",
+                    frontendProperties.getUrl(), milestone.getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
@@ -810,9 +809,8 @@ public class MilestoneMoneySplitServiceImpl implements MilestoneMoneySplitServic
                 return;
             }
 
-            String projectUrl = String.format("%s/project-workspace?projectId=%d&milestoneId=%d",
-                    frontendProperties.getUrl(),
-                    project.getId(), milestone.getId());
+            String projectUrl = String.format("%s/project-workspace?milestoneId=%d",
+                    frontendProperties.getUrl(), milestone.getId());
 
             Map<String, Object> params = new HashMap<>();
             params.put("recipientName", owner.getFullName() != null ? owner.getFullName() : owner.getEmail());
