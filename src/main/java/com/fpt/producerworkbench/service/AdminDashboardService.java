@@ -1,9 +1,12 @@
 package com.fpt.producerworkbench.service;
 
 import com.fpt.producerworkbench.dto.response.AdminDashboardResponse;
+import com.fpt.producerworkbench.dto.response.ProPackageTimeSeriesResponse;
 import java.time.LocalDate;
 
 public interface AdminDashboardService {
 
     AdminDashboardResponse getDashboardStats(LocalDate fromDate, LocalDate toDate, String groupBy, String currentEmail);
+
+    ProPackageTimeSeriesResponse getProPackageTimeSeriesStats(Integer year, String period, String currentEmail);
 }

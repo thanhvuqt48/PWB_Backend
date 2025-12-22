@@ -823,10 +823,19 @@ public class MilestoneServiceImpl implements MilestoneService {
         }
 
         Long contractId = milestone.getContract().getId();
+        Project project = milestone.getContract().getProject();
+        
+        // Lưu thông tin milestone trước khi xóa để gửi notification
+        String milestoneTitle = milestone.getTitle();
+        List<MilestoneMember> membersToNotify = new ArrayList<>(milestoneMembers);
+        
         milestoneRepository.delete(milestone);
         resequenceMilestonesAfterDeletion(contractId);
 
         log.info("Đã xóa cột mốc thành công: milestoneId={}", milestoneId);
+
+        // Gửi notification cho team members khi milestone bị xóa
+        sendMilestoneDeletedNotifications(project, milestoneTitle, membersToNotify);
     }
 
     private String determineMemberRole(Long userId, Long ownerId, Long clientId,
@@ -1265,6 +1274,9 @@ public class MilestoneServiceImpl implements MilestoneService {
 
         // Gửi email thông báo cho chủ dự án
         sendMilestoneCompletedNotificationEmail(project, milestone, currentUser);
+        
+        // Gửi realtime notification cho chủ dự án
+        sendMilestoneCompletedRealtimeNotification(project, milestone, currentUser);
 
         return mapToResponse(saved);
     }
@@ -1940,6 +1952,110 @@ public class MilestoneServiceImpl implements MilestoneService {
             }
         } catch (Exception e) {
             log.warn("Lỗi khi xóa file tạm thời: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Gửi email và notification cho team members khi milestone bị xóa
+     */
+    private void sendMilestoneDeletedNotifications(Project project, String milestoneTitle, List<MilestoneMember> members) {
+        try {
+            if (project == null || members == null || members.isEmpty()) {
+                return;
+            }
+
+            String projectUrl = String.format("%s/projectDetail?id=%d", frontendProperties.getUrl(), project.getId());
+
+            for (MilestoneMember member : members) {
+                User user = member.getUser();
+                if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+                    continue;
+                }
+
+                // Gửi email
+                try {
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("recipientName", user.getFullName() != null ? user.getFullName() : user.getEmail());
+                    params.put("projectName", project.getTitle());
+                    params.put("milestoneTitle", milestoneTitle);
+                    params.put("projectUrl", projectUrl);
+
+                    NotificationEvent event = NotificationEvent.builder()
+                            .recipient(user.getEmail())
+                            .subject("Cột mốc đã bị xóa: " + milestoneTitle)
+                            .templateCode("milestone-deleted-notification")
+                            .param(params)
+                            .build();
+
+                    kafkaTemplate.send(NOTIFICATION_TOPIC, event);
+                    log.info("Đã gửi email thông báo milestone bị xóa cho member: {}", user.getEmail());
+                } catch (Exception e) {
+                    log.error("Lỗi khi gửi email cho member {}: {}", user.getId(), e.getMessage(), e);
+                }
+
+                // Gửi realtime notification
+                try {
+                    if (user.getId() != null) {
+                        notificationService.sendNotification(
+                                SendNotificationRequest.builder()
+                                        .userId(user.getId())
+                                        .type(NotificationType.SYSTEM)
+                                        .title("Cột mốc đã bị xóa")
+                                        .message(String.format("Cột mốc \"%s\" trong dự án \"%s\" đã bị xóa", 
+                                                milestoneTitle, project.getTitle()))
+                                        .relatedEntityType(RelatedEntityType.PROJECT)
+                                        .relatedEntityId(project.getId())
+                                        .actionUrl(projectUrl)
+                                        .build()
+                        );
+                        log.info("Đã gửi notification realtime cho member: {}", user.getId());
+                    }
+                } catch (Exception e) {
+                    log.error("Lỗi khi gửi notification realtime cho member {}: {}", user.getId(), e.getMessage(), e);
+                }
+            }
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification milestone bị xóa: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Gửi realtime notification cho chủ dự án khi milestone được hoàn thành
+     */
+    private void sendMilestoneCompletedRealtimeNotification(Project project, Milestone milestone, User client) {
+        try {
+            if (project == null || project.getCreator() == null) {
+                return;
+            }
+
+            User owner = project.getCreator();
+            if (owner.getId() == null) {
+                return;
+            }
+
+            String projectUrl = String.format("%s/project-workspace?milestoneId=%d",
+                    frontendProperties.getUrl(), milestone.getId());
+
+            notificationService.sendNotification(
+                    SendNotificationRequest.builder()
+                            .userId(owner.getId())
+                            .type(NotificationType.SYSTEM)
+                            .title("Khách hàng đã chấp nhận hoàn thành cột mốc")
+                            .message(String.format("%s đã chấp nhận hoàn thành cột mốc \"%s\" trong dự án \"%s\"",
+                                    client.getFullName() != null ? client.getFullName() : client.getEmail(),
+                                    milestone.getTitle(),
+                                    project.getTitle()))
+                            .relatedEntityType(RelatedEntityType.PROJECT)
+                            .relatedEntityId(project.getId())
+                            .actionUrl(projectUrl)
+                            .build()
+            );
+
+            log.info("Đã gửi notification realtime hoàn thành milestone cho owner: {}", owner.getId());
+
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi notification realtime hoàn thành milestone: {}", e.getMessage(), e);
         }
     }
 
