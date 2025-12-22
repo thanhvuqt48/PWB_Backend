@@ -30,6 +30,64 @@ public interface SubscriptionOrderRepository extends JpaRepository<SubscriptionO
             "ORDER BY COUNT(s) DESC")
     List<PackageSalesStat> countPackageSales(@Param("startDate") LocalDateTime startDate,
                                              @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Thống kê gói Pro theo tháng của một năm cụ thể
+     * Trả về dữ liệu theo format: [month, packageName, count]
+     */
+    @Query("SELECT FUNCTION('DATE_FORMAT', s.createdAt, '%Y-%m') as month, " +
+           "p.name as packageName, COUNT(s) as count " +
+           "FROM SubscriptionOrder s JOIN s.proPackage p " +
+           "JOIN s.transaction t " +
+           "WHERE t.status = 'SUCCESSFUL' " +
+           "AND FUNCTION('YEAR', s.createdAt) = :year " +
+           "GROUP BY FUNCTION('DATE_FORMAT', s.createdAt, '%Y-%m'), p.name " +
+           "ORDER BY month ASC")
+    List<Object[]> countPackageSalesByMonth(@Param("year") int year);
+
+    /**
+     * Thống kê gói Pro theo năm
+     * Trả về dữ liệu theo format: [year, packageName, count]
+     */
+    @Query("SELECT FUNCTION('DATE_FORMAT', s.createdAt, '%Y') as year, " +
+           "p.name as packageName, COUNT(s) as count " +
+           "FROM SubscriptionOrder s JOIN s.proPackage p " +
+           "JOIN s.transaction t " +
+           "WHERE t.status = 'SUCCESSFUL' " +
+           "AND s.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY FUNCTION('DATE_FORMAT', s.createdAt, '%Y'), p.name " +
+           "ORDER BY year ASC")
+    List<Object[]> countPackageSalesByYear(@Param("startDate") LocalDateTime startDate,
+                                           @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Thống kê gói Pro theo tháng của một năm cụ thể (bao gồm doanh thu)
+     * Trả về dữ liệu theo format: [month, packageName, count, revenue]
+     */
+    @Query("SELECT FUNCTION('DATE_FORMAT', s.createdAt, '%Y-%m') as month, " +
+           "p.name as packageName, COUNT(s) as count, COALESCE(SUM(t.amount), 0) as revenue " +
+           "FROM SubscriptionOrder s JOIN s.proPackage p " +
+           "JOIN s.transaction t " +
+           "WHERE t.status = 'SUCCESSFUL' " +
+           "AND FUNCTION('YEAR', s.createdAt) = :year " +
+           "GROUP BY FUNCTION('DATE_FORMAT', s.createdAt, '%Y-%m'), p.name " +
+           "ORDER BY month ASC")
+    List<Object[]> countPackageSalesByMonthWithRevenue(@Param("year") int year);
+
+    /**
+     * Thống kê gói Pro theo năm (bao gồm doanh thu)
+     * Trả về dữ liệu theo format: [year, packageName, count, revenue]
+     */
+    @Query("SELECT FUNCTION('DATE_FORMAT', s.createdAt, '%Y') as year, " +
+           "p.name as packageName, COUNT(s) as count, COALESCE(SUM(t.amount), 0) as revenue " +
+           "FROM SubscriptionOrder s JOIN s.proPackage p " +
+           "JOIN s.transaction t " +
+           "WHERE t.status = 'SUCCESSFUL' " +
+           "AND s.createdAt BETWEEN :startDate AND :endDate " +
+           "GROUP BY FUNCTION('DATE_FORMAT', s.createdAt, '%Y'), p.name " +
+           "ORDER BY year ASC")
+    List<Object[]> countPackageSalesByYearWithRevenue(@Param("startDate") LocalDateTime startDate,
+                                                       @Param("endDate") LocalDateTime endDate);
 }
 
 
