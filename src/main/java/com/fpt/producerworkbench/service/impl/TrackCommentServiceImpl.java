@@ -158,7 +158,7 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
         // Load replies nested nhiều cấp (giống Facebook)
         return replies.stream()
-                .map(reply -> mapToResponse(reply, true))  // ← Đổi từ false thành true để load nested
+                .map(reply -> mapToResponse(reply, true)) // ← Đổi từ false thành true để load nested
                 .collect(Collectors.toList());
     }
 
@@ -222,8 +222,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
         boolean isTrackOwner = comment.getTrack().getUser().getId().equals(currentUser.getId());
 
         if (!isCommentOwner && !isTrackOwner) {
-            throw new AppException(ErrorCode.ACCESS_DENIED, 
-                "Chỉ người tạo comment hoặc chủ track mới có quyền xóa");
+            throw new AppException(ErrorCode.ACCESS_DENIED,
+                    "Chỉ người tạo comment hoặc chủ track mới có quyền xóa");
         }
 
         // Soft delete
@@ -238,8 +238,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
     @Override
     @Transactional
-    public TrackCommentResponse updateCommentStatus(Authentication auth, Long commentId, 
-                                                   TrackCommentStatusUpdateRequest request) {
+    public TrackCommentResponse updateCommentStatus(Authentication auth, Long commentId,
+            TrackCommentStatusUpdateRequest request) {
         log.info("Cập nhật trạng thái comment {} thành {}", commentId, request.getStatus());
 
         // Lấy user hiện tại
@@ -261,7 +261,7 @@ public class TrackCommentServiceImpl implements TrackCommentService {
         comment.setStatus(request.getStatus());
         TrackComment updatedComment = trackCommentRepository.save(comment);
 
-        log.info("Đã cập nhật status comment {} từ {} thành {}", 
+        log.info("Đã cập nhật status comment {} từ {} thành {}",
                 commentId, oldStatus, request.getStatus());
 
         // Gửi email và thông báo cho comment owner
@@ -283,10 +283,12 @@ public class TrackCommentServiceImpl implements TrackCommentService {
             throw new AppException(ErrorCode.TRACK_NOT_FOUND);
         }
 
-        // Lấy số lượng theo từng status - CHỈ ĐẾM INTERNAL ROOM COMMENTS (clientDelivery IS NULL)
+        // Lấy số lượng theo từng status - CHỈ ĐẾM INTERNAL ROOM COMMENTS
+        // (clientDelivery IS NULL)
         Long totalComments = trackCommentRepository.countByTrackIdInternal(trackId);
         Long pendingComments = trackCommentRepository.countByTrackIdAndStatusInternal(trackId, CommentStatus.PENDING);
-        Long inProgressComments = trackCommentRepository.countByTrackIdAndStatusInternal(trackId, CommentStatus.IN_PROGRESS);
+        Long inProgressComments = trackCommentRepository.countByTrackIdAndStatusInternal(trackId,
+                CommentStatus.IN_PROGRESS);
         Long resolvedComments = trackCommentRepository.countByTrackIdAndStatusInternal(trackId, CommentStatus.RESOLVED);
 
         return TrackCommentStatisticsResponse.builder()
@@ -322,7 +324,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
     @Override
     @Transactional
-    public TrackCommentResponse createClientRoomComment(Authentication auth, Long deliveryId, TrackCommentCreateRequest request) {
+    public TrackCommentResponse createClientRoomComment(Authentication auth, Long deliveryId,
+            TrackCommentCreateRequest request) {
         log.info("Tạo comment mới trong Client Room cho delivery {}", deliveryId);
 
         // 1. Load user
@@ -359,8 +362,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     .orElseThrow(() -> new AppException(ErrorCode.PARENT_COMMENT_NOT_FOUND));
 
             // Kiểm tra parent comment thuộc về cùng ClientDelivery
-            if (parentComment.getClientDelivery() == null || 
-                !parentComment.getClientDelivery().getId().equals(deliveryId)) {
+            if (parentComment.getClientDelivery() == null ||
+                    !parentComment.getClientDelivery().getId().equals(deliveryId)) {
                 throw new AppException(ErrorCode.BAD_REQUEST, "Comment cha không thuộc về Client Room này");
             }
 
@@ -392,7 +395,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<TrackCommentResponse> getRootCommentsByClientDelivery(Authentication auth, Long deliveryId, Pageable pageable) {
+    public Page<TrackCommentResponse> getRootCommentsByClientDelivery(Authentication auth, Long deliveryId,
+            Pageable pageable) {
         log.info("Lấy danh sách comment gốc trong Client Room cho delivery {}", deliveryId);
 
         // 1. Load user
@@ -441,7 +445,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<TrackCommentResponse> getClientRoomCommentsByTimestamp(Authentication auth, Long deliveryId, Integer timestamp) {
+    public List<TrackCommentResponse> getClientRoomCommentsByTimestamp(Authentication auth, Long deliveryId,
+            Integer timestamp) {
         log.info("Lấy comment tại timestamp {} trong Client Room cho delivery {}", timestamp, deliveryId);
 
         // 1. Load user
@@ -492,9 +497,12 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
         // 4. Lấy số lượng theo từng status
         Long totalComments = trackCommentRepository.countByClientDeliveryId(deliveryId);
-        Long pendingComments = trackCommentRepository.countByClientDeliveryIdAndStatus(deliveryId, CommentStatus.PENDING);
-        Long inProgressComments = trackCommentRepository.countByClientDeliveryIdAndStatus(deliveryId, CommentStatus.IN_PROGRESS);
-        Long resolvedComments = trackCommentRepository.countByClientDeliveryIdAndStatus(deliveryId, CommentStatus.RESOLVED);
+        Long pendingComments = trackCommentRepository.countByClientDeliveryIdAndStatus(deliveryId,
+                CommentStatus.PENDING);
+        Long inProgressComments = trackCommentRepository.countByClientDeliveryIdAndStatus(deliveryId,
+                CommentStatus.IN_PROGRESS);
+        Long resolvedComments = trackCommentRepository.countByClientDeliveryIdAndStatus(deliveryId,
+                CommentStatus.RESOLVED);
 
         return TrackCommentStatisticsResponse.builder()
                 .trackId(delivery.getTrack().getId())
@@ -520,7 +528,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
         }
 
         // Check if user is project member with CLIENT or OBSERVER role
-        java.util.Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(), user.getId());
+        java.util.Optional<ProjectMember> memberOpt = projectMemberRepository.findByProjectIdAndUserId(project.getId(),
+                user.getId());
         if (memberOpt.isPresent()) {
             ProjectRole role = memberOpt.get().getProjectRole();
             // Client và Observer chỉ được xem nếu project đã funded
@@ -536,7 +545,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
      * Helper method: Gửi email thông báo comment trong Client Room
      * Gửi email cho project creator (chủ dự án) thay vì track owner
      */
-    private void sendClientRoomCommentNotification(TrackComment comment, ClientDelivery delivery, User commenter, Project project) {
+    private void sendClientRoomCommentNotification(TrackComment comment, ClientDelivery delivery, User commenter,
+            Project project) {
         try {
             Track track = delivery.getTrack();
             User projectCreator = project.getCreator(); // Chủ dự án (project creator)
@@ -550,20 +560,24 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     .filter(u -> u.getEmail() != null && !u.getEmail().isEmpty())
                     .collect(Collectors.toList());
 
+            // URL đầy đủ cho email (có FrontendProperties)
             String clientRoomUrl = buildClientRoomCommentUrl(track, delivery, project);
+            // Relative URL cho notification (không có FrontendProperties)
+            String clientRoomRelativeUrl = buildClientRoomCommentRelativeUrl(track, delivery, project);
 
             if (isCommenterProjectCreator) {
                 // Project Creator comment -> gửi email cho Client/Observer
                 for (User recipient : clientsAndObservers) {
                     Map<String, Object> params = new HashMap<>();
-                    params.put("recipientName", recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
+                    params.put("recipientName",
+                            recipient.getFullName() != null ? recipient.getFullName() : recipient.getEmail());
                     params.put("commenterName", commenter.getFullName());
-                    params.put("commenterAvatar", commenter.getAvatarUrl() != null ? 
-                              commenter.getAvatarUrl() : "https://via.placeholder.com/48");
+                    params.put("commenterAvatar", commenter.getAvatarUrl() != null ? commenter.getAvatarUrl()
+                            : "https://via.placeholder.com/48");
                     params.put("trackName", track.getName());
                     params.put("commentContent", comment.getContent());
-                    params.put("timestamp", comment.getTimestamp() != null ? 
-                              formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
+                    params.put("timestamp", comment.getTimestamp() != null ? formatTimestamp(comment.getTimestamp())
+                            : "Không có timestamp");
                     params.put("trackLink", clientRoomUrl);
 
                     // Gửi email qua Kafka
@@ -578,14 +592,14 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     kafkaTemplate.send(NOTIFICATION_TOPIC, event);
                     log.info("Đã gửi email thông báo comment cho client/observer {}", recipient.getEmail());
 
-                    // Gửi realtime notification
+                    // Gửi realtime notification với relative URL
                     sendRealtimeNotification(recipient,
                             "Chủ dự án đã comment",
                             String.format("%s đã comment trên sản phẩm \"%s\" trong Client Room",
                                     commenter.getFullName() != null ? commenter.getFullName() : commenter.getEmail(),
                                     track.getName()),
                             project.getId(),
-                            clientRoomUrl);
+                            clientRoomRelativeUrl);
                 }
             } else {
                 // Client/Observer comment -> gửi email cho Project Creator (chủ dự án)
@@ -593,12 +607,12 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     Map<String, Object> params = new HashMap<>();
                     params.put("trackOwnerName", projectCreator.getFullName());
                     params.put("commenterName", commenter.getFullName());
-                    params.put("commenterAvatar", commenter.getAvatarUrl() != null ? 
-                              commenter.getAvatarUrl() : "https://via.placeholder.com/48");
+                    params.put("commenterAvatar", commenter.getAvatarUrl() != null ? commenter.getAvatarUrl()
+                            : "https://via.placeholder.com/48");
                     params.put("trackName", track.getName());
                     params.put("commentContent", comment.getContent());
-                    params.put("timestamp", comment.getTimestamp() != null ? 
-                              formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
+                    params.put("timestamp", comment.getTimestamp() != null ? formatTimestamp(comment.getTimestamp())
+                            : "Không có timestamp");
                     params.put("trackLink", clientRoomUrl);
 
                     // Gửi email qua Kafka
@@ -613,14 +627,14 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                     kafkaTemplate.send(NOTIFICATION_TOPIC, event);
                     log.info("Đã gửi email thông báo comment cho project creator {}", projectCreator.getEmail());
 
-                    // Gửi realtime notification
+                    // Gửi realtime notification với relative URL
                     sendRealtimeNotification(projectCreator,
                             "Bạn có comment mới trong Client Room",
                             String.format("%s đã comment trên sản phẩm \"%s\" trong Client Room",
                                     commenter.getFullName() != null ? commenter.getFullName() : commenter.getEmail(),
                                     track.getName()),
                             project.getId(),
-                            clientRoomUrl);
+                            clientRoomRelativeUrl);
                 }
             }
 
@@ -671,8 +685,7 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 .content(comment.getContent())
                 .timestamp(comment.getTimestamp())
                 .status(comment.getStatus())
-                .parentCommentId(comment.getParentComment() != null ? 
-                                comment.getParentComment().getId() : null)
+                .parentCommentId(comment.getParentComment() != null ? comment.getParentComment().getId() : null)
                 .replyCount(replyCount)
                 .createdAt(comment.getCreatedAt())
                 .updatedAt(comment.getUpdatedAt())
@@ -690,7 +703,7 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 replies = trackCommentRepository.findRepliesByParentCommentId(comment.getId());
             }
             response.setReplies(replies.stream()
-                    .map(reply -> mapToResponse(reply, true))  // ← Đổi từ false thành true để load nested
+                    .map(reply -> mapToResponse(reply, true)) // ← Đổi từ false thành true để load nested
                     .collect(Collectors.toList()));
         }
 
@@ -712,19 +725,23 @@ public class TrackCommentServiceImpl implements TrackCommentService {
 
             // Lấy project từ track để tạo URL
             Project project = track.getMilestone() != null && track.getMilestone().getContract() != null
-                    ? track.getMilestone().getContract().getProject() : null;
+                    ? track.getMilestone().getContract().getProject()
+                    : null;
+            // URL đầy đủ cho email (có FrontendProperties)
             String trackUrl = buildTrackCommentUrl(comment);
+            // Relative URL cho notification (không có FrontendProperties)
+            String trackRelativeUrl = buildTrackCommentRelativeUrl(comment);
 
             Map<String, Object> params = new HashMap<>();
             params.put("trackOwnerName", trackOwner.getFullName());
             params.put("commenterName", commenter.getFullName());
-            params.put("commenterAvatar", commenter.getAvatarUrl() != null ? 
-                      commenter.getAvatarUrl() : "https://via.placeholder.com/48");
+            params.put("commenterAvatar",
+                    commenter.getAvatarUrl() != null ? commenter.getAvatarUrl() : "https://via.placeholder.com/48");
             params.put("trackName", track.getName());
             params.put("trackVersion", track.getVersion());
             params.put("commentContent", comment.getContent());
-            params.put("timestamp", comment.getTimestamp() != null ? 
-                      formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
+            params.put("timestamp",
+                    comment.getTimestamp() != null ? formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
             params.put("trackLink", trackUrl);
 
             // Gửi email qua Kafka
@@ -744,7 +761,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 // Fallback: gửi email trực tiếp
                 try {
                     String subject = "💬 Bạn có comment mới trên track: " + track.getName();
-                    String content = String.format("Xin chào %s,\n\n%s đã comment trên track \"%s\".\n\nNội dung: %s\n\nXem chi tiết: %s",
+                    String content = String.format(
+                            "Xin chào %s,\n\n%s đã comment trên track \"%s\".\n\nNội dung: %s\n\nXem chi tiết: %s",
                             trackOwner.getFullName() != null ? trackOwner.getFullName() : trackOwner.getEmail(),
                             commenter.getFullName() != null ? commenter.getFullName() : commenter.getEmail(),
                             track.getName(),
@@ -757,14 +775,14 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 }
             }
 
-            // Gửi realtime notification
-            sendRealtimeNotification(trackOwner, 
+            // Gửi realtime notification với relative URL
+            sendRealtimeNotification(trackOwner,
                     "Bạn có comment mới",
-                    String.format("%s đã comment trên track \"%s\"", 
+                    String.format("%s đã comment trên track \"%s\"",
                             commenter.getFullName() != null ? commenter.getFullName() : commenter.getEmail(),
                             track.getName()),
                     project != null ? project.getId() : null,
-                    trackUrl);
+                    trackRelativeUrl);
 
         } catch (Exception e) {
             log.error("Lỗi khi gửi email thông báo comment mới: {}", e.getMessage(), e);
@@ -789,16 +807,20 @@ public class TrackCommentServiceImpl implements TrackCommentService {
             String oldStatusText = getStatusText(oldStatus);
 
             // Lấy project từ track để tạo URL
-            Project project = comment.getTrack().getMilestone() != null 
+            Project project = comment.getTrack().getMilestone() != null
                     && comment.getTrack().getMilestone().getContract() != null
-                    ? comment.getTrack().getMilestone().getContract().getProject() : null;
+                            ? comment.getTrack().getMilestone().getContract().getProject()
+                            : null;
+            // URL đầy đủ cho email (có FrontendProperties)
             String trackUrl = buildTrackCommentUrl(comment);
+            // Relative URL cho notification (không có FrontendProperties)
+            String trackRelativeUrl = buildTrackCommentRelativeUrl(comment);
 
             Map<String, Object> params = new HashMap<>();
             params.put("commentOwnerName", commentOwner.getFullName());
             params.put("trackOwnerName", trackOwner.getFullName());
-            params.put("trackOwnerAvatar", trackOwner.getAvatarUrl() != null ? 
-                      trackOwner.getAvatarUrl() : "https://via.placeholder.com/48");
+            params.put("trackOwnerAvatar",
+                    trackOwner.getAvatarUrl() != null ? trackOwner.getAvatarUrl() : "https://via.placeholder.com/48");
             params.put("trackName", comment.getTrack().getName());
             params.put("trackVersion", comment.getTrack().getVersion());
             params.put("commentContent", comment.getContent());
@@ -819,13 +841,13 @@ public class TrackCommentServiceImpl implements TrackCommentService {
             kafkaTemplate.send(NOTIFICATION_TOPIC, event);
             log.info("Đã gửi email thông báo status update cho comment owner {}", commentOwner.getEmail());
 
-            // Gửi realtime notification
+            // Gửi realtime notification với relative URL
             sendRealtimeNotification(commentOwner,
                     "Trạng thái comment đã được cập nhật",
                     String.format("Comment của bạn trên track \"%s\" đã được cập nhật từ %s sang %s",
                             comment.getTrack().getName(), oldStatusText, statusText),
                     project != null ? project.getId() : null,
-                    trackUrl);
+                    trackRelativeUrl);
 
         } catch (Exception e) {
             log.error("Lỗi khi gửi email thông báo status update: {}", e.getMessage(), e);
@@ -834,37 +856,38 @@ public class TrackCommentServiceImpl implements TrackCommentService {
     }
 
     /**
-     * Helper method: Build URL cho track comment page
-     * Format: /track/{trackId}?trackId={trackId}&deliveryId={deliveryId}&milestoneId={milestoneId}&projectId={projectId}
+     * Helper method: Build URL đầy đủ cho track comment page (dùng cho email)
+     * Format:
+     * {frontendUrl}/track/{trackId}?trackId={trackId}&deliveryId={deliveryId}&milestoneId={milestoneId}&projectId={projectId}
      */
     private String buildTrackCommentUrl(TrackComment comment) {
         Track track = comment.getTrack();
         Long trackId = track.getId();
-        
+
         // Lấy milestoneId từ track
         Long milestoneId = null;
         if (track.getMilestone() != null) {
             milestoneId = track.getMilestone().getId();
         }
-        
+
         // Lấy deliveryId từ comment (nếu là Client Room comment)
         Long deliveryId = null;
         if (comment.getClientDelivery() != null) {
             deliveryId = comment.getClientDelivery().getId();
         }
-        
+
         // Lấy projectId từ milestone/contract
         Long projectId = null;
         if (track.getMilestone() != null && track.getMilestone().getContract() != null) {
             projectId = track.getMilestone().getContract().getProject().getId();
         }
-        
-        // Build URL với query parameters
+
+        // Build URL đầy đủ với FrontendProperties (dùng cho email)
         StringBuilder url = new StringBuilder();
         url.append(frontendProperties.getUrl());
-        url.append("/track/").append(deliveryId);
+        url.append("/track/").append(trackId);
         url.append("?trackId=").append(trackId);
-        
+
         if (deliveryId != null) {
             url.append("&deliveryId=").append(deliveryId);
         }
@@ -874,20 +897,68 @@ public class TrackCommentServiceImpl implements TrackCommentService {
         if (projectId != null) {
             url.append("&projectId=").append(projectId);
         }
-        
+
         return url.toString();
     }
 
     /**
-     * Helper method: Build URL cho Client Room comment page
-     * Format: /track/{trackId}?trackId={trackId}&deliveryId={deliveryId}&milestoneId={milestoneId}&projectId={projectId}
+     * Helper method: Build relative URL cho track comment page (dùng cho
+     * notification)
+     * Format:
+     * /track/{trackId}?trackId={trackId}&deliveryId={deliveryId}&milestoneId={milestoneId}&projectId={projectId}
+     */
+    private String buildTrackCommentRelativeUrl(TrackComment comment) {
+        Track track = comment.getTrack();
+        Long trackId = track.getId();
+
+        // Lấy milestoneId từ track
+        Long milestoneId = null;
+        if (track.getMilestone() != null) {
+            milestoneId = track.getMilestone().getId();
+        }
+
+        // Lấy deliveryId từ comment (nếu là Client Room comment)
+        Long deliveryId = null;
+        if (comment.getClientDelivery() != null) {
+            deliveryId = comment.getClientDelivery().getId();
+        }
+
+        // Lấy projectId từ milestone/contract
+        Long projectId = null;
+        if (track.getMilestone() != null && track.getMilestone().getContract() != null) {
+            projectId = track.getMilestone().getContract().getProject().getId();
+        }
+
+        // Build relative URL (không có FrontendProperties - dùng cho notification)
+        StringBuilder url = new StringBuilder();
+        url.append("/track/").append(trackId);
+        url.append("?trackId=").append(trackId);
+
+        if (deliveryId != null) {
+            url.append("&deliveryId=").append(deliveryId);
+        }
+        if (milestoneId != null) {
+            url.append("&milestoneId=").append(milestoneId);
+        }
+        if (projectId != null) {
+            url.append("&projectId=").append(projectId);
+        }
+
+        return url.toString();
+    }
+
+    /**
+     * Helper method: Build URL đầy đủ cho Client Room comment page (dùng cho email)
+     * Format:
+     * {frontendUrl}/track/{trackId}?trackId={trackId}&deliveryId={deliveryId}&milestoneId={milestoneId}&projectId={projectId}
      */
     private String buildClientRoomCommentUrl(Track track, ClientDelivery delivery, Project project) {
         Long trackId = track.getId();
         Long deliveryId = delivery.getId();
         Long milestoneId = delivery.getMilestone().getId();
         Long projectId = project.getId();
-        
+
+        // Build URL đầy đủ với FrontendProperties (dùng cho email)
         StringBuilder url = new StringBuilder();
         url.append(frontendProperties.getUrl());
         url.append("/track/").append(trackId);
@@ -895,7 +966,30 @@ public class TrackCommentServiceImpl implements TrackCommentService {
         url.append("&deliveryId=").append(deliveryId);
         url.append("&milestoneId=").append(milestoneId);
         url.append("&projectId=").append(projectId);
-        
+
+        return url.toString();
+    }
+
+    /**
+     * Helper method: Build relative URL cho Client Room comment page (dùng cho
+     * notification)
+     * Format:
+     * /track/{trackId}?trackId={trackId}&deliveryId={deliveryId}&milestoneId={milestoneId}&projectId={projectId}
+     */
+    private String buildClientRoomCommentRelativeUrl(Track track, ClientDelivery delivery, Project project) {
+        Long trackId = track.getId();
+        Long deliveryId = delivery.getId();
+        Long milestoneId = delivery.getMilestone().getId();
+        Long projectId = project.getId();
+
+        // Build relative URL (không có FrontendProperties - dùng cho notification)
+        StringBuilder url = new StringBuilder();
+        url.append("/track/").append(trackId);
+        url.append("?trackId=").append(trackId);
+        url.append("&deliveryId=").append(deliveryId);
+        url.append("&milestoneId=").append(milestoneId);
+        url.append("&projectId=").append(projectId);
+
         return url.toString();
     }
 
@@ -949,23 +1043,27 @@ public class TrackCommentServiceImpl implements TrackCommentService {
             User trackOwner = comment.getTrack().getUser();
 
             // Lấy project từ track để tạo URL
-            Project project = comment.getTrack().getMilestone() != null 
+            Project project = comment.getTrack().getMilestone() != null
                     && comment.getTrack().getMilestone().getContract() != null
-                    ? comment.getTrack().getMilestone().getContract().getProject() : null;
+                            ? comment.getTrack().getMilestone().getContract().getProject()
+                            : null;
+            // URL đầy đủ cho email (có FrontendProperties)
             String trackUrl = buildTrackCommentUrl(comment);
+            // Relative URL cho notification (không có FrontendProperties)
+            String trackRelativeUrl = buildTrackCommentRelativeUrl(comment);
 
             // Gửi email cho track owner nếu không phải là người comment
             if (!trackOwner.getId().equals(commentOwner.getId())) {
                 Map<String, Object> params = new HashMap<>();
                 params.put("trackOwnerName", trackOwner.getFullName());
                 params.put("commenterName", commentOwner.getFullName());
-                params.put("commenterAvatar", commentOwner.getAvatarUrl() != null ? 
-                          commentOwner.getAvatarUrl() : "https://via.placeholder.com/48");
+                params.put("commenterAvatar", commentOwner.getAvatarUrl() != null ? commentOwner.getAvatarUrl()
+                        : "https://via.placeholder.com/48");
                 params.put("trackName", comment.getTrack().getName());
                 params.put("trackVersion", comment.getTrack().getVersion());
                 params.put("commentContent", comment.getContent());
-                params.put("timestamp", comment.getTimestamp() != null ? 
-                          formatTimestamp(comment.getTimestamp()) : "Không có timestamp");
+                params.put("timestamp", comment.getTimestamp() != null ? formatTimestamp(comment.getTimestamp())
+                        : "Không có timestamp");
                 params.put("trackLink", trackUrl);
 
                 NotificationEvent event = NotificationEvent.builder()
@@ -979,14 +1077,15 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 kafkaTemplate.send(NOTIFICATION_TOPIC, event);
                 log.info("Đã gửi email thông báo comment được cập nhật cho track owner {}", trackOwner.getEmail());
 
-                // Gửi realtime notification
+                // Gửi realtime notification với relative URL
                 sendRealtimeNotification(trackOwner,
                         "Comment đã được cập nhật",
                         String.format("%s đã cập nhật comment trên track \"%s\"",
-                                commentOwner.getFullName() != null ? commentOwner.getFullName() : commentOwner.getEmail(),
+                                commentOwner.getFullName() != null ? commentOwner.getFullName()
+                                        : commentOwner.getEmail(),
                                 comment.getTrack().getName()),
                         project != null ? project.getId() : null,
-                        trackUrl);
+                        trackRelativeUrl);
             }
 
         } catch (Exception e) {
@@ -1003,18 +1102,22 @@ public class TrackCommentServiceImpl implements TrackCommentService {
             User trackOwner = comment.getTrack().getUser();
 
             // Lấy project từ track để tạo URL
-            Project project = comment.getTrack().getMilestone() != null 
+            Project project = comment.getTrack().getMilestone() != null
                     && comment.getTrack().getMilestone().getContract() != null
-                    ? comment.getTrack().getMilestone().getContract().getProject() : null;
+                            ? comment.getTrack().getMilestone().getContract().getProject()
+                            : null;
+            // URL đầy đủ cho email (có FrontendProperties)
             String trackUrl = buildTrackCommentUrl(comment);
+            // Relative URL cho notification (không có FrontendProperties)
+            String trackRelativeUrl = buildTrackCommentRelativeUrl(comment);
 
             // Nếu track owner xóa comment của người khác -> thông báo cho comment owner
             if (!isCommentOwner && !trackOwner.getId().equals(commentOwner.getId())) {
                 Map<String, Object> params = new HashMap<>();
                 params.put("commentOwnerName", commentOwner.getFullName());
                 params.put("trackOwnerName", trackOwner.getFullName());
-                params.put("trackOwnerAvatar", trackOwner.getAvatarUrl() != null ? 
-                          trackOwner.getAvatarUrl() : "https://via.placeholder.com/48");
+                params.put("trackOwnerAvatar", trackOwner.getAvatarUrl() != null ? trackOwner.getAvatarUrl()
+                        : "https://via.placeholder.com/48");
                 params.put("trackName", comment.getTrack().getName());
                 params.put("trackVersion", comment.getTrack().getVersion());
                 params.put("commentContent", comment.getContent());
@@ -1031,21 +1134,21 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 kafkaTemplate.send(NOTIFICATION_TOPIC, event);
                 log.info("Đã gửi email thông báo comment bị xóa cho comment owner {}", commentOwner.getEmail());
 
-                // Gửi realtime notification
+                // Gửi realtime notification với relative URL
                 sendRealtimeNotification(commentOwner,
                         "Comment của bạn đã bị xóa",
                         String.format("Comment của bạn trên track \"%s\" đã bị xóa bởi chủ track",
                                 comment.getTrack().getName()),
                         project != null ? project.getId() : null,
-                        trackUrl);
+                        trackRelativeUrl);
             }
             // Nếu comment owner tự xóa -> thông báo cho track owner
             else if (isCommentOwner && !trackOwner.getId().equals(commentOwner.getId())) {
                 Map<String, Object> params = new HashMap<>();
                 params.put("trackOwnerName", trackOwner.getFullName());
                 params.put("commenterName", commentOwner.getFullName());
-                params.put("commenterAvatar", commentOwner.getAvatarUrl() != null ? 
-                          commentOwner.getAvatarUrl() : "https://via.placeholder.com/48");
+                params.put("commenterAvatar", commentOwner.getAvatarUrl() != null ? commentOwner.getAvatarUrl()
+                        : "https://via.placeholder.com/48");
                 params.put("trackName", comment.getTrack().getName());
                 params.put("trackVersion", comment.getTrack().getVersion());
                 params.put("trackLink", trackUrl);
@@ -1061,14 +1164,15 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                 kafkaTemplate.send(NOTIFICATION_TOPIC, event);
                 log.info("Đã gửi email thông báo comment bị xóa cho track owner {}", trackOwner.getEmail());
 
-                // Gửi realtime notification
+                // Gửi realtime notification với relative URL
                 sendRealtimeNotification(trackOwner,
                         "Comment đã được xóa",
                         String.format("%s đã xóa comment trên track \"%s\"",
-                                commentOwner.getFullName() != null ? commentOwner.getFullName() : commentOwner.getEmail(),
+                                commentOwner.getFullName() != null ? commentOwner.getFullName()
+                                        : commentOwner.getEmail(),
                                 comment.getTrack().getName()),
                         project != null ? project.getId() : null,
-                        trackUrl);
+                        trackRelativeUrl);
             }
 
         } catch (Exception e) {
@@ -1079,7 +1183,8 @@ public class TrackCommentServiceImpl implements TrackCommentService {
     /**
      * Helper method: Gửi realtime notification (in-app notification)
      */
-    private void sendRealtimeNotification(User recipient, String title, String message, Long projectId, String actionUrl) {
+    private void sendRealtimeNotification(User recipient, String title, String message, Long projectId,
+            String actionUrl) {
         try {
             if (recipient.getId() == null) {
                 log.warn("Không thể gửi notification: user không có ID");
@@ -1092,11 +1197,11 @@ public class TrackCommentServiceImpl implements TrackCommentService {
                             .type(NotificationType.SYSTEM)
                             .title(title)
                             .message(message)
-                            .relatedEntityType(projectId != null ? RelatedEntityType.PROJECT : RelatedEntityType.MILESTONE)
+                            .relatedEntityType(
+                                    projectId != null ? RelatedEntityType.PROJECT : RelatedEntityType.MILESTONE)
                             .relatedEntityId(projectId)
                             .actionUrl(actionUrl)
-                            .build()
-            );
+                            .build());
 
             log.info("Đã gửi notification realtime cho user: {}", recipient.getId());
 
@@ -1105,6 +1210,3 @@ public class TrackCommentServiceImpl implements TrackCommentService {
         }
     }
 }
-
-
-
